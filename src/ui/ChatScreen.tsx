@@ -3,9 +3,9 @@ import { useApp } from '../App';
 import { api, publicUrl, type ChatFull, type Polo } from '../lib/api';
 import { onLive, onPresence, onReconnect, presenceOf, send as liveSend, setStatus } from '../lib/live';
 import { onOutbox, outgoing, retry, discard, sendRecording, sendText, undo, UNDO_MS } from '../lib/outbox';
-import { LOOKS, Studio, probeFile, type LookId, type Stroke } from '../lib/studio';
+import { LOOKS, Studio, probeFile, type LookId, type Recording, type Stroke } from '../lib/studio';
 import { VOICES, type VoiceId } from '../lib/voice';
-import { Captioner, isIOS, speechSupported } from '../lib/speech';
+import { Captioner, isIOS, speechSupported, type Seg } from '../lib/speech';
 import { recStart, recStop } from '../lib/sound';
 import { Avatar, Sheet, THEMES, chatTitle, clock, toast } from './bits';
 import { Icon } from './icons';
@@ -47,6 +47,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const [typing, setTyping] = useState(false);
   const [msg, setMsg] = useState('');
   const [caption, setCaption] = useState('');
+  const [review, setReview] = useState<{ rec: Recording; segs: Seg[]; url: string } | null>(null);
   const captioner = useRef<Captioner | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
@@ -58,6 +59,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   }, [chatId]);
 
   useEffect(() => { void load(); }, [load]);
+  // the invite sheet opens once after making a chat; drop it from the address so a reload doesn't reopen it
+  useEffect(() => { if (route[2] === 'invite') history.replaceState(null, '', `${location.pathname}#/c/${chatId}`); }, [route, chatId]);
   useEffect(() => onLive(e => { if (e.chat === chatId) void load(); }), [chatId, load]);
   useEffect(() => onReconnect(id => { if (id === chatId) void load(); }), [chatId, load]);
   // backstop in case a live ping is missed
@@ -83,9 +86,14 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     }
   }, [hd, look, voice]);
 
+  const startRef = useRef(startCam); startRef.current = startCam;
   useEffect(() => {
     void startCam();
-    const vis = () => { if (document.hidden && !studio.current?.recording) { studio.current?.close(); setCamState('off'); } };
+    let closedByHide = false;
+    const vis = () => {
+      if (document.hidden && !studio.current?.recording) { studio.current?.close(); closedByHide = true; setCamState('off'); }
+      else if (!document.hidden && closedByHide) { closedByHide = false; void startRef.current(); }
+    };
     document.addEventListener('visibilitychange', vis);
     return () => { document.removeEventListener('visibilitychange', vis); studio.current?.close(); studio.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -138,8 +146,11 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     const segs = captioner.current?.stop() || []; captioner.current = null;
     if (!rec) return;
     if (rec.duration < 0.8) { toast('Too short. Tap once to start, tap again to send.'); return; }
-    const key = sendRecording(chatId, me.id, rec, segs.length ? JSON.stringify(segs) : null, () => { void load(); void refresh(); });
-    toast('Sending', { label: 'Undo', run: () => undo(key) }, UNDO_MS);
+    if (prefs.review) { setReview({ rec, segs, url: URL.createObjectURL(rec.blob) }); }
+    else {
+      const key = sendRecording(chatId, me.id, rec, segs.length ? JSON.stringify(segs) : null, () => { void load(); void refresh(); });
+      toast('Sending', { label: 'Undo', run: () => undo(key) }, UNDO_MS);
+    }
     // clear one-shot overlays after a send
     if (s.strokes.length) { s.strokes = []; s.markDirty(); }
   };
@@ -349,6 +360,20 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         {recording && <div className="rec-hint">Tap to send</div>}
       </div>
 
+      {review && (
+        <div className="review">
+          {review.rec.kind === 'video'
+            ? <video src={review.url} autoPlay loop playsInline className="p-video" />
+            : <div className="p-audio" style={{ ['--c' as string]: me.color }}><div className="p-audio-ring"><Avatar p={me} size={140} /></div><audio src={review.url} autoPlay loop /></div>}
+          <div className="review-bar">
+            <button className="btn" onClick={() => { URL.revokeObjectURL(review.url); setReview(null); }}><Icon name="undo" size={18} /> Retake</button>
+            <button className="btn primary" onClick={() => {
+              sendRecording(chatId, me.id, review.rec, review.segs.length ? JSON.stringify(review.segs) : null, () => { void load(); void refresh(); });
+              setReview(null); toast('Sent');
+            }}><Icon name="send" size={18} /> Send</button>
+          </div>
+        </div>
+      )}
       {player && chat && (
         <Player chat={chat} list={player.list} start={player.start} me={me} onClose={closePlayer} onChanged={() => void load()} />
       )}

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { api, getToken, setToken, type Home } from './lib/api';
 import { onLive, setMe, syncChats } from './lib/live';
-import { busy } from './lib/outbox';
+import { busy, resumeOutbox } from './lib/outbox';
 import { Toaster, toast, chatTitle } from './ui/bits';
 import { Onboard } from './ui/Onboard';
 import { HomeScreen } from './ui/HomeScreen';
@@ -40,6 +40,7 @@ export default function App() {
       const h = await api.home();
       setHome(h); setLoadErr('');
       setMe(h.me.id); syncChats(h.chats.map(c => c.id));
+      void resumeOutbox(h.me.id, () => { void api.home().then(setHome).catch(() => {}); });
     } catch (e) {
       const m = e instanceof Error ? e.message : '';
       if (/not signed in/.test(m)) { setToken(null); setSignedIn(false); setHome(null); }

@@ -109,6 +109,18 @@ await shot(B, '12b-B-voice');
 await B.keyboard.press('Escape');
 await A.click('.rail-btn:has-text("Voice only")');
 
+step('A records, closes the app mid-send, reopens: it still sends');
+const bBefore = await B.locator('.tile').count();
+await A.click('.rec'); await A.waitForTimeout(1800); await A.click('.rec');
+await A.waitForTimeout(700);
+await A.reload();
+await A.waitForTimeout(12000);
+await B.waitForTimeout(16000); // B's 15 s backstop poll at worst
+const bAfter = await B.locator('.tile').count();
+console.log('resume', JSON.stringify({ bBefore, bAfter }));
+await shot(A, '12c-A-after-reload');
+console.log('A side-btns', await A.locator('.rec-row .side-btn').count(), await A.evaluate(() => [...document.querySelectorAll('.rec-row .side-btn')].map(e => e.getBoundingClientRect().toJSON())));
+
 step('A sees reaction + note');
 await A.waitForTimeout(4000);
 const bBannerAfter = await B.locator('.rec-banner').count();

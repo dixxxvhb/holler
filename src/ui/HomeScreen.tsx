@@ -5,6 +5,23 @@ import { onPresence, presenceOf } from '../lib/live';
 import { Avatar, AvatarStack, Sheet, ago, chatTitle, THEMES, toast } from './bits';
 import { Icon } from './icons';
 import { isIOS } from '../lib/speech';
+import { enablePush, pushState } from '../lib/push';
+
+function PushNudge() {
+  const [st, setSt] = useState('');
+  const [hide, setHide] = useState(() => { try { return !!localStorage.getItem('holler.pushnudge'); } catch { return false; } });
+  useEffect(() => { void pushState().then(setSt); }, []);
+  if (hide || st !== 'off') return null;
+  const done = () => { try { localStorage.setItem('holler.pushnudge', '1'); } catch { /* */ } setHide(true); };
+  return (
+    <div className="hint">
+      <div><b>Want a ping when someone hollers?</b><span>Even when Holler is closed.</span>
+        <span className="row gap" style={{ marginTop: 6 }}><button className="btn primary" style={{ minHeight: 40 }} onClick={async () => { const r = await enablePush(); setSt(r); if (r === 'on') toast('Pings on'); done(); }}>Turn on</button></span>
+      </div>
+      <button className="icon-btn" aria-label="Dismiss" onClick={done}><Icon name="close" size={18} /></button>
+    </div>
+  );
+}
 
 function InstallHint() {
   const standalone = (navigator as unknown as { standalone?: boolean }).standalone || matchMedia('(display-mode: standalone)').matches;
@@ -51,6 +68,7 @@ export function HomeScreen() {
       </header>
 
       <InstallHint />
+      {home.chats.length > 0 && <PushNudge />}
       {home.chats.length === 0 ? (
         <div className="empty">
           <div className="empty-art"><i /><i /><i /></div>
