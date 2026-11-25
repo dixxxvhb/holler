@@ -1,0 +1,113 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { api, getToken, setToken, type Home } from './lib/api';
+import { onLive, setMe, syncChats } from './lib/live';
+import { busy } from './lib/outbox';
+import { Toaster, toast, chatTitle } from './ui/bits';
+import { Onboard } from './ui/Onboard';
+import { HomeScreen } from './ui/HomeScreen';
+import { ChatScreen } from './ui/ChatScreen';
+import { Settings } from './ui/Settings';
+import { Saved } from './ui/Saved';
+import { ding } from './lib/sound';
+
+type Ctx = { home: Home | null; refresh: () => Promise<void>; go: (h: string) => void; route: string[] };
+const AppCtx = createContext<Ctx>(null as unknown as Ctx);
+export const useApp = () => useContext(AppCtx);
+
+function parse() { return (location.hash.replace(/^#\/?/, '') || '').split('/').filter(Boolean); }
+
+export default function App() {
+  const [route, setRoute] = useState(parse());
+  const [home, setHome] = useState<Home | null>(null);
+  const [signedIn, setSignedIn] = useState(!!getToken());
+  const [loadErr, setLoadErr] = useState('');
+  const routeRef = useRef(route); routeRef.current = route;
+
+  useEffect(() => { const f = () => setRoute(parse()); window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
+  const go = useCallback((h: string) => { location.hash = h; }, []);
+
+  // a link from another device: #/link/<token>
+  useEffect(() => {
+    if (route[0] === 'link' && route[1]) {
+      setToken(route[1]); setSignedIn(true); history.replaceState(null, '', location.pathname + '#/'); setRoute([]);
+      toast('This device is linked');
+    }
+  }, [route]);
+
+  const refresh = useCallback(async () => {
+    if (!getToken()) return;
+    try {
+      const h = await api.home();
+      setHome(h); setLoadErr('');
+      setMe(h.me.id); syncChats(h.chats.map(c => c.id));
+    } catch (e) {
+      const m = e instanceof Error ? e.message : '';
+      if (/not signed in/.test(m)) { setToken(null); setSignedIn(false); setHome(null); }
+      else setLoadErr(m || 'Could not reach Holler');
+    }
+  }, []);
+
+  useEffect(() => { if (signedIn) void refresh(); }, [signedIn, refresh]);
+
+  // join links: #/join/CODE (after sign-in)
+  useEffect(() => {
+    if (!signedIn || !home || route[0] !== 'join' || !route[1]) return;
+    api.join(route[1]).then(c => { void refresh(); go(`/c/${c.id}`); toast(`You're in ${chatTitle(c, home.me.id)}`); })
+      .catch(e => { toast(e.message); go('/'); });
+  }, [signedIn, home, route, refresh, go]);
+
+  // anything new anywhere: refresh home; ping if it's not the chat on screen
+  useEffect(() => onLive(e => {
+    if (e.type !== 'polo' && e.type !== 'chat') return;
+    void refresh();
+    const onIt = routeRef.current[0] === 'c' && routeRef.current[1] === e.chat && !document.hidden;
+    if (e.type === 'polo' && !e.data?.deleted && !onIt) {
+      setHome(h => {
+        const c = h?.chats.find(x => x.id === e.chat); const who = c?.members.find(m => m.id === e.from);
+        if (c && !c.muted) {
+          ding(h?.me.prefs?.sounds !== false);
+          const txt = `${who?.name.split(' ')[0] || 'Someone'} hollered${c.name ? ' in ' + c.name : ''}`;
+          if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+            try { new Notification('Holler', { body: txt, tag: e.chat, icon: './icon-192.png' }); } catch { /* some browsers need the SW */ }
+          } else toast(txt, { label: 'Watch', run: () => go(`/c/${e.chat}`) }, 5000);
+        }
+        return h;
+      });
+    }
+  }), [refresh, go]);
+
+  useEffect(() => { const i = setInterval(() => { if (!document.hidden && routeRef.current[0] !== 'c') void refresh(); }, 20000); return () => clearInterval(i); }, [refresh]);
+
+  // catch up when the app comes back to the front
+  useEffect(() => {
+    const f = () => { if (!document.hidden) void refresh(); };
+    document.addEventListener('visibilitychange', f); return () => document.removeEventListener('visibilitychange', f);
+  }, [refresh]);
+
+  useEffect(() => {
+    const f = (e: BeforeUnloadEvent) => { if (busy()) { e.preventDefault(); e.returnValue = ''; } };
+    window.addEventListener('beforeunload', f); return () => window.removeEventListener('beforeunload', f);
+  }, []);
+
+  const ctx = useMemo(() => ({ home, refresh, go, route }), [home, refresh, go, route]);
+
+  let screen;
+  if (!signedIn) screen = <Onboard joining={route[0] === 'join' ? route[1] : undefined} onDone={() => setSignedIn(true)} />;
+  else if (!home) screen = (
+    <div className="center-screen">
+      <div className="logo-pulse" />
+      {loadErr && <><p className="muted">{loadErr}</p><button className="btn" onClick={() => void refresh()}>Try again</button></>}
+    </div>
+  );
+  else if (route[0] === 'c' && route[1]) screen = <ChatScreen key={route[1]} chatId={route[1]} />;
+  else if (route[0] === 'settings') screen = <Settings onSignOut={() => { setToken(null); setSignedIn(false); setHome(null); go('/'); }} />;
+  else if (route[0] === 'saved') screen = <Saved />;
+  else screen = <HomeScreen />;
+
+  return (
+    <AppCtx.Provider value={ctx}>
+      {screen}
+      <Toaster />
+    </AppCtx.Provider>
+  );
+}
