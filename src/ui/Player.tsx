@@ -22,8 +22,8 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
   const [cc, setCc] = useState(me.prefs?.captions !== false);
   const [bursts, setBursts] = useState<{ id: number; kind: string; x: number; who?: Person }[]>([]);
   const [menu, setMenu] = useState(false);
-  const vid = useRef<HTMLVideoElement>(null);
-  const aud = useRef<HTMLAudioElement>(null);
+  const [needTap, setNeedTap] = useState(false);
+  const vid = useRef<HTMLVideoElement>(null); // one element for every video and voice holler (iOS lets a played element keep playing)
   const textTimer = useRef(0);
   const shown = useRef(new Set<string>());
   const holdTimer = useRef(0);
@@ -34,7 +34,7 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
   const author = members.find(m => m.id === polo?.author) || (polo?.author === me.id ? me : undefined);
   const segs = parseTranscript(polo?.transcript || null);
   const dur = polo?.duration || 0;
-  const el = () => (polo?.kind === 'audio' ? aud.current : vid.current);
+  const el = () => vid.current;
 
   const next = useCallback(() => {
     setIdx(i => { if (i + 1 >= items.length) { onClose(); return i; } return i + 1; });
@@ -45,12 +45,12 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
   useEffect(() => {
     if (!polo) return;
     let gone = false;
-    setSrc(null); setT(0); setPaused(false); shown.current = new Set(); clearTimeout(textTimer.current);
+    setSrc(null); setT(0); setPaused(false); setNeedTap(false); shown.current = new Set(); clearTimeout(textTimer.current);
     if (polo.author !== me.id && !polo.views.some(v => v.who === me.id)) {
       api.view(polo.id).then(() => liveSend(polo.chat, 'view', { id: polo.id })).catch(() => {});
     }
     if (polo.kind === 'text') {
-      setLoading(false);
+      setLoading(false); vid.current?.pause();
       const ms = Math.min(9000, 2500 + (polo.body || '').split(/\s+/).length * 280);
       textTimer.current = window.setTimeout(next, ms);
     } else if (polo.path) {
@@ -64,6 +64,13 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
   }, [polo?.id]);
 
   useEffect(() => { const e = el(); if (e) e.playbackRate = speed; });
+  // start each one; if the browser wants a tap first (iPhone sound rules), ask for one
+  useEffect(() => {
+    const e = vid.current; if (!e || !src) return;
+    e.src = src; e.playbackRate = speed;
+    e.play().then(() => setNeedTap(false)).catch(err => { if (err?.name === 'NotAllowedError') { setNeedTap(true); setLoading(false); } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src]);
 
   const onTime = () => {
     const e = el(); if (!e) return;
@@ -98,6 +105,7 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
     const e = el();
     if (polo.kind === 'text') { clearTimeout(textTimer.current); setPaused(p => { if (p) textTimer.current = window.setTimeout(next, 2500); return !p; }); return; }
     if (!e) return;
+    if (needTap) { void e.play().then(() => setNeedTap(false)); return; }
     if (e.paused) { void e.play(); setPaused(false); } else { e.pause(); setPaused(true); }
   };
 
@@ -163,23 +171,21 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
       </div>
 
       <div className="stage" onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={() => clearTimeout(holdTimer.current)}>
-        {polo.kind === 'video' && src && (
-          <video ref={vid} key={polo.id} src={src} autoPlay playsInline className="p-video"
-            onLoadedData={() => setLoading(false)} onCanPlay={() => setLoading(false)} onTimeUpdate={onTime} onEnded={next}
-            onError={() => { setLoading(false); toast('This one would not play here'); }}
-            onPlay={() => { const e = vid.current; if (e) e.playbackRate = speed; }} />
-        )}
+        <video ref={vid} playsInline preload="auto" className={`p-video ${polo.kind === 'video' ? '' : 'gone'}`}
+          onLoadedData={() => setLoading(false)} onCanPlay={() => setLoading(false)} onTimeUpdate={onTime} onEnded={next}
+          onError={() => { if (vid.current?.getAttribute('src')) { setLoading(false); toast('This one would not play here'); } }}
+          onPlay={() => { const e = vid.current; if (e) e.playbackRate = speed; }} />
         {polo.kind === 'audio' && (
           <div className="p-audio" style={{ ['--c' as string]: author?.color }}>
             <div className="p-audio-ring"><Avatar p={author} size={140} /></div>
-            {src && <audio ref={aud} key={polo.id} src={src} autoPlay onCanPlay={() => setLoading(false)} onTimeUpdate={onTime} onEnded={next} />}
           </div>
         )}
         {polo.kind === 'text' && (
           <div className="p-text" style={{ ['--c' as string]: author?.color }}><p>{polo.body}</p></div>
         )}
         {loading && polo.kind !== 'text' && <div className="spinner" />}
-        {paused && <div className="paused"><Icon name="play" size={48} fill="currentColor" /></div>}
+        {needTap && <div className="paused tap"><Icon name="play" size={56} fill="currentColor" /><span>Tap to play</span></div>}
+        {paused && !needTap && <div className="paused"><Icon name="play" size={48} fill="currentColor" /></div>}
         {cc && caption && <div className="p-cap">{caption}</div>}
         <div className="bursts">
           {bursts.map(b => {

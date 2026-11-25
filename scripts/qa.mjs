@@ -95,6 +95,20 @@ await B.click('.sheet .btn.primary');
 await B.waitForTimeout(1500);
 await shot(B, '12-B-after-text');
 
+step('A sends a voice-only holler, B plays it');
+await A.click('.rail-btn:has-text("Voice only")');
+await A.click('.rec'); await A.waitForTimeout(2200); await A.click('.rec');
+await A.waitForTimeout(6000);
+await B.waitForSelector('.new-pill', { timeout: 20000 });
+await B.click('.new-pill', { force: true });
+await B.waitForSelector('.p-audio');
+await B.waitForTimeout(1500);
+const aud = await B.evaluate(() => { const v = document.querySelector('.p-video'); return v ? { ready: v.readyState, t: v.currentTime, paused: v.paused, err: v.error?.code } : null; });
+console.log('B voice', JSON.stringify(aud));
+await shot(B, '12b-B-voice');
+await B.keyboard.press('Escape');
+await A.click('.rail-btn:has-text("Voice only")');
+
 step('A sees reaction + note');
 await A.waitForTimeout(4000);
 const bBannerAfter = await B.locator('.rec-banner').count();
