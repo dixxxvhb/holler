@@ -57,7 +57,7 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
 
       <section className="card profile">
         <button className="av-edit" onClick={() => fileRef.current?.click()} aria-label="Change photo">
-          <Avatar p={me} size={88} /><span><Icon name="camera" size={16} /></span>
+          <Avatar p={me} size={88} /><span className="av-badge"><Icon name="camera" size={16} /></span>
         </button>
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { void onAvatar(e.target.files?.[0]); e.target.value = ''; }} />
         <input className="field" maxLength={40} value={name} onChange={e => setName(e.target.value)} onBlur={() => void saveName()} />
@@ -71,6 +71,7 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
       <section className="card">
         <Toggle label="HD video" hint="Sharper, about 2.5x the size. Up to 2.5 minutes." on={!!prefs.hd} set={v => void set({ hd: v })} />
         <Toggle label="Live captions" hint={speechSupported() && !isIOS() ? 'Writes down what you say so others can read along and search.' : 'Not available in this browser. Works in Chrome on Android and computers.'} on={prefs.captions !== false} set={v => void set({ captions: v })} />
+        <Toggle label="Simple camera" hint="Turns off looks, drawing and text on video. Use it if recordings come out black or choppy on your phone." on={!!prefs.simple} set={v => void set({ simple: v })} />
         <Row label="Default look"><select className="field sel" value={prefs.look || 'none'} onChange={e => void set({ look: e.target.value })}>{LOOKS.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}</select></Row>
         <Row label="Default voice"><select className="field sel" value={prefs.voice || 'none'} onChange={e => void set({ voice: e.target.value })}>{VOICES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}</select></Row>
       </section>

@@ -72,6 +72,7 @@ export class Studio {
   live: Stroke | null = null;
   text: TextLayer = null;
   glOk = false;
+  simple = false;
   private gl: WebGLRenderingContext | null = null;
   private texV: WebGLTexture | null = null;
   private texO: WebGLTexture | null = null;
@@ -108,7 +109,7 @@ export class Studio {
     await this.video.play().catch(() => { /* iOS needs a gesture sometimes; frames still flow */ });
     this.canvas.width = w; this.canvas.height = h;
     this.overlay.width = w; this.overlay.height = h; this.ovDirty = true;
-    if (!this.gl) this.initGL();
+    if (!this.gl && !this.simple) this.initGL();
     cancelAnimationFrame(this.raf);
     const loop = () => { this.draw(); this.raf = requestAnimationFrame(loop); };
     loop();

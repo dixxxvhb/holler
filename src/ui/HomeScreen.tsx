@@ -4,6 +4,19 @@ import { api, publicUrl } from '../lib/api';
 import { onPresence, presenceOf } from '../lib/live';
 import { Avatar, AvatarStack, Sheet, ago, chatTitle, THEMES, toast } from './bits';
 import { Icon } from './icons';
+import { isIOS } from '../lib/speech';
+
+function InstallHint() {
+  const standalone = (navigator as unknown as { standalone?: boolean }).standalone || matchMedia('(display-mode: standalone)').matches;
+  const [hide, setHide] = useState(() => { try { return !!localStorage.getItem('holler.hint'); } catch { return false; } });
+  if (standalone || hide || !isIOS()) return null;
+  return (
+    <div className="hint">
+      <div><b>Put Holler on your Home Screen</b><span>Tap Share, then Add to Home Screen. Then you can get a ping when someone hollers.</span></div>
+      <button className="icon-btn" aria-label="Dismiss" onClick={() => { try { localStorage.setItem('holler.hint', '1'); } catch { /* */ } setHide(true); }}><Icon name="close" size={18} /></button>
+    </div>
+  );
+}
 
 export function HomeScreen() {
   const { home, go, refresh } = useApp();
@@ -37,6 +50,7 @@ export function HomeScreen() {
         </div>
       </header>
 
+      <InstallHint />
       {home.chats.length === 0 ? (
         <div className="empty">
           <div className="empty-art"><i /><i /><i /></div>
@@ -60,7 +74,7 @@ export function HomeScreen() {
               <li key={c.id}>
                 <button className={`chat-card ${c.unread ? 'unread' : ''}`} style={{ ['--accent' as string]: accent }} onClick={() => go(`/c/${c.id}`)}>
                   <div className="cc-thumb">
-                    {c.last?.thumb ? <img src={publicUrl(c.last.thumb)} alt="" loading="lazy" /> : c.last?.kind === 'text' ? <span className="cc-text">{c.last.body}</span> : c.last?.kind === 'audio' ? <Icon name="wave" size={28} /> : <Icon name="camera" size={26} />}
+                    {c.last?.thumb ? <img src={publicUrl(c.last.thumb)} alt="" loading="lazy" /> : c.last?.kind === 'text' ? <span className="cc-text" style={{ background: lastBy?.color, color: '#150c08' }}>{c.last.body}</span> : c.last?.kind === 'audio' ? <Icon name="wave" size={28} /> : <Icon name="camera" size={26} />}
                     {c.unread > 0 && <span className="badge">{c.unread}</span>}
                   </div>
                   <div className="cc-body">

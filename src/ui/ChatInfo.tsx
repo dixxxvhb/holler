@@ -50,7 +50,7 @@ export function ChatInfo({ open, onClose, chat, onChanged }: { open: boolean; on
       <div className="lbl">People ({chat.members.length})</div>
       <ul className="people">
         {chat.members.map(m => (
-          <li key={m.id}><Avatar p={m} size={36} /><span>{m.id === me.id ? `${m.name} (you)` : m.name}</span><em>{m.id === me.id ? '' : `active ${ago(m.lastSeen)}`}</em></li>
+          <li key={m.id}><Avatar p={m} size={36} /><span className="pname">{m.id === me.id ? `${m.name} (you)` : m.name}</span><em>{m.id === me.id ? '' : `active ${ago(m.lastSeen)}`}</em></li>
         ))}
       </ul>
 

@@ -73,10 +73,10 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     setCamState('starting');
     try {
       if (!studio.current) studio.current = new Studio(canvasRef.current);
-      const s = studio.current; s.look = look; s.voice = voice;
+      const s = studio.current; s.look = look; s.voice = voice; s.simple = !!prefs.simple;
       await s.open({ hd });
       s.onLevel = v => setLevel(v);
-      if (!s.glOk && previewRef.current && !previewRef.current.contains(s.video)) { s.video.className = 'raw-video'; previewRef.current.appendChild(s.video); }
+      if (!s.glOk && previewRef.current && !previewRef.current.contains(s.video)) { s.video.className = `raw-video ${s.facing === 'user' ? 'mirror' : ''}`; previewRef.current.appendChild(s.video); }
       setCamState('on');
     } catch (e) {
       console.warn(e); setCamState('denied');
@@ -244,10 +244,12 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       {!recording && (
         <aside className="rail">
           <button className="rail-btn" onClick={() => void studio.current?.flip()} aria-label="Flip camera"><Icon name="flip" /><span>Flip</span></button>
+          {!prefs.simple && <>
           <button className={`rail-btn ${panel === 'looks' ? 'on' : ''} ${look !== 'none' ? 'set' : ''}`} onClick={() => toggle('looks')}><Icon name="wand" /><span>Looks</span></button>
           <button className={`rail-btn ${panel === 'voice' ? 'on' : ''} ${voice !== 'none' ? 'set' : ''}`} onClick={() => toggle('voice')}><Icon name="mic" /><span>Voice</span></button>
           <button className={`rail-btn ${panel === 'draw' ? 'on' : ''} ${studio.current?.strokes.length ? 'set' : ''}`} onClick={() => toggle('draw')}><Icon name="pen" /><span>Draw</span></button>
           <button className={`rail-btn ${panel === 'text' ? 'on' : ''} ${text ? 'set' : ''}`} onClick={() => toggle('text')}><Icon name="text" /><span>Text</span></button>
+          </>}
           <button className={`rail-btn ${hd ? 'set' : ''}`} onClick={async () => { const v = !hd; setHd(v); await studio.current?.setHD(v); void api.updateMe({ prefs: { hd: v } }); toast(v ? 'HD on: sharper, bigger files' : 'HD off'); }}><Icon name="hd" /><span>{hd ? 'HD' : 'SD'}</span></button>
           <button className={`rail-btn ${audioOnly ? 'set' : ''}`} onClick={() => setAudioOnly(a => !a)}><Icon name="wave" /><span>Voice only</span></button>
           <button className="rail-btn" onClick={() => fileRef.current?.click()}><Icon name="upload" /><span>Upload</span></button>

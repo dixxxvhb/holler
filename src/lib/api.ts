@@ -5,7 +5,7 @@ const SB_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 export const sb = createClient(SB_URL, SB_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
 export type Prefs = {
-  hd?: boolean; speed?: number; look?: string; voice?: string; captions?: boolean; review?: boolean; sounds?: boolean;
+  hd?: boolean; simple?: boolean; speed?: number; look?: string; voice?: string; captions?: boolean; review?: boolean; sounds?: boolean;
 };
 export type Person = { id: string; name: string; color: string; avatar: string | null; lastSeen: string; prefs?: Prefs };
 export type Reaction = { id: string; who: string; kind: string; t: number | null };

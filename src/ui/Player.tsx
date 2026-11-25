@@ -192,6 +192,10 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
       <div className="p-bottom">
         <div className="p-meta">
           {polo.kind !== 'text' && <span className="p-time">{clock(t)} / {clock(realDur)}</span>}
+          {polo.kind !== 'text' && realDur > 0 && (
+            <input className="scrub" type="range" min={0} max={realDur} step={0.05} value={Math.min(t, realDur)} aria-label="Seek"
+              onChange={e => { const m = el(); if (m) { m.currentTime = Number(e.target.value); setT(m.currentTime); } }} />
+          )}
           {viewers.length > 0 && <span className="seen"><Icon name="eye" size={14} /> {viewers.map(v => <Avatar key={v.id} p={v} size={18} />)}</span>}
           {polo.reactions.length > 0 && (
             <span className="rx-sum">{REACTIONS.filter(r => polo.reactions.some(x => x.kind === r.id)).map(r => <span key={r.id} style={{ color: r.color }}><Icon name={r.id} size={15} /></span>)}<b>{polo.reactions.length}</b></span>
