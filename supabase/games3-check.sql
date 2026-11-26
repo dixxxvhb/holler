@@ -549,11 +549,11 @@ begin
   -- crowning ends the move, and a king moves backwards
   g := public.holler_game_start2(ta, chat, 'checkers', array[ida, idb], '{}'); gid := (g->>'id')::uuid;
   update holler.games set state = state || jsonb_build_object('board',
-    overlay(overlay(repeat('.', 64) placing 'd' from 11 for 1) placing 'l' from 64 for 1)) where id = gid;
+    overlay(overlay(repeat('.', 64) placing 'd' from 11 for 1) placing 'l' from 40 for 1)) where id = gid;
   g := public.holler_game(ta, gid);
   g := public.holler_game_move(ta, gid, (g->>'version')::int, '{"path": [10, 1]}');
   assert substr(g->>'board', 2, 1) = 'D', 'a man on the far row is crowned';
-  g := public.holler_game_move(tb, gid, (g->>'version')::int, '{"path": [63, 54]}');
+  g := public.holler_game_move(tb, gid, (g->>'version')::int, '{"path": [39, 46]}');
   g := public.holler_game_move(ta, gid, (g->>'version')::int, '{"path": [1, 10]}');
   assert substr(g->>'board', 11, 1) = 'D', 'kings move back';
   -- giving up
