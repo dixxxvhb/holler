@@ -7,14 +7,15 @@ import { DECKS as WORD_DECKS } from './content/charades';
 import { freshFirst } from './content/shuffle';
 
 export const GAME_NAME: Record<Game['kind'], string> = {
-  passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades Relay', ttt: 'Tic-Tac-Toe', checkers: 'Checkers', words: 'Seven Letters', trivia: 'Trivia',
+  passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades Relay', ttt: 'Tic-Tac-Toe', checkers: 'Checkers', words: 'Seven Letters', trivia: 'Trivia', spot: 'On The Spot', laugh: "Don't Laugh",
 };
 /** Strip tiles are narrow. */
 export const TILE_NAME: Record<Game['kind'], string> = {
-  passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades', ttt: 'Tic-Tac-Toe', checkers: 'Checkers', words: '7 Letters', trivia: 'Trivia',
+  passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades', ttt: 'Tic-Tac-Toe', checkers: 'Checkers', words: '7 Letters', trivia: 'Trivia', spot: 'On The Spot', laugh: "Don't Laugh",
 };
 export const isDuel = (g: Game) => g.kind === 'ttt' || g.kind === 'checkers';
 export const isQuick = (g: Game) => g.kind === 'words' || g.kind === 'trivia';
+export const isFace = (g: Game) => g.kind === 'spot' || g.kind === 'laugh';
 
 const local = (k: string, d: string) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
 const keep = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
@@ -82,7 +83,8 @@ export const personIn = (chat: ChatFull, me: Person) => (id: string) => (id === 
 export const owes = (g: Game, me: string) => g.status === 'playing' && (isDuel(g) ? g.turnPerson === me : (g.todo || []).includes(me));
 /** Has this person done their part for now (for the little faces on a tile)? */
 export const doneFor = (g: Game, id: string) => g.status !== 'playing' || (isDuel(g) ? g.turnPerson !== id
-  : isQuick(g) ? (g.played || []).includes(id)
+  : isQuick(g) || g.kind === 'spot' ? (g.played || []).includes(id)
+  : g.kind === 'laugh' ? !(g.todo || []).includes(id)
   : g.kind === 'poker' ? (g.phase === 'vote' || (g.recorded || []).includes(id)) : (g.acted || []).includes(id));
 
 /** The line under a round game's tile in the strip. */
@@ -95,6 +97,8 @@ export function tileLine(g: Game, me: Person, chat: ChatFull): string {
   if (g.status === 'ended') return 'Ended early';
   if (g.status === 'done') return g.kind === 'poker' ? 'See who lied' : 'Final scores';
   if (isQuick(g)) return owes(g, me.id) ? 'Your go' : `${(g.played || []).length} of ${n} played`;
+  if (g.kind === 'spot') return owes(g, me.id) ? 'Your go' : `${(g.played || []).length} of ${n} went`;
+  if (g.kind === 'laugh') return !(g.acted || []).includes(me.id) ? 'Record yours' : owes(g, me.id) ? 'Watch, no smiling' : `${(g.acted || []).length} of ${n} in`;
   if (g.kind === 'poker') {
     if (g.phase === 'vote') return owes(g, me.id) ? 'Your vote' : 'Voting';
     if (owes(g, me.id)) return 'Your answer';

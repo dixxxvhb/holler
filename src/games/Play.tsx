@@ -18,7 +18,7 @@ export function roleOf(g: Game): Role { return g.idx === 0 ? 'act' : g.idx >= g.
 
 // ---------------------------------------------------------------- the Play sheet
 export function PlaySheet({ open, onClose, people, onCard, onPassItOn, onRound }: {
-  open: boolean; onClose: () => void; people: number; onCard: () => void; onPassItOn: () => void; onRound: (k: 'poker' | 'charades' | 'ttt' | 'checkers' | 'words' | 'trivia') => void;
+  open: boolean; onClose: () => void; people: number; onCard: () => void; onPassItOn: () => void; onRound: (k: 'poker' | 'charades' | 'ttt' | 'checkers' | 'words' | 'trivia' | 'spot' | 'laugh') => void;
 }) {
   return (
     <Sheet open={open} onClose={onClose} title="Play">
@@ -40,6 +40,16 @@ export function PlaySheet({ open, onClose, people, onCard, onPassItOn, onRound }
       <button className="g-opt game" onClick={() => onRound('charades')} disabled={people < 2}>
         <span className="g-opt-ic pass"><Icon name="eye" size={24} /></span>
         <span className="g-opt-txt"><b>Charades Relay</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Everyone acts out a secret word with no talking. Guess the others. Faster scores more.'}</span></span>
+        <span className="g-opt-n">2 to 5</span>
+      </button>
+      <button className="g-opt game" onClick={() => onRound('spot')} disabled={people < 2}>
+        <span className="g-opt-ic pass"><Icon name="timer" size={24} /></span>
+        <span className="g-opt-txt"><b>On The Spot</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Trivia on camera. Your questions appear the moment you hit record. Everyone watches you sweat.'}</span></span>
+        <span className="g-opt-n">2 to 5</span>
+      </button>
+      <button className="g-opt game" onClick={() => onRound('laugh')} disabled={people < 2}>
+        <span className="g-opt-ic pass"><Icon name="laugh" size={24} /></span>
+        <span className="g-opt-txt"><b>Don't Laugh</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Record something to crack them up. Watch theirs while your camera watches you. Smile and you\'re out.'}</span></span>
         <span className="g-opt-n">2 to 5</span>
       </button>
       <span className="lbl g-play-lbl">Quick games</span>
@@ -64,7 +74,7 @@ export function PlaySheet({ open, onClose, people, onCard, onPassItOn, onRound }
         <span className="g-opt-txt"><b>Tic-Tac-Toe</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Three in a row. Quick, and always good for a rematch.'}</span></span>
         <span className="g-opt-n">2</span>
       </button>
-      <p className="g-later">Coming next: On The Spot, Don't Laugh.</p>
+      <p className="g-later">Coming next: The Long Game.</p>
     </Sheet>
   );
 }

@@ -8,7 +8,8 @@ export { LOOKS, type LookId };
 export type Stroke = { color: string; width: number; pts: [number, number][] };
 export type TextLayer = { text: string; y: number; style: 'pill' | 'bold' | 'type'; color: string } | null;
 /** A Play card drawn near the top of the picture, so it's part of the video. */
-export type CardLayer = { label: string; text: string; sub: string } | null;
+/** opts: answer choices drawn under the question (On The Spot); picked: the one locked in. */
+export type CardLayer = { label: string; text: string; sub: string; opts?: string[]; picked?: number } | null;
 
 export type Recording = {
   blob: Blob; mime: string; ext: string; duration: number; w: number; h: number; thumb: Blob | null;
@@ -221,13 +222,24 @@ export class Studio {
         if (lines.length <= 6) break;
       }
       lines = lines.slice(0, 7);
-      const lh = (fs + 3) * s, h = pad + 22 * s + 14 * s + lines.length * lh + 34 * s + pad * 0.6;
+      const lh = (fs + 3) * s, ofs = 19, olh = 30 * s, opts = k.opts || [];
+      const oh = opts.length ? opts.length * olh + 10 * s : 0;
+      const h = pad + 22 * s + 14 * s + lines.length * lh + oh + 34 * s + pad * 0.6;
       c.fillStyle = '#f7f6fb'; roundRect(c, x, y, w, h, 18 * s); c.fill();
       c.lineWidth = 3 * s; c.strokeStyle = '#15121c'; c.stroke();
       c.fillStyle = 'rgba(21,18,28,.72)'; c.font = `700 ${17 * s}px Figtree, system-ui, sans-serif`;
       c.fillText(k.label.toUpperCase().split('').join(String.fromCharCode(8202)), x + pad, y + pad + 16 * s);
       c.fillStyle = '#15121c'; c.font = `400 ${fs * s}px "Tilt Warp", "Arial Black", system-ui, sans-serif`;
       lines.forEach((ln, i) => c.fillText(ln, x + pad, y + pad + 22 * s + 14 * s + (i + 0.8) * lh));
+      const oy = y + pad + 22 * s + 14 * s + lines.length * lh + 10 * s;
+      opts.forEach((o, i) => {
+        const on = k.picked === i, ry = oy + i * olh;
+        if (on) { c.fillStyle = '#15121c'; roundRect(c, x + pad - 8 * s, ry, w - pad * 2 + 16 * s, olh - 4 * s, 10 * s); c.fill(); }
+        c.fillStyle = on ? '#f7f6fb' : '#15121c'; c.font = `700 ${ofs * s}px Figtree, system-ui, sans-serif`;
+        const label = `${'ABCD'[i]}  ${o}`;
+        let t = label; while (t.length > 4 && c.measureText(t).width > w - pad * 2) t = t.slice(0, -2);
+        c.fillText(t === label ? t : t + '...', x + pad, ry + olh * 0.66);
+      });
       c.fillStyle = 'rgba(21,18,28,.62)'; c.font = `500 ${18 * s}px Figtree, system-ui, sans-serif`;
       c.fillText(k.sub, x + pad, y + h - pad * 0.9);
       c.restore();

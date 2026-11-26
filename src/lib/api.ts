@@ -42,8 +42,15 @@ export type Game = {
   // Seven Letters and Trivia
   began?: boolean; beganAt?: string | null; played?: string[]; rack?: string | null; qids?: string[] | null;
   myPlay?: QuickPlay | null; plays?: Record<string, QuickPlay> | null;
+  // On The Spot
+  takes?: SpotTake[];
 };
-export type GameKind = 'passiton' | 'poker' | 'charades' | 'ttt' | 'checkers' | 'words' | 'trivia';
+export type SpotTake = { who: string; at: string; qids: string[]; picks: { pick: number; ms: number }[]; clip: Polo | null };
+/** Don't Laugh shares Game.acts with Charades, in this shape: read it with laughActs(). */
+export type LaughWatch = { done?: boolean; cracked?: number | null; at?: string; clip?: Polo | null };
+export type LaughAct = { who: string; at: string; clip: Polo | null; mine: LaughWatch | null; results: Record<string, LaughWatch> | null };
+export const laughActs = (g: Game) => (g.acts || []) as unknown as LaughAct[];
+export type GameKind = 'passiton' | 'poker' | 'charades' | 'ttt' | 'checkers' | 'words' | 'trivia' | 'spot' | 'laugh';
 export type QuickPlay = { at: string; words?: string[]; answers?: { pick: number; ms: number }[] };
 export type CharadesGuess = { tries: number; ok: boolean; done: boolean; t: number | null; text?: string; at: string };
 export type CharadesAct = { who: string; at: string; clip: Polo | null; word: string | null; mine: CharadesGuess | null; results: Record<string, CharadesGuess> };
@@ -98,6 +105,8 @@ export const api = {
   game: (id: string) => rpc<Game>('holler_game', { p_game: id }),
   gameMove: (id: string, version: number, move: { cell: number } | { path: number[] }) =>
     rpc<Game>('holler_game_move', { p_game: id, p_version: version, p_move: move }),
+  gameLaughed: (id: string, actor: string, cracked: number | null) =>
+    rpc<Game>('holler_game_laughed', { p_game: id, p_actor: actor, p_cracked: cracked }),
   gameResign: (id: string) => rpc<Game>('holler_game_resign', { p_game: id }),
   gameBegin: (id: string) => rpc<Game>('holler_game_begin', { p_game: id }),
   gamePlay: (id: string, play: { words: string[] } | { answers: { pick: number; ms: number }[] }) =>
