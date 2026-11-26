@@ -5,6 +5,23 @@ watch your face when they watch your move. This plan is the first slice, ready f
 on the PC. Research and the full idea list: `~/.claude/next-sessions/2026-11-25-holler-games-START-HERE.md`.
 Mockup Dixon reviewed (numbered screens, notes come back by number): https://claude.ai/artifact/1PosDS4VchS4ZPuTSLzQnM
 
+## Built 2026-11-26 (Neo session): what changed from this plan
+- **Live in the database** (`supabase/games.sql`, checked first by `supabase/games-check.sql`, a dry run that aborts on purpose).
+- **No `holler_start_turn`.** A turn clip starts like any polo; `holler_finish_polo` sees `effects.game = { id, guess? }`,
+  checks the turn and the one look, attaches the clip and moves the game on, all before the polo is marked ready
+  (so `notify_polo` already sees `game_id` and stays quiet). A late turn fails with "Your turn already passed".
+  Reactions ride the same way: `effects.reactTo` + `effects.sync`, and finish sets `react_to`.
+- **Reveal reactions**: `effects.game = { id, reveal: true }` attaches your face from the reveal to a finished game's reel (you choose to send it).
+- `holler_chat` returns `games` and a `yourTurn` count; game clips never show as tiles or count as unread.
+- **Running SQL from the Neo**: `ssh pc 'pwsh -NoProfile -File C:/Users/bowle/bin/pc-run.ps1 holler-sql <file.sql>'` runs
+  `supabase/<file.sql>` exactly as pushed to origin/main, in the PC's logged-in session (added to pc-run 11-26; backups of the
+  old scripts sit beside them as `.bak-20261126`). Cleanup from anywhere: `node scripts/clean-qa-remote.mjs`; read-only check: `qa-status.sql`.
+- **QA**: `PW_CHANNEL=chrome node scripts/qa-play.mjs [url]` (three fake people: card + answer stack, Film my reaction,
+  a full Pass It On with reveal and save; 13 checks). Then always clean up.
+- **Not done yet**: the iPhone spike (playing while recording: speaker volume and echo) waits for Dixon's phone;
+  the "you lost it here" marker on the reaction review (needs face detection, comes with face games); `scripts/game-sweep.mjs`
+  (nothing to sweep until a game is 7 days old); vitest.
+
 ## Dixon's calls (11-25)
 1. **Name:** a plain **Play** tile; each game keeps its own name.
 2. **Who plays:** any Holler chat, Kyle's included. (The Belt, when it comes, counts only in chats that turn it on.)

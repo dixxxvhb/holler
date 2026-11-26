@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, mediaUrl, type ChatFull, type Person, type Polo } from '../lib/api';
 import { send as liveSend } from '../lib/live';
-import { removeMine } from '../lib/outbox';
+import { removeMine, sendRecording } from '../lib/outbox';
+import type { Recording, Studio } from '../lib/studio';
+import { cardById } from '../games/content/cards';
+import { LiveFace, SyncedVideo, filmOn, readSync, setFilm, type SyncPoint } from '../games/reaction';
+import '../games/games.css';
 import { parseTranscript } from '../lib/speech';
 import { pop } from '../lib/sound';
 import { Avatar, ago, clock, toast, when } from './bits';
@@ -9,8 +13,9 @@ import { Icon, REACTIONS } from './icons';
 
 const SPEEDS = [1, 1.5, 2];
 
-export function Player({ chat, list, start, me, onClose, onChanged, standalone }: {
+export function Player({ chat, list, start, me, onClose, onChanged, standalone, studio, onAnswerCard }: {
   chat: ChatFull | null; list: Polo[]; start: number; me: Person; onClose: () => void; onChanged?: () => void; standalone?: boolean;
+  studio?: Studio | null; onAnswerCard?: (cardId: string) => void;
 }) {
   const [idx, setIdx] = useState(Math.max(0, start));
   const [items, setItems] = useState(list);
@@ -32,6 +37,61 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
   const [dragY, setDragY] = useState(0);
 
   const polo = items[idx];
+  // ---- reactions: the original a reaction answers, played small beside it in sync ----
+  const orig = polo?.reactTo ? (chat?.polos.find(p => p.id === polo.reactTo) || list.find(p => p.id === polo.reactTo)) : undefined;
+  const sync = readSync(polo?.effects);
+  const [origSrc, setOrigSrc] = useState<string | null>(null);
+  const [swap, setSwap] = useState(false);
+  useEffect(() => { setSwap(false); setOrigSrc(null); if (orig?.path) void mediaUrl(orig.path).then(setOrigSrc); }, [orig?.id, orig?.path]);
+  const mainEl = useCallback(() => vid.current, []);
+  // ---- Film my reaction ----
+  const canFilm = !!studio?.stream && !standalone && !!polo && polo.author !== me.id && polo.kind !== 'text' && !!chat;
+  const [film, setFilmS] = useState(() => (chat ? filmOn(chat.id) : false));
+  const [filming, setFilming] = useState(false);
+  const [afterEnd, setAfterEnd] = useState(false);
+  const [review, setReview] = useState<{ rec: Recording; url: string; sync: SyncPoint[]; of: Polo; origUrl: string | null } | null>(null);
+  const syncLog = useRef<SyncPoint[]>([]);
+  const filmT = useRef(0);
+  const then = useRef<(() => void) | null>(null);
+  const mark = (playing?: boolean) => {
+    const e = vid.current; if (!filming || !e || !studio) return;
+    syncLog.current.push({ r: Math.round(studio.elapsed() * 100) / 100, o: Math.round(e.currentTime * 100) / 100, rate: e.playbackRate, playing: playing ?? !e.paused });
+  };
+  const startFilm = async () => {
+    if (!canFilm || !film || filming || review || !studio || studio.recording) return;
+    try {
+      await studio.start('video', { videoBits: 500_000 });
+      syncLog.current = [{ r: 0, o: Math.round((vid.current?.currentTime || 0) * 100) / 100, rate: vid.current?.playbackRate || 1, playing: true }];
+      setFilming(true); setAfterEnd(false);
+    } catch (e) { toast('Could not film: ' + (e as Error).message); }
+  };
+  const stopFilm = async (action?: () => void) => {
+    clearTimeout(filmT.current);
+    if (!filming || !studio) { action?.(); return; }
+    setFilming(false); setAfterEnd(false);
+    const e = vid.current; if (e && !e.paused) e.pause();
+    const rec = await studio.stop();
+    if (!rec || rec.duration < 1 || rec.blob.size < 1000) { toast('That reaction came out empty'); action?.(); return; }
+    then.current = action || null;
+    setReview({ rec, url: URL.createObjectURL(rec.blob), sync: syncLog.current, of: polo, origUrl: origSrcFor.current });
+  };
+  const origSrcFor = useRef<string | null>(null);
+  useEffect(() => { origSrcFor.current = src; }, [src]);
+  const closeReview = (send: boolean) => {
+    const r = review; if (!r || !chat) return;
+    if (send) {
+      sendRecording(chat.id, me.id, { ...r.rec, effects: { ...r.rec.effects, reactTo: r.of.id, sync: r.sync } }, null, () => onChanged?.());
+      toast('Reaction sent');
+    }
+    URL.revokeObjectURL(r.url); setReview(null);
+    const a = then.current; then.current = null; (a || next)();
+  };
+  useEffect(() => () => { if (studio?.recording) studio.cancel(); }, [studio]);
+  // ---- cards ----
+  const cardId = typeof polo?.effects?.cardId === 'string' ? (polo.effects.cardId as string) : null;
+  const card = cardId ? cardById(cardId) : undefined;
+  const [answer, setAnswer] = useState(false);
+  useEffect(() => setAnswer(false), [polo?.id]);
   const members = chat?.members || [];
   const author = members.find(m => m.id === polo?.author) || (polo?.author === me.id ? me : undefined);
   const segs = parseTranscript(polo?.transcript || null);
@@ -42,6 +102,18 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
     setIdx(i => { if (i + 1 >= items.length) { onClose(); return i; } return i + 1; });
   }, [items.length, onClose]);
   const prev = () => setIdx(i => Math.max(0, i - 1));
+  const close = () => { if (filming) void stopFilm(onClose); else onClose(); };
+  const goNext = () => { if (filming) void stopFilm(next); else next(); };
+  const goPrev = () => { if (filming) void stopFilm(prev); else prev(); };
+  const ended = () => {
+    if (filming) {
+      mark(false); setAfterEnd(true);
+      filmT.current = window.setTimeout(() => void stopFilm(), 15000);
+      return;
+    }
+    if (card?.answer) { setAnswer(true); window.setTimeout(next, 4000); return; }
+    next();
+  };
 
   // load media + mark watched
   useEffect(() => {
@@ -128,12 +200,12 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
     const s = start0.current; start0.current = null; setDragY(0);
     const dx = s ? e.clientX - s.x : 0, dy = s ? e.clientY - s.y : 0;
     if (held.current) { held.current = false; void el()?.play(); setPaused(false); if (Math.abs(dx) < 40 && dy < 90) return; }
-    if (dy > 110 && dy > Math.abs(dx) * 1.2) { onClose(); return; }
-    if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.2) { if (dx < 0) next(); else prev(); return; }
+    if (dy > 110 && dy > Math.abs(dx) * 1.2) { close(); return; }
+    if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.2) { if (dx < 0) goNext(); else goPrev(); return; }
     if (Math.abs(dx) > 20 || Math.abs(dy) > 20) return; // a drag that went nowhere
     const x = e.clientX / window.innerWidth;
-    if (x < 0.28) { const m = el(); if (m && m.currentTime > 2) m.currentTime = 0; else prev(); }
-    else if (x > 0.72) next();
+    if (x < 0.28) { const m = el(); if (m && m.currentTime > 2) m.currentTime = 0; else goPrev(); }
+    else if (x > 0.72) goNext();
     else togglePause();
   };
 
@@ -161,7 +233,8 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose(); else if (e.key === 'ArrowRight') next(); else if (e.key === 'ArrowLeft') prev(); else if (e.key === ' ') { e.preventDefault(); togglePause(); }
+      if (review) return;
+      if (e.key === 'Escape') close(); else if (e.key === 'ArrowRight') goNext(); else if (e.key === 'ArrowLeft') goPrev(); else if (e.key === ' ') { e.preventDefault(); togglePause(); }
     };
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
   });
@@ -184,14 +257,31 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
           <b>{author?.id === me.id ? 'You' : author?.name || 'Someone'}</b>
           <span>{ago(polo.at)}{polo.effects?.voice && polo.effects.voice !== 'none' ? ` · ${String(polo.effects.voice)} voice` : ''}{polo.effects?.hd ? ' · HD' : ''}</span>
         </div>
-        <button className="icon-btn glass" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+        <button className="icon-btn glass" onClick={close} aria-label="Close"><Icon name="close" /></button>
       </div>
+      {canFilm && !filming && (
+        <button className={`g-film ${film ? 'on' : ''}`} onClick={() => { const v = !film; setFilmS(v); if (chat) setFilm(chat.id, v); if (v && !paused && !needTap && !loading) void startFilm(); }}>
+          <span className="g-sw" />Film my reaction
+        </button>
+      )}
+      {filming && <div className="g-face live"><LiveFace studio={studio || null} className="g-face-vid" /><span className="g-face-lab"><i className="g-dot" />You</span></div>}
+      {afterEnd && filming && (
+        <div className="g-after"><span>Still filming. Keep talking, or</span><button className="btn primary" onClick={() => void stopFilm()}>Done</button></div>
+      )}
 
       <div className="stage" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => { clearTimeout(holdTimer.current); start0.current = null; setDragY(0); }}>
-        <video ref={vid} playsInline preload="auto" className={`p-video ${polo.kind === 'video' ? '' : 'gone'}`}
-          onLoadedData={() => setLoading(false)} onCanPlay={() => setLoading(false)} onTimeUpdate={onTime} onEnded={next}
+        <video ref={vid} playsInline preload="auto" className={`p-video ${polo.kind === 'video' ? '' : 'gone'} ${orig && swap ? 'g-pip' : ''}`}
+          onLoadedData={() => setLoading(false)} onCanPlay={() => setLoading(false)} onTimeUpdate={onTime} onEnded={ended}
           onError={() => { if (vid.current?.getAttribute('src')) { setLoading(false); toast('This one would not play here'); } }}
-          onPlay={() => { const e = vid.current; if (e) e.playbackRate = speed; }} />
+          onPlay={() => { const e = vid.current; if (e) e.playbackRate = speed; }}
+          onPlaying={() => { if (filming) mark(true); else void startFilm(); }} onPause={() => mark(false)} onSeeked={() => mark()} onRateChange={() => mark()}
+          onClick={orig && swap ? e => { e.stopPropagation(); setSwap(false); } : undefined} />
+        {orig && origSrc && (
+          <SyncedVideo src={origSrc} sync={sync} main={mainEl} className={swap ? 'p-video g-orig-big' : 'g-pip'} onClick={() => setSwap(s => !s)} />
+        )}
+        {orig && origSrc && <span className={`g-pip-lab ${swap ? 'big' : ''}`} onClick={() => setSwap(s => !s)}><Icon name="swap" size={14} /> {swap ? (author?.id === me.id ? 'You' : author?.name.split(' ')[0]) : (orig.author === me.id ? 'Yours' : (members.find(m => m.id === orig.author)?.name.split(' ')[0] || 'Theirs'))}</span>}
+        {polo.reactTo && !orig && <span className="g-gone">The holler this reacts to is gone.</span>}
+        {answer && card?.answer && <div className="g-answer"><small>Real answer</small><b>{card.answer.n}%</b><span>{card.answer.source}, {card.answer.year}</span></div>}
         {polo.kind === 'audio' && (
           <div className="p-audio" style={{ ['--c' as string]: author?.color }}>
             <div className="p-audio-ring"><Avatar p={author} size={140} /></div>
@@ -247,10 +337,27 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
           <button className={`pill-btn ${polo.savedBy.includes(me.id) ? 'on' : ''}`} onClick={() => void save()}><Icon name="star" size={16} fill={polo.savedBy.includes(me.id) ? 'currentColor' : undefined} /> {polo.savedBy.includes(me.id) ? 'Saved' : 'Save'}</button>
           {polo.path && <button className="pill-btn" onClick={() => void download()} aria-label="Download"><Icon name="download" size={16} /></button>}
           {polo.author === me.id && !standalone && <button className="pill-btn" onClick={() => setMenu(m => !m)} aria-label="More"><Icon name="trash" size={16} /></button>}
-          {!standalone && <button className="pill-btn reply" onClick={onClose}>Reply</button>}
+          {cardId && onAnswerCard && !standalone && <button className="pill-btn g-cardans" onClick={() => { const id = cardId; void stopFilm(() => { onClose(); onAnswerCard(id); }); }}><Icon name="cards" size={16} /> Answer this card</button>}
+          {!standalone && <button className="pill-btn reply" onClick={close}>Reply</button>}
         </div>
         {menu && <div className="p-menu"><button className="btn danger wide" onClick={() => void del()}>Delete for everyone</button></div>}
         {segs.length > 0 && cc && <details className="transcript"><summary>Full transcript</summary><p>{segs.map(s => s.text).join(' ')}</p></details>}
+      </div>
+      {review && <ReactionReview r={review} onDone={closeReview} />}
+    </div>
+  );
+}
+
+function ReactionReview({ r, onDone }: { r: { url: string; sync: SyncPoint[]; origUrl: string | null }; onDone: (send: boolean) => void }) {
+  const v = useRef<HTMLVideoElement>(null);
+  const main = useCallback(() => v.current, []);
+  return (
+    <div className="g-review">
+      <video ref={v} src={r.url} autoPlay loop playsInline className="p-video" />
+      {r.origUrl && <SyncedVideo src={r.origUrl} sync={r.sync} main={main} className="g-pip" muted />}
+      <div className="g-review-bar">
+        <span className="g-row-btns"><button className="btn" onClick={() => onDone(false)}>Toss it</button><button className="btn primary" onClick={() => onDone(true)}>Send my reaction</button></span>
+        <p>Only your face is sent. Their holler plays beside it.</p>
       </div>
     </div>
   );

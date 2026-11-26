@@ -1,0 +1,190 @@
+/* Holler Play. Kept apart from styles.css (the look session owns that). Uses Holler's variables, so a new
+   token layer carries over. Pass It On has one ink of its own: --game. No gold, no emojis. */
+:root { --game: #8f7dff; --card-face: #fbf3ec; --card-ink: #160c08; }
+
+/* ---------- sheets ---------- */
+.g-sub { font-size: 14px; color: var(--ink2); line-height: 1.45; margin: 4px 0 14px; }
+.g-opt { width: 100%; display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 20px; background: var(--bg2);
+  border: 1.5px solid var(--line); margin-bottom: 10px; text-align: left; transition: transform .12s; }
+.g-opt:active { transform: scale(.985); }
+.g-opt.game { border-color: color-mix(in srgb, var(--game) 45%, transparent); }
+.g-opt-ic { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; flex: none; color: var(--card-ink); }
+.g-opt-ic.card { background: var(--card-face); }
+.g-opt-ic.pass { background: var(--game); }
+.g-opt-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.g-opt-txt b { font-family: var(--display); font-size: 17px; }
+.g-opt-txt span { font-size: 13px; color: var(--ink2); line-height: 1.35; }
+.g-opt-n { font-size: 12px; font-weight: 800; color: var(--ink3); flex: none; }
+.g-later { font-size: 13px; color: var(--ink3); margin: 6px 4px 0; }
+.g-warn { font-size: 13px; color: #ff9aa5; margin: 8px 0 0; }
+
+.g-secret { border-radius: 20px; padding: 14px 16px; background: color-mix(in srgb, var(--game) 18%, var(--bg2));
+  border: 1.5px dashed color-mix(in srgb, var(--game) 70%, transparent); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.g-secret small { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--game); }
+.g-secret p { font-family: var(--display); font-weight: 800; font-size: 24px; line-height: 1.1; margin: 0; }
+.g-order { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+.g-step { display: flex; align-items: center; gap: 6px; }
+.g-step-in { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 54px; }
+.g-step-in em { font-style: normal; font-size: 11px; font-weight: 700; color: var(--ink2); }
+.g-arrow { color: var(--ink3); font-size: 20px; margin-top: -18px; }
+.g-order-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.g-seg button { flex: 1; }
+.g-seg button.on { background: var(--game); color: var(--card-ink); }
+.btn.g-go { background: var(--game); color: var(--card-ink); margin-top: 16px; }
+.g-row-btns { display: flex; gap: 10px; margin-top: 14px; }
+.g-row-btns .btn { flex: 1; }
+
+/* ---------- strip tiles ---------- */
+.tile.g-play-tile { background: none; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 70%, transparent); color: var(--accent);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-weight: 800; font-size: 12px; }
+.tile.g-tile { width: 84px; background: color-mix(in srgb, var(--game) 26%, #120d0b); box-shadow: 0 0 0 2.5px var(--game);
+  display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; padding: 6px; text-align: left; }
+.tile.g-tile b { font-family: var(--display); font-size: 12px; line-height: 1.05; color: #fff; }
+.tile.g-tile em { font-style: normal; font-size: 10px; font-weight: 800; color: var(--game); line-height: 1.15; }
+.tile.g-tile.turn em { background: var(--game); color: var(--card-ink); border-radius: 6px; padding: 2px 5px; }
+.tile.g-tile.over { box-shadow: 0 0 0 2px color-mix(in srgb, var(--game) 55%, transparent); }
+.g-tile-who { display: flex; gap: 2px; flex-wrap: wrap; }
+.g-tav { position: relative; display: inline-flex; border-radius: 50%; }
+.g-tav.wait { opacity: .45; }
+.g-tav.up { box-shadow: 0 0 0 2px #000, 0 0 0 3.5px var(--game); }
+.tile.g-stack { background: var(--card-face); color: var(--card-ink); display: flex; flex-direction: column; justify-content: space-between;
+  align-items: flex-start; padding: 6px; text-align: left; }
+.tile.g-stack b { font-family: var(--display); font-size: 10.5px; line-height: 1.12; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; }
+.g-stack-faces { display: flex; }
+.g-stack-faces .av + .av { margin-left: -5px; }
+.g-stack-faces .av { box-shadow: 0 0 0 1.5px var(--card-face); }
+.g-tile-pip { position: absolute; right: 4px; top: 4px; width: 22px; height: 30px; border-radius: 6px; overflow: hidden; box-shadow: 0 0 0 1.5px #000; z-index: 1; }
+.g-tile-pip img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ---------- card tools + turn banner over the camera ---------- */
+.g-cardtools .chips { padding: 0; }
+.g-banner { position: absolute; top: calc(var(--safe-t) + 70px); left: 12px; right: 12px; z-index: 6; display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: 20px; background: rgba(18, 13, 11, .66); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1.5px solid color-mix(in srgb, var(--game) 55%, transparent); color: #fff; pointer-events: none; }
+.g-banner svg { color: var(--game); flex: none; }
+.g-banner span { display: flex; flex-direction: column; gap: 2px; }
+.g-banner b { font-family: var(--display); font-size: 16px; }
+.g-banner em { font-style: normal; font-size: 13px; color: rgba(255,255,255,.78); }
+.g-secret-mini { position: absolute; top: calc(var(--safe-t) + 146px); left: 12px; right: 78px; z-index: 6; border-radius: 18px; padding: 10px 14px;
+  background: var(--game); color: var(--card-ink); pointer-events: none; }
+.g-secret-mini small { font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }
+.g-secret-mini p { margin: 2px 0 0; font-family: var(--display); font-weight: 800; font-size: 20px; line-height: 1.1; }
+
+/* during a turn the side rail moves below the turn banner (and the phrase, for the one acting) */
+.chat.g-in-turn .rail { top: calc(var(--safe-t) + 146px); max-height: calc(100% - var(--safe-t) - 146px - var(--bottom-h, 220px) - 6px); }
+.chat.g-acting .rail { top: calc(var(--safe-t) + 236px); max-height: calc(100% - var(--safe-t) - 236px - var(--bottom-h, 220px) - 6px); }
+
+/* ---------- full-screen game views ---------- */
+.g-page, .g-look, .g-reveal { position: fixed; inset: 0; z-index: 46; animation: fade .18s; }
+.g-page { background: var(--bg); color: var(--ink); overflow-y: auto; display: flex; flex-direction: column; gap: 14px;
+  padding: calc(var(--safe-t) + 14px) max(18px, calc((100vw - 620px) / 2)) calc(var(--safe-b) + 28px); }
+.g-head { display: flex; align-items: center; gap: 10px; }
+.g-head h2 { font-size: 28px; }
+.g-back { background: var(--panel2); }
+.g-meta { margin: -4px 0 0; font-size: 14px; color: var(--ink2); }
+.g-track { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.g-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 18px; background: var(--bg2); border: 1.5px solid var(--line); }
+.g-row.up { border-color: var(--game); background: color-mix(in srgb, var(--game) 12%, var(--bg2)); }
+.g-row.up .g-row-txt span { color: var(--game); font-weight: 700; }
+.g-row.skip { opacity: .6; }
+.g-row-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.g-row-txt b { font-size: 15px; }
+.g-row-txt span { font-size: 13px; color: var(--ink3); }
+.g-lock { width: 40px; height: 52px; border-radius: 10px; display: grid; place-items: center; color: var(--game); flex: none;
+  background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--game) 22%, transparent) 0 6px, color-mix(in srgb, var(--game) 8%, transparent) 6px 12px); }
+.g-foot { font-size: 13px; color: var(--ink3); line-height: 1.45; margin: 4px 2px 0; }
+.g-endgame { align-self: center; }
+
+.g-look { background: #000; color: #fff; }
+.g-look-vid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
+.g-look-vid.on { opacity: 1; }
+.g-look-tag { position: absolute; top: calc(var(--safe-t) + 18px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px;
+  padding: 6px 14px 6px 6px; border-radius: 999px; background: rgba(0,0,0,.6); font-weight: 700; font-size: 14px; white-space: nowrap; }
+.g-look-card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  text-align: center; padding: 0 32px; background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--game) 28%, #120d0b), #000 75%); }
+.g-look-card b { font-family: var(--display); font-size: 24px; }
+.g-look-card > span { font-size: 15px; color: rgba(255,255,255,.8); line-height: 1.45; max-width: 34ch; }
+.g-bigplay { width: 96px; height: 96px; border-radius: 50%; background: var(--game); color: var(--card-ink); display: grid; place-items: center;
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--game) 25%, transparent); }
+.g-chain { display: flex; gap: 5px; }
+.g-chain i { width: 30px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.25); }
+.g-chain i.d { background: var(--game); }
+.g-chain i.c { background: #fff; }
+
+/* ---------- reveal ---------- */
+.g-reveal { background: #000; color: #fff; }
+.g-rv-vid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+@media (min-aspect-ratio: 3/4) { .g-rv-vid { object-fit: contain; } }
+.g-rv-bars { position: absolute; top: calc(var(--safe-t) + 8px); left: 10px; right: 10px; display: flex; gap: 3px; z-index: 3; }
+.g-rv-bars i { flex: 1; height: 3px; border-radius: 2px; background: rgba(255,255,255,.3); overflow: hidden; }
+.g-rv-bars b { display: block; height: 100%; background: #fff; }
+.g-rv-top { position: absolute; top: calc(var(--safe-t) + 18px); left: 12px; right: 12px; display: flex; align-items: center; gap: 10px; z-index: 3; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
+.g-rv-ic { width: 36px; height: 36px; border-radius: 50%; background: var(--game); color: var(--card-ink); display: grid; place-items: center; }
+.g-rv-who { flex: 1; display: flex; flex-direction: column; }
+.g-rv-who b { font-family: var(--display); font-size: 17px; }
+.g-rv-who span { font-size: 13px; color: rgba(255,255,255,.75); }
+.g-rv-label { position: absolute; top: calc(var(--safe-t) + 70px); left: 12px; z-index: 3; display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px 6px 6px; border-radius: 999px; background: rgba(18,13,11,.62); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); font-weight: 800; font-size: 14px; }
+.g-rv-label em { font-style: normal; color: var(--game); }
+.g-rv-tap { z-index: 4; }
+.g-rv-skip { position: absolute; right: 16px; bottom: calc(var(--safe-b) + 22px); z-index: 3; padding: 10px 18px; border-radius: 999px; background: rgba(255,255,255,.14); font-weight: 800; font-size: 14px; color: #fff; }
+.g-rv-x { position: absolute; top: calc(var(--safe-t) + 14px); right: 12px; z-index: 5; }
+.g-end { position: absolute; inset: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: center; gap: 12px;
+  padding: calc(var(--safe-t) + 70px) max(22px, calc((100vw - 520px) / 2)) calc(var(--safe-b) + 24px);
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--game) 40%, #120d0b), #0b0705 75%); }
+.g-pair { display: flex; flex-direction: column; gap: 10px; }
+.g-box { border-radius: 20px; padding: 14px 16px; background: rgba(0,0,0,.3); }
+.g-box small { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.6); display: flex; align-items: center; gap: 6px; }
+.g-box p { margin: 6px 0 0; font-family: var(--display); font-weight: 800; font-size: 25px; line-height: 1.1; }
+.g-box.truth { background: var(--game); color: var(--card-ink); }
+.g-box.truth small { color: rgba(22,12,8,.65); }
+.g-faces { display: flex; gap: 8px; }
+.g-fr { position: relative; flex: 1; max-width: 25%; aspect-ratio: 3/4; border-radius: 14px; overflow: hidden; background: rgba(255,255,255,.08); }
+.g-fr img { width: 100%; height: 100%; object-fit: cover; }
+.g-fr-av { position: absolute; left: 5px; bottom: 5px; }
+.g-sendface { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 18px; background: rgba(0,0,0,.3); font-size: 14px; font-weight: 600; }
+.g-sendface .g-row-btns { margin-top: 6px; }
+.g-fine { font-size: 12.5px; color: rgba(255,255,255,.62); text-align: center; line-height: 1.4; margin: 2px 0 0; }
+
+/* ---------- Film my reaction ---------- */
+.g-film { position: absolute; top: calc(var(--safe-t) + 66px); left: 50%; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 8px;
+  padding: 6px 14px 6px 8px; border-radius: 999px; font-weight: 700; font-size: 13px; white-space: nowrap; color: #fff;
+  background: rgba(18,13,11,.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.g-sw { width: 34px; height: 20px; border-radius: 10px; background: rgba(255,255,255,.22); position: relative; transition: background .2s; }
+.g-sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.g-film.on .g-sw { background: var(--accent); }
+.g-film.on .g-sw::after { transform: translateX(14px); }
+.g-face { position: absolute; right: 12px; top: calc(var(--safe-t) + 112px); width: 104px; height: 140px; border-radius: 18px; overflow: hidden; z-index: 4;
+  background: #111; box-shadow: 0 0 0 2.5px var(--rec), 0 10px 30px rgba(0,0,0,.5); pointer-events: none; }
+.g-face-vid { width: 100%; height: 100%; object-fit: cover; }
+.g-face-vid.mirror { transform: scaleX(-1); }
+.g-face-lab { position: absolute; left: 6px; bottom: 6px; display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; padding: 2px 8px 2px 6px;
+  border-radius: 999px; background: rgba(0,0,0,.6); color: #fff; }
+.g-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--rec); animation: blink 1s infinite; }
+.g-after { position: absolute; left: 14px; right: 14px; top: 42%; z-index: 4; display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 14px; border-radius: 20px; background: rgba(18,13,11,.72); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); font-weight: 700; font-size: 14px; color: #fff; }
+.g-after .btn { min-height: 40px; }
+/* a reaction plays your face big and their holler small (tap to swap) */
+.g-pip { position: absolute; right: 12px; top: calc(var(--safe-t) + 70px); width: 104px; height: 140px; border-radius: 18px; object-fit: cover; z-index: 2;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.75), 0 10px 30px rgba(0,0,0,.5); background: #111; }
+.p-video.g-orig-big { z-index: 0; }
+.g-pip-lab { position: absolute; right: 18px; top: calc(var(--safe-t) + 184px); z-index: 3; display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: rgba(0,0,0,.6); color: #fff; }
+.g-gone { position: absolute; right: 12px; top: calc(var(--safe-t) + 70px); z-index: 3; font-size: 12px; padding: 4px 10px; border-radius: 999px; background: rgba(0,0,0,.6); color: rgba(255,255,255,.8); }
+.g-review { position: absolute; inset: 0; z-index: 50; background: #000; }
+.g-review-bar { position: absolute; left: 0; right: 0; bottom: 0; padding: 60px 16px calc(var(--safe-b) + 22px); background: linear-gradient(transparent, rgba(0,0,0,.85) 40%);
+  display: flex; flex-direction: column; gap: 6px; }
+.g-review-bar p { margin: 6px 0 0; font-size: 13px; color: rgba(255,255,255,.72); text-align: center; }
+
+/* ---------- cards in the player ---------- */
+.pill-btn.g-cardans { background: var(--card-face); color: var(--card-ink); }
+.g-answer { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 16px 26px; border-radius: 24px; background: var(--card-face); color: var(--card-ink); box-shadow: 0 14px 40px rgba(0,0,0,.45); animation: drop .25s ease-out; }
+.g-answer small { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.g-answer b { font-family: var(--display); font-size: 56px; line-height: 1; }
+.g-answer span { font-size: 13px; color: rgba(22,12,8,.6); }
+
+@media (min-width: 700px) {
+  .g-banner, .g-secret-mini { left: calc(50% - min(50vw, 28.1vh) + 12px); right: auto; width: calc(min(100vw, 56.25vh) - 24px); }
+  .g-secret-mini { width: calc(min(100vw, 56.25vh) - 90px); }
+}

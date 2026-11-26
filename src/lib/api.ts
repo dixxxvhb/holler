@@ -14,14 +14,23 @@ export type Polo = {
   mime: string | null; duration: number | null; w: number | null; h: number | null; body: string | null;
   transcript: string | null; effects: Record<string, unknown>; at: string;
   views: { who: string; at: string }[]; reactions: Reaction[]; savedBy: string[];
+  reactTo?: string | null; game?: string | null; gameTurn?: number | null;
   pending?: { progress: number; error?: string; localUrl?: string; thumbUrl?: string };
 };
 export type ChatSummary = {
   id: string; name: string; code: string; theme: string; lastPoloAt: string; muted: boolean;
-  members: Person[]; unread: number;
+  members: Person[]; unread: number; yourTurn?: number;
   last: { id: string; kind: string; thumb: string | null; author: string; body: string | null; at: string; seen?: string[] | null } | null;
 };
-export type ChatFull = ChatSummary & { polos: Polo[] };
+export type GameTurn = { who: string; turn: number; at: string; skipped: boolean };
+export type Game = {
+  id: string; chat: string; kind: 'passiton'; status: 'playing' | 'done' | 'ended'; version: number;
+  order: string[]; turnSec: number; idx: number; turns: GameTurn[];
+  turnPerson: string | null; turnSince: string | null; nudgedAt: string | null;
+  createdBy: string | null; createdAt: string; endedAt: string | null; savedAt: string | null; savedBy: string | null;
+  looked: boolean; phrase: string | null; guess: string | null; hidden: boolean; hidesAt: string | null; clips: Polo[] | null;
+};
+export type ChatFull = ChatSummary & { polos: Polo[]; games?: Game[] };
 export type Home = { me: Person; chats: ChatSummary[]; usage: { bytes: number; count: number } };
 
 const TOKEN_KEY = 'holler.token';
@@ -62,6 +71,14 @@ export const api = {
   react: (id: string, kind: string, at: number | null) => rpc<Polo>('holler_react', { p_polo: id, p_kind: kind, p_at: at }),
   save: (id: string, on: boolean) => rpc<void>('holler_save', { p_polo: id, p_on: on }),
   pushSub: (sub: object, on: boolean) => rpc<void>('holler_push_sub', { p_sub: sub, p_on: on }),
+  gameStart: (chat: string, order: string[], turnSec: number, phrase: string, deckId: string) =>
+    rpc<Game>('holler_game_start', { p_chat: chat, p_kind: 'passiton', p_order: order, p_turn_sec: turnSec, p_phrase: phrase, p_deck_id: deckId }),
+  game: (id: string) => rpc<Game>('holler_game', { p_game: id }),
+  gameLook: (id: string) => rpc<{ path: string; thumb: string | null; duration: number | null; who: string; mime: string | null }>('holler_game_look', { p_game: id }),
+  gameLooked: (id: string) => rpc<Game>('holler_game_looked', { p_game: id }),
+  gameNudge: (id: string) => rpc<Game>('holler_game_nudge', { p_game: id }),
+  gameSave: (id: string, on: boolean) => rpc<Game>('holler_game_save', { p_game: id, p_on: on }),
+  gameEnd: (id: string) => rpc<Game>('holler_game_end', { p_game: id }),
   linkDevice: () => rpc<string>('holler_link_device'),
   linkCode: () => rpc<string>('holler_link_code'),
   redeemCode: (code: string) => rpc<{ token: string }>('holler_redeem_code', { p_code: code }, false),
