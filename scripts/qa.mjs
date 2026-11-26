@@ -2,6 +2,7 @@
 // look + text + voice filter, the other sees it arrive, watches, reacts; a text note; saved.
 // Usage: node scripts/qa.mjs [baseUrl]
 import { chromium } from 'playwright';
+const openMore = async p => { if (!(await p.locator('.rail-btn[aria-expanded="true"]').count())) await p.click('.rail-btn[aria-label="More tools"]'); };
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const OUT = 'shots';
 const b = await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
@@ -96,7 +97,7 @@ await B.waitForTimeout(1500);
 await shot(B, '12-B-after-text');
 
 step('A sends a voice-only holler, B plays it');
-await A.click('.rail-btn:has-text("Voice only")');
+await openMore(A); await A.click('.rail-btn:has-text("Voice only")');
 await A.click('.rec'); await A.waitForTimeout(2200); await A.click('.rec');
 await A.waitForTimeout(6000);
 await B.waitForSelector('.new-pill', { timeout: 20000 });
@@ -107,7 +108,7 @@ const aud = await B.evaluate(() => { const v = document.querySelector('.p-video'
 console.log('B voice', JSON.stringify(aud));
 await shot(B, '12b-B-voice');
 await B.keyboard.press('Escape');
-await A.click('.rail-btn:has-text("Voice only")');
+await openMore(A); await A.click('.rail-btn:has-text("Voice only")');
 
 step('A records, closes the app mid-send, reopens: it still sends');
 const bBefore = await B.locator('.tile').count();

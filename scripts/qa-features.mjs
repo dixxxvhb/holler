@@ -1,6 +1,7 @@
 // Hold to record, pause/resume, timer, ring light, watching banner, unread title, player swipes.
 // Usage: node scripts/qa-features.mjs [baseUrl]
 import { chromium } from 'playwright';
+const openMore = async p => { if (!(await p.locator('.rail-btn[aria-expanded="true"]').count())) await p.click('.rail-btn[aria-label="More tools"]'); };
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const b = await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
 const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, permissions: ['camera', 'microphone'] };
@@ -42,7 +43,7 @@ out.pauseDur = await A.locator('.strip .tile:not(.pending) .tile-dur').nth(1).te
 
 // 3. timer: 3 s count, then it records on its own
 await A.waitForTimeout(4000);
-await A.click('.rail-btn:has-text("Timer")'); await A.waitForTimeout(300);
+await openMore(A); await A.click('.rail-btn:has-text("Timer")'); await A.waitForTimeout(300);
 await A.click('.rec'); await A.waitForTimeout(400);
 out.countdownShown = await A.locator('.countdown').textContent().catch(() => null);
 await A.screenshot({ path: 'shots/41-countdown.png' });
@@ -50,10 +51,10 @@ await A.waitForTimeout(3600);
 out.recordingAfterTimer = await A.locator('.rec.on').count();
 await A.waitForTimeout(1200); await A.click('.rec');
 out.timerSent = await waitTiles(A, 3);
-await A.click('.rail-btn:has-text("3s")'); await A.click('.rail-btn:has-text("10s")'); // back to off
+await openMore(A); await A.click('.rail-btn:has-text("3s")'); await A.click('.rail-btn:has-text("10s")'); // back to off
 
 // 4. ring light
-await A.click('.rail-btn:has-text("Light")'); await A.waitForTimeout(300);
+await openMore(A); await A.click('.rail-btn:has-text("Light")'); await A.waitForTimeout(300);
 out.ringLight = await A.locator('.ring-light').count();
 await A.screenshot({ path: 'shots/42-light.png' });
 

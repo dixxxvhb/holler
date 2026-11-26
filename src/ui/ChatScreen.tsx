@@ -17,7 +17,7 @@ import { ChatInfo } from './ChatInfo';
 const MAX_SEC = { sd: 300, hd: 150 };
 const INK = ['#ffffff', '#111111', '#ff6a3d', '#ffb02e', '#c6f432', '#4fd1a5', '#4cb3ff', '#9b7bff', '#ff7aa2'];
 
-type Panel = null | 'looks' | 'voice' | 'draw' | 'text';
+type Panel = null | 'looks' | 'voice' | 'draw' | 'text' | 'more';
 
 export function ChatScreen({ chatId }: { chatId: string }) {
   const { home, go, refresh, route } = useApp();
@@ -62,6 +62,15 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const countRef = useRef(0);
   const [ring, setRing] = useState(() => local('holler.ring', '0') === '1');
   const [held, setHeld] = useState(false);
+  const chatRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  // the side rail always stops above whatever the bottom area is showing (tiles, a panel, the record button)
+  useEffect(() => {
+    const el = bottomRef.current, root = chatRef.current; if (!el || !root || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => root.style.setProperty('--bottom-h', `${el.offsetHeight}px`));
+    ro.observe(el); return () => ro.disconnect();
+  }, []);
+  useEffect(() => { if (recording) setPanel(p => (p === 'more' ? null : p)); }, [recording]);
   const [kind, setKind] = useState<LookKind>(() => lookOf((prefs.look as string) || 'none').kind);
   const [amts, setAmts] = useState<Record<string, number>>(() => { try { return JSON.parse(local('holler.amt', '{}')); } catch { return {}; } });
   const amt = amts[look] ?? lookOf(look).amt;
@@ -342,7 +351,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   );
 
   return (
-    <div className="chat" style={{ ['--accent' as string]: theme }}>
+    <div className={`chat ${panel ? 'panel-open' : ''}`} ref={chatRef} style={{ ['--accent' as string]: theme }}>
       <div className="preview" ref={previewRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => onUp()}>
         <canvas ref={canvasRef} className={`cam ${audioOnly ? 'dim' : ''}`} />
         {camState === 'denied' && (
@@ -391,15 +400,12 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           {!(recording && audioOnly) && <button className={`rail-btn ${panel === 'draw' ? 'on' : ''} ${studio.current?.strokes.length ? 'set' : ''}`} onClick={() => toggle('draw')}><Icon name="pen" /><span>Draw</span></button>}
           {!(recording && audioOnly) && <button className={`rail-btn ${panel === 'text' ? 'on' : ''} ${text ? 'set' : ''}`} onClick={() => toggle('text')}><Icon name="text" /><span>Text</span></button>}
         </>}
-        {!recording && <button className={`rail-btn ${hd ? 'set' : ''}`} onClick={async () => { const v = !hd; setHd(v); await studio.current?.setHD(v); void api.updateMe({ prefs: { hd: v } }); toast(v ? 'HD on: sharper, bigger files' : 'HD off'); }}><Icon name="hd" /><span>{hd ? 'HD' : 'SD'}</span></button>}
-        {!recording && <button className={`rail-btn ${timer ? 'set' : ''}`} onClick={() => { const v = timer === 0 ? 3 : timer === 3 ? 10 : 0; setTimer(v); keep('holler.timer', String(v)); toast(v ? `${v} second timer: prop your phone up, tap record, step back` : 'Timer off'); }}><Icon name="timer" /><span>{timer ? `${timer}s` : 'Timer'}</span></button>}
-        {!(recording && audioOnly) && <button className={`rail-btn ${ring ? 'set' : ''}`} onClick={() => { const v = !ring; setRing(v); keep('holler.ring', v ? '1' : '0'); if (v && !recording) toast('Light on. Turn your screen brightness up for the most glow.'); }}><Icon name="light" /><span>Light</span></button>}
-        {!recording && <button className={`rail-btn ${audioOnly ? 'set' : ''}`} onClick={() => setAudioOnly(a => !a)}><Icon name="wave" /><span>Voice only</span></button>}
-        {!recording && <button className="rail-btn" onClick={() => fileRef.current?.click()}><Icon name="upload" /><span>Upload</span></button>}
+        {!recording && <button className={`rail-btn ${panel === 'more' ? 'on' : ''} ${panel !== 'more' && (hd || timer || audioOnly || ring) ? 'set' : ''}`} onClick={() => toggle('more')} aria-label={panel === 'more' ? 'Fewer tools' : 'More tools'} aria-expanded={panel === 'more'}><Icon name="more" stroke={3.2} /><span>More</span></button>}
+        {recording && !audioOnly && <button className={`rail-btn ${ring ? 'set' : ''}`} onClick={() => { const v = !ring; setRing(v); keep('holler.ring', v ? '1' : '0'); if (v && !recording) toast('Light on. Turn your screen brightness up for the most glow.'); }}><Icon name="light" /><span>Light</span></button>}
         <input ref={fileRef} type="file" accept="video/*,audio/*" hidden onChange={e => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
       </aside>
 
-      <div className="bottom">
+      <div className="bottom" ref={bottomRef}>
         {panel === 'looks' && (
           <div className="looks-panel">
             <div className="kind-tabs">
@@ -416,6 +422,15 @@ export function ChatScreen({ chatId }: { chatId: string }) {
             <div className="chip-note">{lookOf(look).kind === kind && lookOf(look).drag ? 'Drag on the picture to move it.' : KINDS.find(k => k.id === kind)?.note} {recording ? '' : 'Swipe across the picture to try the next one, even while recording.'}</div>
           </div>
         )}
+        {panel === 'more' && !recording && (
+          <div className="more-tools">
+          <button className={`rail-btn ${ring ? 'set' : ''}`} onClick={() => { const v = !ring; setRing(v); keep('holler.ring', v ? '1' : '0'); if (v && !recording) toast('Light on. Turn your screen brightness up for the most glow.'); }}><Icon name="light" /><span>Light</span></button>
+          <button className={`rail-btn ${timer ? 'set' : ''}`} onClick={() => { const v = timer === 0 ? 3 : timer === 3 ? 10 : 0; setTimer(v); keep('holler.timer', String(v)); toast(v ? `${v} second timer: prop your phone up, tap record, step back` : 'Timer off'); }}><Icon name="timer" /><span>{timer ? `${timer}s` : 'Timer'}</span></button>
+          <button className={`rail-btn ${hd ? 'set' : ''}`} onClick={async () => { const v = !hd; setHd(v); await studio.current?.setHD(v); void api.updateMe({ prefs: { hd: v } }); toast(v ? 'HD on: sharper, bigger files' : 'HD off'); }}><Icon name="hd" /><span>{hd ? 'HD' : 'SD'}</span></button>
+          <button className={`rail-btn ${audioOnly ? 'set' : ''}`} onClick={() => setAudioOnly(a => !a)}><Icon name="wave" /><span>Voice only</span></button>
+          <button className="rail-btn" onClick={() => fileRef.current?.click()}><Icon name="upload" /><span>Upload</span></button>
+          </div>
+        )}
         {panel === 'voice' && (
           <div className="chips">
             {VOICES.map(v => <button key={v.id} className={`chip ${voice === v.id ? 'on' : ''}`} onClick={() => { setVoice(v.id); void api.updateMe({ prefs: { voice: v.id } }); }}>{v.label}</button>)}
@@ -425,7 +440,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         {panel === 'draw' && (
           <div className="tools">
             <div className="inks">{INK.map(c => <button key={c} className={`ink ${c === ink ? 'on' : ''}`} style={{ background: c }} onClick={() => setInk(c)} aria-label="Ink color" />)}</div>
-            <div className="row gap">
+            <div className="row gap wrap draw-row">
               {[6, 10, 18].map(w => <button key={w} className={`wbtn ${inkW === w ? 'on' : ''}`} onClick={() => setInkW(w)} aria-label={`Brush ${w}`}><i style={{ width: w, height: w }} /></button>)}
               <button className="chip" onClick={() => { const s = studio.current; if (s) { s.strokes.pop(); s.markDirty(); bump(x => x + 1); } }}><Icon name="undo" size={16} /> Undo</button>
               <button className="chip" onClick={() => { const s = studio.current; if (s) { s.strokes = []; s.markDirty(); bump(x => x + 1); } }}>Clear</button>
