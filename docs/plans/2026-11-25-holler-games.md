@@ -22,6 +22,23 @@ Mockup Dixon reviewed (numbered screens, notes come back by number): https://cla
   the "you lost it here" marker on the reaction review (needs face detection, comes with face games); `scripts/game-sweep.mjs`
   (nothing to sweep until a game is 7 days old); vitest.
 
+## Round two built 2026-11-26 (Neo session): Poker Face and Charades Relay
+- **Both are "everyone at once"**: no turn order. `state.todo` lists who still owes a move; `chat_summary.yourTurn` counts it, and nudge pushes everyone in it.
+  48 hours with nothing owed being done moves the game on (Poker: to the vote, or to the end; Charades: to the end).
+- **Poker Face** (`kind 'poker'`, 3 to 5): Facts deck (Bluff's facts) or Words deck (Fake Word). The server secretly hands the real answer to one random
+  player (`secret.truth`), even the starter doesn't know who. Everyone records an answer (the question is drawn into the video as a card), clips unlock once
+  all are in, everyone but the truth teller votes (`holler_game_vote`). Scores: find the truth 2, each person you fool 1, the truth teller 1 per believer.
+  **Hot Seat left out on purpose**: on video the person being asked is on camera telling the truth, so it can't be hidden. Needs its own design.
+- **Charades Relay** (`kind 'charades'`, 2 to 5, 10/15/20 s acts): each actor draws their own word on device (Forehead's decks, used words to the back),
+  sent as `effects.game.word`; `holler_finish_polo` moves it to `secret.words` and strips it off the polo. Guessers tap I know it (stops the clip, keeps the
+  time), type, up to 3 tries; `holler.charades_match` forgives case, articles, punctuation, plurals and extra words. Points 3/2/1 by which third of the clip;
+  the actor gets 1 per person who got it. Words show only to the actor, to a finished guesser, and to everyone at the end.
+- **SQL**: `supabase/games2.sql` (live), checked by `games2-check.sql` (dry run, aborts on purpose). Pass It On's functions now run as `pass_*` behind
+  `game_json` / `game_tick` / `game_take_turn` dispatchers. New RPCs: `holler_game_start2`, `holler_game_vote`, `holler_game_guess`.
+- **Client**: `src/games/Rounds.tsx` (start sheet, banner, game page, PokerWatch, CharadesGuess), `src/games/roundLogic.ts` (decks, scores, tile lines).
+- **QA**: `PW_CHANNEL=chrome node scripts/qa-rounds.mjs [url]` (24 checks), then `node scripts/clean-qa-remote.mjs`.
+- Next: On The Spot (quiz on camera), then face games (Don't Laugh), then The Long Game.
+
 ## Dixon's calls (11-25)
 1. **Name:** a plain **Play** tile; each game keeps its own name.
 2. **Who plays:** any Holler chat, Kyle's included. (The Belt, when it comes, counts only in chats that turn it on.)

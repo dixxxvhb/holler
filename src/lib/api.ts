@@ -24,12 +24,22 @@ export type ChatSummary = {
 };
 export type GameTurn = { who: string; turn: number; at: string; skipped: boolean };
 export type Game = {
-  id: string; chat: string; kind: 'passiton'; status: 'playing' | 'done' | 'ended'; version: number;
+  id: string; chat: string; kind: GameKind; status: 'playing' | 'done' | 'ended'; version: number;
   order: string[]; turnSec: number; idx: number; turns: GameTurn[];
   turnPerson: string | null; turnSince: string | null; nudgedAt: string | null;
   createdBy: string | null; createdAt: string; endedAt: string | null; savedAt: string | null; savedBy: string | null;
   looked: boolean; phrase: string | null; guess: string | null; hidden: boolean; hidesAt: string | null; clips: Polo[] | null;
+  /** Round games (Poker Face, Charades Relay): who still owes a move. */
+  todo?: string[]; deck?: string;
+  // Poker Face
+  cardId?: string; question?: string; phase?: 'record' | 'vote'; since?: string; recorded?: string[]; voted?: string[];
+  myVote?: string | null; truthIsMe?: boolean; answer?: string | null; truth?: string | null; votes?: Record<string, string> | null;
+  // Charades Relay
+  acted?: string[]; acts?: CharadesAct[];
 };
+export type GameKind = 'passiton' | 'poker' | 'charades';
+export type CharadesGuess = { tries: number; ok: boolean; done: boolean; t: number | null; text?: string; at: string };
+export type CharadesAct = { who: string; at: string; clip: Polo | null; word: string | null; mine: CharadesGuess | null; results: Record<string, CharadesGuess> };
 export type ChatFull = ChatSummary & { polos: Polo[]; games?: Game[] };
 export type Home = { me: Person; chats: ChatSummary[]; usage: { bytes: number; count: number } };
 
@@ -73,6 +83,11 @@ export const api = {
   pushSub: (sub: object, on: boolean) => rpc<void>('holler_push_sub', { p_sub: sub, p_on: on }),
   gameStart: (chat: string, order: string[], turnSec: number, phrase: string, deckId: string) =>
     rpc<Game>('holler_game_start', { p_chat: chat, p_kind: 'passiton', p_order: order, p_turn_sec: turnSec, p_phrase: phrase, p_deck_id: deckId }),
+  gameStart2: (chat: string, kind: 'poker' | 'charades', order: string[], opts: object) =>
+    rpc<Game>('holler_game_start2', { p_chat: chat, p_kind: kind, p_order: order, p_opts: opts }),
+  gameVote: (id: string, pick: string) => rpc<Game>('holler_game_vote', { p_game: id, p_pick: pick }),
+  gameGuess: (id: string, actor: string, text: string, t: number) =>
+    rpc<{ ok: boolean; tries: number; done: boolean; word: string | null; game: Game }>('holler_game_guess', { p_game: id, p_actor: actor, p_text: text, p_t: t }),
   game: (id: string) => rpc<Game>('holler_game', { p_game: id }),
   gameLook: (id: string) => rpc<{ path: string; thumb: string | null; duration: number | null; who: string; mime: string | null }>('holler_game_look', { p_game: id }),
   gameLooked: (id: string) => rpc<Game>('holler_game_looked', { p_game: id }),

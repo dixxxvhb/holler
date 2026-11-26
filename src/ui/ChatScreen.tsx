@@ -15,6 +15,9 @@ import { Player } from './Player';
 import { ChatInfo } from './ChatInfo';
 import { GamePage, GuessSheet, LookScreen, PlaySheet, StartSheet, TurnBanner, roleOf } from '../games/Play';
 import { Reveal } from '../games/Reveal';
+import { CharadesGuess, PokerWatch, RoundBanner, RoundPage, RoundStart } from '../games/Rounds';
+import { TILE_NAME, charadesWords, markUsed, owes, tileLine, usedIn } from '../games/roundLogic';
+import type { CharadesAct } from '../lib/api';
 import { DECKS, dealOrder, type Card, type Deck } from '../games/content/cards';
 import '../games/games.css';
 
@@ -74,6 +77,11 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const [reveal, setReveal] = useState<Game | null>(null);
   const [turn, setTurn] = useState<Game | null>(null);
   const [guessRec, setGuessRec] = useState<{ rec: Recording; segs: Seg[]; text: string } | null>(null);
+  const [roundKind, setRoundKind] = useState<'poker' | 'charades' | null>(null);
+  const [turnWord, setTurnWord] = useState<string | null>(null);
+  const [wordI, setWordI] = useState(0);
+  const [pokerAt, setPokerAt] = useState<Game | null>(null);
+  const [guessAt, setGuessAt] = useState<{ g: Game; a: CharadesAct } | null>(null);
   const [card, setCard] = useState<Card | null>(null);
   const [deck, setDeck] = useState<Deck>('say');
   const [dealt, setDealt] = useState<Card[]>([]);
@@ -173,7 +181,13 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   useEffect(() => { if (studio.current) studio.current.amt = amt; }, [amt]);
   useEffect(() => { void studio.current?.setVoice(voice); }, [voice]);
   useEffect(() => { const s = studio.current; if (s) { s.text = text.trim() ? { text, y: textY, style: textStyle, color: textColor } : null; s.markDirty(); } }, [text, textY, textStyle, textColor]);
-  useEffect(() => { const s = studio.current; if (s) { s.card = card ? { label: DECKS.find(d => d.id === card.deck)?.label || '', text: card.text, sub: card.sub } : null; s.markDirty(); } }, [card, camState]);
+  useEffect(() => {
+    const s = studio.current; if (!s) return;
+    // a Poker Face answer carries its question, so voters see what was asked
+    s.card = turn?.kind === 'poker' && turn.question ? { label: 'Poker Face', text: turn.question, sub: 'True, or made up?' }
+      : card ? { label: DECKS.find(d => d.id === card.deck)?.label || '', text: card.text, sub: card.sub } : null;
+    s.markDirty();
+  }, [card, camState, turn]);
 
   // scroll strip to the end on new polos
   const polos = useMemo(() => chat?.polos || [], [chat]);
@@ -183,7 +197,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const unread = polos.filter(p => p.author !== me.id && !p.views.some(v => v.who === me.id));
   const others = chat ? chat.members.filter(m => m.id !== me.id) : [];
   const pres = presenceOf(chatId);
-  const maxSec = turn ? turn.turnSec : hd ? MAX_SEC.hd : MAX_SEC.sd;
+  const maxSec = turn ? (turn.kind === 'poker' ? 45 : turn.turnSec) : hd ? MAX_SEC.hd : MAX_SEC.sd;
+  const fixedTurn = !!turn && turn.kind !== 'poker';   // Pass It On and Charades turns send themselves at the turn length
   const games = chat?.games || [];
   const openGame = games.find(g => g.id === gameId) || null;
   const usedCards = useMemo(() => polos.map(p => p.effects?.cardId).filter((x): x is string => typeof x === 'string'), [polos]);
@@ -195,9 +210,13 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   };
   const nextCard = () => { if (!dealt.length) return; const i = (cardI + 1) % dealt.length; setCardI(i); setCard(dealt[i]); };
   const answerCard = (id: string) => { const d = id.split(':')[0] as Deck; deal(d, id); setPanel(null); toast('Same card is on. Record your answer.'); };
+  const wordsKey = `holler.words.${chatId}`;
   const takeTurn = (g: Game) => {
     setGameId(null);
-    if (roleOf(g) !== 'act' && !g.looked) { setLookAt(g); return; }
+    if (g.kind === 'charades') {
+      const list = charadesWords(g.deck || 'mixed', usedIn(wordsKey)); setWordI(0); setTurnWord(list[0] || 'Penguin');
+    } else setTurnWord(null);
+    if (g.kind === 'passiton' && roleOf(g) !== 'act' && !g.looked) { setLookAt(g); return; }
     setTurn(g); setCard(null); setAudioOnly(false); setPanel(null);
   };
   const gameChanged = (g: Game) => setChat(c => (c ? { ...c, games: (c.games || []).map(x => (x.id === g.id ? g : x)) } : c));
@@ -277,7 +296,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     if (rec.duration < 1) { toast('Too short. Tap once to start, tap again to send.'); return; }
     if (rec.blob.size < 1000) { toast('That one came out empty. Please try again.'); return; }
     if (turn) {
-      if (roleOf(turn) === 'guess') { setGuessRec({ rec, segs, text: segs.map(x => x.text).join(' ').trim().slice(0, 200) }); return; }
+      if (turn.kind === 'passiton' && roleOf(turn) === 'guess') { setGuessRec({ rec, segs, text: segs.map(x => x.text).join(' ').trim().slice(0, 200) }); return; }
       sendTurn(turn, rec, segs, null);
       return;
     }
@@ -294,14 +313,23 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const beginRef = useRef(begin); beginRef.current = begin;
 
   const sendTurn = (g: Game, rec: Recording, segs: Seg[], guess: string | null) => {
-    rec.effects = { ...rec.effects, game: guess ? { id: g.id, guess } : { id: g.id } };
+    rec.effects = { ...rec.effects, game: g.kind === 'charades' ? { id: g.id, word: turnWord } : guess ? { id: g.id, guess } : { id: g.id } };
+    if (g.kind === 'charades' && turnWord) markUsed(wordsKey, turnWord.toLowerCase());
     sendRecording(chatId, me.id, rec, segs.length ? JSON.stringify(segs) : null, () => { void load(); void refresh(); });
-    const nextP = chat?.members.find(m => m.id === g.order[g.idx + 1]);
-    toast(roleOf(g) === 'guess' ? 'Guess sent. The reveal is ready in a moment.' : `Your turn is in. ${nextP ? nextP.name.split(' ')[0] + ' is up.' : ''}`);
-    setTurn(null); setGuessRec(null);
+    if (g.kind === 'poker') toast('Answer in. Voting opens once everyone has gone.');
+    else if (g.kind === 'charades') toast('Act sent. Everyone else gets to guess.');
+    else {
+      const nextP = chat?.members.find(m => m.id === g.order[g.idx + 1]);
+      toast(roleOf(g) === 'guess' ? 'Guess sent. The reveal is ready in a moment.' : `Your turn is in. ${nextP ? nextP.name.split(' ')[0] + ' is up.' : ''}`);
+    }
+    setTurn(null); setGuessRec(null); setTurnWord(null);
+  };
+  const anotherWord = () => {
+    if (!turn) return; const list = charadesWords(turn.deck || 'mixed', usedIn(wordsKey));
+    const i = (wordI + 1) % Math.max(1, list.length); setWordI(i); setTurnWord(list[i] || turnWord);
   };
   // a turn records for exactly the game's turn length, then sends itself
-  useEffect(() => { if (turn && recording && elapsed >= turn.turnSec) void finish(); }, [turn, recording, elapsed]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (fixedTurn && turn && recording && elapsed >= turn.turnSec) void finish(); }, [turn, recording, elapsed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cancelRec = () => {
     clearInterval(tickRef.current);
@@ -401,7 +429,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   );
 
   return (
-    <div className={`chat ${panel ? 'panel-open' : ''} ${recording ? 'is-rec' : ''} ${turn ? (roleOf(turn) === 'act' ? 'g-in-turn g-acting' : 'g-in-turn') : ''}`} ref={chatRef} data-room={chat?.theme || 'ember'}>
+    <div className={`chat ${panel ? 'panel-open' : ''} ${recording ? 'is-rec' : ''} ${turn ? ((turn.kind === 'passiton' ? roleOf(turn) === 'act' : turn.kind === 'charades') ? 'g-in-turn g-acting' : 'g-in-turn') : ''}`} ref={chatRef} data-room={chat?.theme || 'ember'}>
       <div className="preview" ref={previewRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => onUp()}>
         <canvas ref={canvasRef} className={`cam ${audioOnly ? 'dim' : ''}`} />
         {camState === 'denied' && (
@@ -419,7 +447,9 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         {countdown > 0 && <div className="countdown" key={countdown}>{countdown}</div>}
         {recording && paused && <div className="paused-tag"><Icon name="pause" size={16} /> Paused</div>}
         {flash && <div className="look-flash" key={flash}>{flash}</div>}
-        {turn && chat && <TurnBanner game={turn} me={me} chat={chat} phrase={turn.phrase} />}
+        {turn && chat && (turn.kind === 'passiton'
+          ? <TurnBanner game={turn} me={me} chat={chat} phrase={turn.phrase} />
+          : <RoundBanner game={turn} word={turnWord} recording={recording} onAnother={anotherWord} />)}
         {lookOf(look).seg && cut === 'loading' && fx && <div className="cut-tag">Finding you<span className="dots"><i /><i /><i /></span></div>}
       </div>
 
@@ -538,6 +568,20 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           <div className="strip" ref={stripRef}>
             {!turn && <button className="g-play-tile" onClick={() => setPlayOpen(true)}><Icon name="cards" size={22} /><span>Play</span></button>}
             {games.filter(g => !g.hidden).map(g => {
+              if (g.kind !== 'passiton') {
+                const mine = owes(g, me.id);
+                const done = (id: string) => g.kind === 'poker' ? (g.phase === 'vote' ? true : (g.recorded || []).includes(id)) : (g.acted || []).includes(id);
+                return (
+                  <button key={g.id} className={`tile g-tile ${mine ? 'turn' : ''} ${g.status !== 'playing' ? 'over' : ''} ${g.createdBy === me.id ? 'mine' : ''}`} onClick={() => setGameId(g.id)}>
+                    <b>{TILE_NAME[g.kind]}</b>
+                    <span className="g-tile-who">{g.order.map(id => {
+                      const p = chat!.members.find(m => m.id === id) || (id === me.id ? me : undefined);
+                      return <span key={id} className={`g-tav ${g.status !== 'playing' || done(id) ? 'done' : 'wait'}`}><Avatar p={p} size={14} /></span>;
+                    })}</span>
+                    <em>{tileLine(g, me, chat!)}</em>
+                  </button>
+                );
+              }
               const mine = g.status === 'playing' && g.turnPerson === me.id;
               return (
                 <button key={g.id} className={`tile g-tile ${mine ? 'turn' : ''} ${g.status !== 'playing' ? 'over' : ''} ${g.createdBy === me.id ? 'mine' : ''}`} onClick={() => (g.status === 'playing' ? setGameId(g.id) : setReveal(g))}>
@@ -618,8 +662,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           </button>
           {recording ? <div className="timer">{clock(elapsed)}</div> : <div className="side-btn ghost" />}
         </div>
-        {recording && <div className="rec-hint">{turn ? `Sends itself at ${turn.turnSec} seconds` : held ? 'Let go to send' : paused ? 'Paused. Tap Resume to keep going, or tap to send.' : 'Tap to send'}</div>}
-        {turn && !recording && <div className="rec-hint">{roleOf(turn) === 'act' ? 'Tap record and act it out' : roleOf(turn) === 'guess' ? 'Tap record and say your guess' : 'Tap record and copy it'}</div>}
+        {recording && <div className="rec-hint">{fixedTurn && turn ? `Sends itself at ${turn.turnSec} seconds` : turn ? 'Tap to send your answer' : held ? 'Let go to send' : paused ? 'Paused. Tap Resume to keep going, or tap to send.' : 'Tap to send'}</div>}
+        {turn && !recording && <div className="rec-hint">{turn.kind === 'poker' ? 'Tap record and give your answer' : turn.kind === 'charades' || roleOf(turn) === 'act' ? 'Tap record and act it out' : roleOf(turn) === 'guess' ? 'Tap record and say your guess' : 'Tap record and copy it'}</div>}
         {countdown > 0 && <div className="rec-hint">Tap to call it off</div>}
       </div>
 
@@ -644,10 +688,17 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       {chat && (<>
         <PlaySheet open={playOpen} onClose={() => setPlayOpen(false)} people={chat.members.length}
           onCard={() => { setPlayOpen(false); deal(deck); setPanel('card'); }}
-          onPassItOn={() => { setPlayOpen(false); setStartOpen(true); }} />
+          onPassItOn={() => { setPlayOpen(false); setStartOpen(true); }}
+          onRound={k => { setPlayOpen(false); setRoundKind(k); }} />
+        {roundKind && <RoundStart open={!!roundKind} kind={roundKind} onClose={() => setRoundKind(null)} chat={chat} me={me}
+          onStarted={g => { setRoundKind(null); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); takeTurn(g); }} />}
         <StartSheet open={startOpen} onClose={() => setStartOpen(false)} chat={chat} me={me}
           onStarted={g => { setStartOpen(false); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); takeTurn(g); }} />
-        {openGame && <GamePage game={openGame} chat={chat} me={me} onClose={() => setGameId(null)} onTakeTurn={takeTurn}
+        {openGame && openGame.kind !== 'passiton' && <RoundPage game={openGame} chat={chat} me={me} onClose={() => setGameId(null)} onTakeTurn={takeTurn}
+          onWatch={g => setPokerAt(g)} onGuess={(g, a) => setGuessAt({ g, a })} onChanged={gameChanged} />}
+        {pokerAt && <PokerWatch game={games.find(g => g.id === pokerAt.id) || pokerAt} chat={chat} me={me} onClose={() => { setPokerAt(null); void load(); }} onChanged={gameChanged} />}
+        {guessAt && <CharadesGuess game={guessAt.g} act={guessAt.a} chat={chat} me={me} onClose={() => { setGuessAt(null); void load(); }} onChanged={gameChanged} />}
+        {openGame && openGame.kind === 'passiton' && <GamePage game={openGame} chat={chat} me={me} onClose={() => setGameId(null)} onTakeTurn={takeTurn}
           onReveal={g => { setGameId(null); setReveal(g); }} onChanged={gameChanged} />}
         {lookAt && <LookScreen game={lookAt} chat={chat} me={me} onClose={() => setLookAt(null)} onCopy={g => { setLookAt(null); gameChanged(g); setTurn(g); setCard(null); setAudioOnly(false); }} />}
         {reveal && <Reveal game={reveal} chat={chat} me={me} studio={camState === 'on' ? studio.current : null} onClose={() => { setReveal(null); void load(); }}

@@ -17,8 +17,8 @@ export type Role = 'act' | 'copy' | 'guess';
 export function roleOf(g: Game): Role { return g.idx === 0 ? 'act' : g.idx >= g.order.length - 1 ? 'guess' : 'copy'; }
 
 // ---------------------------------------------------------------- the Play sheet
-export function PlaySheet({ open, onClose, people, onCard, onPassItOn }: {
-  open: boolean; onClose: () => void; people: number; onCard: () => void; onPassItOn: () => void;
+export function PlaySheet({ open, onClose, people, onCard, onPassItOn, onRound }: {
+  open: boolean; onClose: () => void; people: number; onCard: () => void; onPassItOn: () => void; onRound: (k: 'poker' | 'charades') => void;
 }) {
   return (
     <Sheet open={open} onClose={onClose} title="Play">
@@ -32,7 +32,17 @@ export function PlaySheet({ open, onClose, people, onCard, onPassItOn }: {
         <span className="g-opt-txt"><b>Pass It On</b><span>{people < 3 ? 'Needs 3 or more people in this chat.' : 'You act out a secret phrase. Each person copies only the clip before theirs. The last one guesses.'}</span></span>
         <span className="g-opt-n">3 to 5</span>
       </button>
-      <p className="g-later">Coming next: Poker Face, Charades Relay, Don't Laugh.</p>
+      <button className="g-opt game" onClick={() => onRound('poker')} disabled={people < 3}>
+        <span className="g-opt-ic pass"><Icon name="facecam" size={24} /></span>
+        <span className="g-opt-txt"><b>Poker Face</b><span>{people < 3 ? 'Needs 3 or more people in this chat.' : 'Everyone answers the same question to camera. One of you secretly has the real answer. Vote on who.'}</span></span>
+        <span className="g-opt-n">3 to 5</span>
+      </button>
+      <button className="g-opt game" onClick={() => onRound('charades')} disabled={people < 2}>
+        <span className="g-opt-ic pass"><Icon name="eye" size={24} /></span>
+        <span className="g-opt-txt"><b>Charades Relay</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Everyone acts out a secret word with no talking. Guess the others. Faster scores more.'}</span></span>
+        <span className="g-opt-n">2 to 5</span>
+      </button>
+      <p className="g-later">Coming next: On The Spot, Don't Laugh.</p>
     </Sheet>
   );
 }

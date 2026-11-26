@@ -213,14 +213,20 @@ export class Studio {
       const s = W / 540, x = 0.12 * W, y = 190 * s, w = 0.64 * W, pad = 20 * s;
       c.save(); c.translate(x + w / 2, y); c.rotate(-0.03); c.translate(-(x + w / 2), -y);
       c.textAlign = 'left'; c.textBaseline = 'alphabetic';
-      c.font = `400 ${32 * s}px "Tilt Warp", "Arial Black", system-ui, sans-serif`;
-      const lines = wrap(c, k.text, w - pad * 2).slice(0, 6);
-      const lh = 35 * s, h = pad + 22 * s + 14 * s + lines.length * lh + 34 * s + pad * 0.6;
+      // long cards (a Poker Face question) step the type down so every word fits in six lines
+      let fs = 32, lines: string[] = [];
+      for (fs of [32, 27, 23]) {
+        c.font = `400 ${fs * s}px "Tilt Warp", "Arial Black", system-ui, sans-serif`;
+        lines = wrap(c, k.text, w - pad * 2, 12);
+        if (lines.length <= 6) break;
+      }
+      lines = lines.slice(0, 7);
+      const lh = (fs + 3) * s, h = pad + 22 * s + 14 * s + lines.length * lh + 34 * s + pad * 0.6;
       c.fillStyle = '#f7f6fb'; roundRect(c, x, y, w, h, 18 * s); c.fill();
       c.lineWidth = 3 * s; c.strokeStyle = '#15121c'; c.stroke();
       c.fillStyle = 'rgba(21,18,28,.72)'; c.font = `700 ${17 * s}px Figtree, system-ui, sans-serif`;
       c.fillText(k.label.toUpperCase().split('').join(String.fromCharCode(8202)), x + pad, y + pad + 16 * s);
-      c.fillStyle = '#15121c'; c.font = `400 ${32 * s}px "Tilt Warp", "Arial Black", system-ui, sans-serif`;
+      c.fillStyle = '#15121c'; c.font = `400 ${fs * s}px "Tilt Warp", "Arial Black", system-ui, sans-serif`;
       lines.forEach((ln, i) => c.fillText(ln, x + pad, y + pad + 22 * s + 14 * s + (i + 0.8) * lh));
       c.fillStyle = 'rgba(21,18,28,.62)'; c.font = `500 ${18 * s}px Figtree, system-ui, sans-serif`;
       c.fillText(k.sub, x + pad, y + h - pad * 0.9);
@@ -497,7 +503,7 @@ function waitFrames(v: HTMLVideoElement) {
   });
 }
 
-function wrap(c: CanvasRenderingContext2D, text: string, max: number) {
+function wrap(c: CanvasRenderingContext2D, text: string, max: number, limit = 5) {
   const out: string[] = [];
   for (const para of text.split('\n')) {
     let line = '';
@@ -507,7 +513,7 @@ function wrap(c: CanvasRenderingContext2D, text: string, max: number) {
     }
     out.push(line);
   }
-  return out.slice(0, 5);
+  return out.slice(0, limit);
 }
 function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
