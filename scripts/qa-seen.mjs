@@ -1,0 +1,38 @@
+// Seen receipts: A sends, B hasn't watched (check), B watches, A sees B's face, time, and "Seen by" on home.
+import { chromium } from 'playwright';
+const BASE = process.argv[2] || 'http://localhost:5188/';
+const b = await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
+const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, permissions: ['camera', 'microphone'] };
+const A = await (await b.newContext(phone)).newPage(); const B = await (await b.newContext(phone)).newPage();
+const errs = []; for (const [n, p] of [['A', A], ['B', B]]) p.on('pageerror', e => errs.push(`${n}: ${e.message}`));
+const out = {};
+await A.goto(BASE); await A.fill('#nm', 'Avery QA'); await A.click("text=Let's go");
+await A.click('button:has-text("Start a chat")'); await A.fill('#cn', 'QA Crew'); await A.click('text=Make it');
+await A.waitForSelector('.code-big'); const code = (await A.textContent('.code-big')).trim(); await A.click('.sheet-head .icon-btn');
+await B.goto(BASE + '#/join/' + code); await B.fill('#nm', 'Blake QA'); await B.click('text=Join the chat');
+await B.waitForSelector('.chat-top', { timeout: 15000 }); await B.click('.chat-top .icon-btn'); await B.waitForSelector('.chat-card');
+await A.waitForTimeout(2500);
+await A.click('.rec'); await A.waitForTimeout(2000); await A.click('.rec');
+for (let i = 0; i < 60; i++) { if (await A.locator('.strip .tile:not(.pending)').count()) break; await A.waitForTimeout(500); }
+await A.waitForTimeout(800);
+out.beforeTile = await A.locator('.tile-seen.none').count();
+await A.click('.chat-top .icon-btn'); await A.waitForSelector('.chat-card'); await A.waitForTimeout(800);
+out.homeBefore = await A.locator('.cc-sub').first().textContent();
+await A.click('.chat-card');
+await A.waitForTimeout(1500);
+await B.waitForTimeout(1500); await B.click('.chat-card'); await B.waitForTimeout(1500);
+await B.click('.new-pill', { force: true }); await B.waitForTimeout(3000);
+if (await B.locator('.p-top .icon-btn').count()) await B.click('.p-top .icon-btn'); await B.waitForTimeout(2500);
+out.afterTile = await A.locator('.tile-seen:not(.none)').count();
+out.afterTitle = await A.getAttribute('.tile-seen', 'title');
+await A.click('.strip .tile:not(.pending)'); await A.waitForTimeout(1500);
+out.receipts = await A.locator('.rcpt').allTextContents();
+await A.screenshot({ path: 'shots/50-receipts.png' });
+await A.click('.p-top .icon-btn'); await A.waitForTimeout(500);
+await A.screenshot({ path: 'shots/51-seen-tile.png' });
+await A.click('.chat-top .icon-btn'); await A.waitForSelector('.chat-card'); await A.waitForTimeout(1500);
+out.homeAfter = await A.locator('.cc-sub').first().textContent();
+await A.screenshot({ path: 'shots/52-home-seen.png' });
+out.errs = errs;
+console.log(JSON.stringify(out, null, 1));
+await b.close();

@@ -140,7 +140,9 @@ language sql stable security definer set search_path = holler as $$
                  and po.author_id <> p_me
                  and not exists (select 1 from holler.views v where v.polo_id = po.id and v.person_id = p_me)),
     'last', (select jsonb_build_object('id', po.id, 'kind', po.kind, 'thumb', po.thumb_path, 'author', po.author_id,
-                                       'body', left(po.body, 80), 'at', po.created_at)
+                                       'body', left(po.body, 80), 'at', po.created_at,
+                                       'seen', (select coalesce(jsonb_agg(v.person_id order by v.viewed_at), '[]') from holler.views v
+                                                 where v.polo_id = po.id and v.person_id <> po.author_id))
                from holler.polos po where po.chat_id = c.id and po.status = 'ready'
               order by po.created_at desc limit 1)
   ) from holler.chats c where c.id = p_chat
@@ -275,8 +277,12 @@ end $$;
 
 create or replace function public.holler_finish_polo(p_token text, p_polo uuid, p_duration real, p_w int, p_h int, p_transcript text, p_effects jsonb, p_has_thumb boolean)
 returns jsonb language plpgsql security definer set search_path = holler, public as $$
-declare me uuid := holler.who(p_token); po holler.polos;
+declare me uuid := holler.who(p_token); po holler.polos; sz bigint;
 begin
+  -- never publish an empty recording (an iPhone can hand back a 0-byte file from a very short take)
+  select coalesce((o.metadata->>'size')::bigint, 0) into sz from storage.objects o
+    join holler.polos x on x.path = o.name where x.id = p_polo and o.bucket_id = 'holler';
+  if coalesce(sz, 0) < 1000 then raise exception 'That holler came out empty. Please record it again.'; end if;
   update holler.polos set status = 'ready', ready_at = now(), duration = p_duration, width = p_w, height = p_h,
     transcript = nullif(left(p_transcript, 20000), ''), effects = coalesce(p_effects, '{}'),
     thumb_path = case when p_has_thumb then thumb_path end

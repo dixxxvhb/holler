@@ -19,7 +19,7 @@ export type Polo = {
 export type ChatSummary = {
   id: string; name: string; code: string; theme: string; lastPoloAt: string; muted: boolean;
   members: Person[]; unread: number;
-  last: { id: string; kind: string; thumb: string | null; author: string; body: string | null; at: string } | null;
+  last: { id: string; kind: string; thumb: string | null; author: string; body: string | null; at: string; seen?: string[] | null } | null;
 };
 export type ChatFull = ChatSummary & { polos: Polo[] };
 export type Home = { me: Person; chats: ChatSummary[]; usage: { bytes: number; count: number } };

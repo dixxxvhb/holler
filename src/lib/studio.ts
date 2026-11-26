@@ -1,20 +1,9 @@
 // The camera studio: camera -> WebGL (looks + mirror + overlay of scribbles and text) -> canvas,
 // mic -> voice filter -> recorder. Falls back to recording the raw camera when the canvas path fails.
 import { buildVoice, type VoiceId } from './voice';
-
-export const LOOKS = [
-  { id: 'none', label: 'Natural' },
-  { id: 'warm', label: 'Golden hour' },
-  { id: 'film', label: 'Film' },
-  { id: 'vivid', label: 'Vivid' },
-  { id: 'cool', label: 'Blue hour' },
-  { id: 'mono', label: 'Mono' },
-  { id: 'noir', label: 'Noir' },
-  { id: 'dream', label: 'Dreamy' },
-  { id: 'retro', label: 'VHS' },
-  { id: 'pop', label: 'Comic' },
-] as const;
-export type LookId = (typeof LOOKS)[number]['id'];
+import { LOOKS, VS, FS, lookOf, type LookId } from './looks';
+import { Cutout, loadSegmenter } from './segment';
+export { LOOKS, type LookId };
 
 export type Stroke = { color: string; width: number; pts: [number, number][] };
 export type TextLayer = { text: string; y: number; style: 'pill' | 'bold' | 'type'; color: string } | null;
@@ -23,31 +12,6 @@ export type Recording = {
   blob: Blob; mime: string; ext: string; duration: number; w: number; h: number; thumb: Blob | null;
   kind: 'video' | 'audio'; effects: Record<string, unknown>;
 };
-
-const VS = `attribute vec2 p; varying vec2 uv; void main(){ uv = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }`;
-const FS = `precision mediump float;
-varying vec2 uv; uniform sampler2D vid; uniform sampler2D ov; uniform vec4 crop; uniform float mirror; uniform int look; uniform float t; uniform vec2 res;
-float lum(vec3 c){ return dot(c, vec3(.299,.587,.114)); }
-float rnd(vec2 co){ return fract(sin(dot(co, vec2(12.9898,78.233)) + t) * 43758.5453); }
-vec3 sat(vec3 c, float s){ return mix(vec3(lum(c)), c, s); }
-vec3 sampleV(vec2 q){ vec2 u = vec2(q.x, 1.-q.y); if (mirror > .5) u.x = 1.-u.x; return texture2D(vid, crop.xy + u*crop.zw).rgb; }
-void main(){
-  vec2 q = uv; vec3 c;
-  if (look == 8) { float o = 2.5/res.x; c = vec3(sampleV(q+vec2(o,0.)).r, sampleV(q).g, sampleV(q-vec2(o,0.)).b); }
-  else c = sampleV(q);
-  float vig = smoothstep(1.15, .35, length(q-.5)*1.4);
-  if (look == 1) { c = c*vec3(1.08,1.0,.86) + vec3(.03,.015,0.); c = sat(c,1.12); c *= mix(.8,1.,vig); }
-  else if (look == 2) { c = mix(vec3(.08,.06,.07), vec3(.97,.93,.86), c); c = sat(c,.82); c.r = pow(c.r,.95); c.b = pow(c.b,1.08); c += (rnd(q*res)-.5)*.07; c *= mix(.72,1.,vig); }
-  else if (look == 3) { c = sat(c,1.45); c = (c-.5)*1.12+.5; }
-  else if (look == 4) { c = c*vec3(.88,.98,1.12) + vec3(0.,.01,.04); c = sat(c,.9); }
-  else if (look == 5) { float l = lum(c); l = (l-.5)*1.1+.5; c = vec3(l); }
-  else if (look == 6) { float l = lum(c); l = smoothstep(.12,.88,l); c = vec3(l)*mix(.45,1.,vig); c += (rnd(q*res)-.5)*.06; }
-  else if (look == 7) { vec3 b = vec3(0.); float k = 3./res.x; for (int i=-2;i<=2;i++) for (int j=-2;j<=2;j++) b += sampleV(q+vec2(float(i),float(j))*k*2.); b/=25.; c = max(c, b*1.1); c = mix(c, vec3(1.,.86,.92), .12); c = sat(c,.9)*1.04; }
-  else if (look == 8) { c = sat(c,1.25); c *= .9 + .1*sin(q.y*res.y*1.6); c += (rnd(vec2(q.y*40., t))-.5)*.05; c = mix(c, c*vec3(1.05,.95,1.1), .5); c *= mix(.7,1.,vig); }
-  else if (look == 9) { c = sat(c,1.6); c = floor(c*5.)/5.; float e = length(sampleV(q+vec2(1.5/res.x,0.)) - sampleV(q-vec2(1.5/res.x,0.))) + length(sampleV(q+vec2(0.,1.5/res.y)) - sampleV(q-vec2(0.,1.5/res.y))); c *= 1. - smoothstep(.18,.4,e); }
-  vec4 o = texture2D(ov, vec2(q.x, 1.-q.y));
-  gl_FragColor = vec4(mix(c, o.rgb, o.a), 1.);
-}`;
 
 function pickMime(kind: 'video' | 'audio'): { mime: string; ext: string } {
   const R = typeof MediaRecorder !== 'undefined' ? MediaRecorder : null;
@@ -76,7 +40,6 @@ export class Studio {
   private gl: WebGLRenderingContext | null = null;
   private texV: WebGLTexture | null = null;
   private texO: WebGLTexture | null = null;
-  private uni: Record<string, WebGLUniformLocation | null> = {};
   private raf = 0;
   private ovDirty = true;
   private rec: MediaRecorder | null = null;
@@ -88,6 +51,24 @@ export class Studio {
   onLevel?: (v: number) => void;
   private analyser: AnalyserNode | null = null;
   private swapping = false;
+  /** strength of the current look, 0..1 */
+  amt = 1;
+  /** where warps are centered, in picture coordinates (0..1, top-left origin) */
+  ctr: [number, number] = [0.5, 0.42];
+  /** smoothed loudness, 0..1, drives the voice-reactive looks */
+  level = 0;
+  private texP: WebGLTexture | null = null;
+  private texM: WebGLTexture | null = null;
+  private cut = new Cutout();
+  private hasMask = false;
+  private meter: { ctx: AudioContext; an: AnalyserNode; src: MediaStreamAudioSourceNode } | null = null;
+  private voiceNode: { inG: GainNode; outG: GainNode; stop: () => void } | null = null;
+  private recSrc: MediaStreamAudioSourceNode | null = null;
+  private bus: GainNode | null = null;
+  /** every look used in this recording, for the record */
+  looksUsed = new Set<string>();
+  voicesUsed = new Set<string>();
+  onCutout?: (state: 'loading' | 'ready' | 'failed') => void;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -141,25 +122,48 @@ export class Studio {
   }
   async setHD(hd: boolean) { if (hd !== this.hd && !this.recording) { this.hd = hd; await this.open({ hd }); } }
 
-  private initGL() {
-    const gl = this.canvas.getContext('webgl', { preserveDrawingBuffer: true, premultipliedAlpha: false, antialias: false });
-    if (!gl) return;
+  // One small program per look, built the first time it's used. A single program holding every look
+  // would make some phones pay for all of them on every frame.
+  private progs = new Map<number, { prog: WebGLProgram; uni: Record<string, WebGLUniformLocation | null> } | null>();
+  private program(idx: number): { prog: WebGLProgram; uni: Record<string, WebGLUniformLocation | null> } {
+    const gl = this.gl!;
+    if (this.progs.has(idx)) return this.progs.get(idx) || this.progs.get(0)!;
     const sh = (type: number, src: string) => { const s = gl.createShader(type)!; gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) || 'shader'); return s; };
     try {
       const prog = gl.createProgram()!;
-      gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(prog);
+      gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
+      gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS.replace('uniform int look;', `const int look = ${idx};`)));
+      gl.bindAttribLocation(prog, 0, 'p');
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog) || 'link');
+      const uni: Record<string, WebGLUniformLocation | null> = {};
+      for (const n of ['vid', 'ov', 'prev', 'mask', 'crop', 'mirror', 't', 'res', 'amt', 'lvl', 'ctr', 'hasMask']) uni[n] = gl.getUniformLocation(prog, n);
       gl.useProgram(prog);
+      gl.uniform1i(uni.vid, 0); gl.uniform1i(uni.ov, 1); gl.uniform1i(uni.prev, 2); gl.uniform1i(uni.mask, 3);
+      const out = { prog, uni }; this.progs.set(idx, out); return out;
+    } catch (e) {
+      console.warn('shader', LOOKS[idx]?.id, e);
+      if (idx === 0) throw e;
+      this.progs.set(idx, null); return this.program(0);
+    }
+  }
+
+  private initGL() {
+    const gl = this.canvas.getContext('webgl', { preserveDrawingBuffer: true, premultipliedAlpha: false, antialias: false });
+    if (!gl) return;
+    try {
+      this.gl = gl;
       const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-      const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
       const mk = (unit: number) => { const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; };
-      this.texV = mk(0); this.texO = mk(1);
-      for (const n of ['vid', 'ov', 'crop', 'mirror', 'look', 't', 'res']) this.uni[n] = gl.getUniformLocation(prog, n);
-      gl.uniform1i(this.uni.vid, 0); gl.uniform1i(this.uni.ov, 1);
-      this.gl = gl; this.glOk = true;
-    } catch (e) { console.warn('webgl off', e); this.glOk = false; }
+      this.texV = mk(0); this.texO = mk(1); this.texP = mk(2); this.texM = mk(3);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, 1, 1, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, new Uint8Array([255]));
+      this.program(0);
+      this.glOk = true;
+    } catch (e) { console.warn('webgl off', e); this.glOk = false; this.gl = null; }
   }
 
   private drawOverlay() {
@@ -217,11 +221,26 @@ export class Studio {
       const va = v.videoWidth / v.videoHeight, ca = W / H;
       let cw = 1, ch = 1;
       if (va > ca) cw = ca / va; else ch = va / ca;
-      gl.uniform4f(this.uni.crop, (1 - cw) / 2, (1 - ch) / 2, cw, ch);
-      gl.uniform1f(this.uni.mirror, this.facing === 'user' ? 1 : 0);
-      gl.uniform1i(this.uni.look, Math.max(0, LOOKS.findIndex(l => l.id === this.look)));
-      gl.uniform1f(this.uni.t, (performance.now() / 1000) % 100);
-      gl.uniform2f(this.uni.res, W, H);
+      const L = lookOf(this.look);
+      const pr = this.program(Math.max(0, LOOKS.indexOf(L))); const U = pr.uni;
+      gl.useProgram(pr.prog);
+      gl.uniform4f(U.crop, (1 - cw) / 2, (1 - ch) / 2, cw, ch);
+      gl.uniform1f(U.mirror, this.facing === 'user' ? 1 : 0);
+      gl.uniform1f(U.t, (performance.now() / 1000) % 1000);
+      gl.uniform2f(U.res, W, H);
+      gl.uniform1f(U.amt, this.amt);
+      gl.uniform1f(U.lvl, this.level);
+      gl.uniform2f(U.ctr, this.ctr[0], 1 - this.ctr[1]);
+      if (L.seg) {
+        this.cut.tick(v);
+        if (this.cut.fresh && this.cut.data) {
+          gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, this.texM);
+          gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, this.cut.w, this.cut.h, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, this.cut.data);
+          this.cut.fresh = false; this.hasMask = true;
+        }
+      }
+      gl.uniform1f(U.hasMask, L.seg && this.hasMask ? 1 : 0);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.texV);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, v);
       if (this.ovDirty) {
@@ -229,12 +248,17 @@ export class Studio {
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.overlay);
       }
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      if (L.history) { gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.texP); gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGB, 0, 0, W, H, 0); }
     }
     this.ovDirty = false;
-    if (this.analyser && this.onLevel) {
-      const a = new Uint8Array(this.analyser.fftSize); this.analyser.getByteTimeDomainData(a);
-      let m = 0; for (const x of a) m = Math.max(m, Math.abs(x - 128)); this.onLevel(m / 128);
-    }
+    const an = this.analyser || this.meter?.an;
+    if (an) {
+      const a = new Uint8Array(an.fftSize); an.getByteTimeDomainData(a);
+      let m = 0; for (const x of a) m = Math.max(m, Math.abs(x - 128));
+      const raw = Math.min(1, (m / 128) * 2.2);
+      this.level = raw > this.level ? this.level * 0.4 + raw * 0.6 : this.level * 0.9 + raw * 0.1;
+      if (this.analyser) this.onLevel?.(m / 128);
+    } else this.level *= 0.9;
   }
 
   /** One second of silent canvas recording, decoded and checked for real pixels. Some phones record
@@ -297,24 +321,21 @@ export class Studio {
     this.recKind = kind;
     const mic = this.stream.getAudioTracks()[0];
     let audioTrack: MediaStreamTrack | undefined = mic;
-    // audio graph: voice filter + level meter
+    this.looksUsed = new Set([this.look]); this.voicesUsed = new Set([this.voice]);
     try {
       const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       const ctx = new AC();
       if (ctx.state === 'suspended') await ctx.resume();
+      if (ctx.state !== 'running') throw new Error('audio asleep');
       const src = ctx.createMediaStreamSource(new MediaStream([mic]));
       const an = ctx.createAnalyser(); an.fftSize = 512; this.analyser = an;
-      if (this.voice !== 'none') {
-        const dest = ctx.createMediaStreamDestination();
-        const out = ctx.createGain(); out.connect(dest); out.connect(an);
-        const stop = await buildVoice(ctx, src, out, this.voice);
-        audioTrack = dest.stream.getAudioTracks()[0];
-        this.audio = { ctx, stop };
-      } else {
-        src.connect(an);
-        this.audio = { ctx, stop: () => {} };
-      }
-    } catch (e) { console.warn('voice off', e); audioTrack = mic; }
+      const dest = ctx.createMediaStreamDestination();
+      const bus = ctx.createGain(); bus.connect(dest); bus.connect(an);
+      this.recSrc = src; this.bus = bus;
+      this.audio = { ctx, stop: () => { this.voiceNode?.stop(); this.voiceNode = null; this.recSrc = null; this.bus = null; } };
+      await this.routeVoice(this.voice);
+      audioTrack = dest.stream.getAudioTracks()[0];
+    } catch (e) { console.warn('voice off', e); audioTrack = mic; this.audio?.ctx.close().catch(() => {}); this.audio = null; this.analyser = null; }
 
     let tracks: MediaStreamTrack[] = [];
     if (kind === 'video') {
@@ -334,6 +355,40 @@ export class Studio {
     (rec as unknown as { _ext: string })._ext = ext;
     this.thumbP = kind === 'video' ? new Promise(res => setTimeout(() => this.snapshot().then(res), 450)) : Promise.resolve(null);
   }
+
+  /** Put a voice chain between the mic and the recorder; swaps cleanly mid-recording. */
+  private async routeVoice(voice: VoiceId) {
+    const ctx = this.audio?.ctx; const src = this.recSrc; const bus = this.bus;
+    if (!ctx || !src || !bus) return;
+    const inG = ctx.createGain(); const outG = ctx.createGain(); outG.connect(bus);
+    const stop = await buildVoice(ctx, inG, outG, voice);
+    src.connect(inG);
+    const old = this.voiceNode; this.voiceNode = { inG, outG, stop };
+    if (old) { try { src.disconnect(old.inG); } catch { /* */ } old.outG.disconnect(); old.stop(); }
+  }
+  async setVoice(v: VoiceId) {
+    this.voice = v;
+    if (this.recording && this.recSrc) { this.voicesUsed.add(v); await this.routeVoice(v); }
+  }
+  setLook(id: LookId) {
+    this.look = id;
+    if (this.recording) this.looksUsed.add(id);
+    const L = lookOf(id);
+    if (L.seg) { this.onCutout?.('loading'); void loadSegmenter().then(sg => this.onCutout?.(sg ? 'ready' : 'failed')); }
+    if (L.voice) this.ensureMeter(); else this.stopMeter();
+  }
+  /** A light mic meter for voice-reactive looks while not recording. Needs a tap first on iPhone. */
+  ensureMeter() {
+    if (this.meter || !this.stream?.getAudioTracks()[0]) return;
+    try {
+      const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AC(); const src = ctx.createMediaStreamSource(new MediaStream([this.stream.getAudioTracks()[0]]));
+      const an = ctx.createAnalyser(); an.fftSize = 512; src.connect(an);
+      this.meter = { ctx, an, src };
+    } catch { /* no meter, looks still work */ }
+  }
+  wake() { if (this.meter?.ctx.state === 'suspended') void this.meter.ctx.resume(); }
+  private stopMeter() { if (this.meter) { this.meter.ctx.close().catch(() => {}); this.meter = null; } }
 
   snapshot(q = 0.72): Promise<Blob | null> {
     let src: HTMLCanvasElement = this.canvas;
@@ -356,7 +411,6 @@ export class Studio {
     const duration = this.elapsed();
     if (rec.state === 'paused') { try { rec.resume(); } catch { /* */ } }
     const done = new Promise<void>(r => { rec.onstop = () => r(); });
-    try { rec.requestData(); } catch { /* not all browsers */ }
     rec.stop();
     await done;
     this.rec = null; this.analyser = null;
@@ -367,7 +421,7 @@ export class Studio {
     const thumb = await this.thumbP;
     const { w, h } = this.size;
     return { blob, mime, ext, duration, w, h, thumb, kind: this.recKind,
-      effects: { look: this.look, voice: this.voice, text: this.text?.text || null, scribbles: this.strokes.length > 0, hd: this.hd } };
+      effects: { look: this.look, voice: this.voice, looks: [...this.looksUsed], voices: [...this.voicesUsed], text: this.text?.text || null, scribbles: this.strokes.length > 0, hd: this.hd } };
   }
 
   cancel() {
@@ -376,7 +430,7 @@ export class Studio {
   }
 
   /** Leave the camera. Tracks are paused, not stopped, so coming back never asks for permission again. */
-  close() { cancelAnimationFrame(this.raf); this.cancel(); this.video.srcObject = null; this.stream = null; pauseMedia(); }
+  close() { cancelAnimationFrame(this.raf); this.cancel(); this.stopMeter(); this.video.srcObject = null; this.stream = null; pauseMedia(); }
 }
 
 // ---- one camera + mic for the whole app session ----

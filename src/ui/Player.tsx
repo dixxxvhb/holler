@@ -4,7 +4,7 @@ import { send as liveSend } from '../lib/live';
 import { removeMine } from '../lib/outbox';
 import { parseTranscript } from '../lib/speech';
 import { pop } from '../lib/sound';
-import { Avatar, ago, clock, toast } from './bits';
+import { Avatar, ago, clock, toast, when } from './bits';
 import { Icon, REACTIONS } from './icons';
 
 const SPEEDS = [1, 1.5, 2];
@@ -219,11 +219,25 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
             <input className="scrub" type="range" min={0} max={realDur} step={0.05} value={Math.min(t, realDur)} aria-label="Seek"
               onChange={e => { const m = el(); if (m) { m.currentTime = Number(e.target.value); setT(m.currentTime); } }} />
           )}
-          {viewers.length > 0 && <span className="seen"><Icon name="eye" size={14} /> {viewers.map(v => <Avatar key={v.id} p={v} size={18} />)}</span>}
+          {viewers.length > 0 && polo.author !== me.id && <span className="seen"><Icon name="eye" size={14} /> {viewers.map(v => <Avatar key={v.id} p={v} size={18} />)}</span>}
           {polo.reactions.length > 0 && (
             <span className="rx-sum">{REACTIONS.filter(r => polo.reactions.some(x => x.kind === r.id)).map(r => <span key={r.id} style={{ color: r.color }}><Icon name={r.id} size={15} /></span>)}<b>{polo.reactions.length}</b></span>
           )}
         </div>
+        {polo.author === me.id && members.length > 1 && (
+          <div className="receipts">
+            {members.filter(m => m.id !== me.id).map(m => {
+              const v = polo.views.find(x => x.who === m.id);
+              return (
+                <span key={m.id} className={`rcpt ${v ? 'seen' : ''}`}>
+                  <Avatar p={m} size={22} />
+                  <b>{m.name.split(' ')[0]}</b>
+                  <em>{v ? <><Icon name="eye" size={12} /> {when(v.at)}</> : 'Not yet'}</em>
+                </span>
+              );
+            })}
+          </div>
+        )}
         <div className="reacts">
           {REACTIONS.map(r => <button key={r.id} style={{ color: r.color }} onClick={() => void react(r.id)} aria-label={r.label}><Icon name={r.id} size={26} /></button>)}
         </div>

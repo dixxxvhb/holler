@@ -327,3 +327,33 @@ img { display: block; }
 .paused-tag { position: absolute; top: calc(var(--safe-t) + 116px); left: 50%; transform: translateX(-50%); z-index: 6;
   display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; background: rgba(0,0,0,.6); font-weight: 700; font-size: 14px; }
 .rec-banner.watch { background: rgba(20, 16, 14, .72); box-shadow: 0 6px 20px rgba(0,0,0,.3); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+
+/* looks panel: categories, chips, strength */
+.looks-panel { width: 100%; display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.kind-tabs { display: flex; gap: 4px; padding: 0 14px; overflow-x: auto; scrollbar-width: none; }
+.kind-tabs::-webkit-scrollbar { display: none; }
+.ktab { flex: none; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 800; color: rgba(255,255,255,.65); }
+.ktab.on { color: #160c08; background: #fff; }
+.chip-ic { opacity: .7; }
+.amt-row { display: flex; align-items: center; gap: 10px; padding: 0 18px; font-size: 12px; font-weight: 700; color: rgba(255,255,255,.7); }
+.amt-row input { flex: 1; accent-color: var(--accent); height: 28px; }
+.looks-panel .chip-note { padding: 0 18px; white-space: normal; }
+.look-flash { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); pointer-events: none; z-index: 6;
+  font: 800 34px/1.1 "Bricolage Grotesque", system-ui, sans-serif; color: #fff; text-shadow: 0 2px 18px rgba(0,0,0,.7); white-space: nowrap;
+  animation: flash-in .9s ease-out both; }
+@keyframes flash-in { 0% { opacity: 0; transform: translate(-50%, -40%) scale(.9); } 20% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; } }
+.cut-tag { position: absolute; top: calc(var(--safe-t) + 116px); left: 50%; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 999px; background: rgba(0,0,0,.6); font-weight: 700; font-size: 13px; }
+.rail.live { gap: 2px; }
+
+/* seen receipts */
+.tile-seen { position: absolute; top: 4px; right: 4px; display: flex; padding: 2px; border-radius: 999px; background: rgba(0,0,0,.5); }
+.tile-seen .av + .av { margin-left: -6px; }
+.tile-seen.all { box-shadow: 0 0 0 1.5px #6fd3a8; }
+.tile-seen.none { color: rgba(255,255,255,.8); padding: 3px; }
+.receipts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.rcpt { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; background: rgba(255,255,255,.08); font-size: 13px; }
+.rcpt em { font-style: normal; color: rgba(255,255,255,.55); display: inline-flex; align-items: center; gap: 3px; }
+.rcpt.seen em { color: #8fe3bd; }
+.rcpt:not(.seen) .av { opacity: .55; }
+.seen-txt { color: #8fe3bd; }

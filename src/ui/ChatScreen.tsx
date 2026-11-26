@@ -3,7 +3,8 @@ import { useApp } from '../App';
 import { api, publicUrl, type ChatFull, type Polo } from '../lib/api';
 import { onLive, onPresence, onReconnect, presenceOf, send as liveSend, setStatus } from '../lib/live';
 import { onOutbox, outgoing, retry, discard, sendRecording, sendText, undo, UNDO_MS } from '../lib/outbox';
-import { LOOKS, Studio, probeFile, type LookId, type Recording, type Stroke } from '../lib/studio';
+import { Studio, probeFile, type Recording, type Stroke } from '../lib/studio';
+import { KINDS, LOOKS, lookOf, type LookId, type LookKind } from '../lib/looks';
 import { VOICES, type VoiceId } from '../lib/voice';
 import { Captioner, isIOS, speechSupported, type Seg } from '../lib/speech';
 import { pop, recStart, recStop } from '../lib/sound';
@@ -61,6 +62,20 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const countRef = useRef(0);
   const [ring, setRing] = useState(() => local('holler.ring', '0') === '1');
   const [held, setHeld] = useState(false);
+  const [kind, setKind] = useState<LookKind>(() => lookOf((prefs.look as string) || 'none').kind);
+  const [amts, setAmts] = useState<Record<string, number>>(() => { try { return JSON.parse(local('holler.amt', '{}')); } catch { return {}; } });
+  const amt = amts[look] ?? lookOf(look).amt;
+  const setAmt = (v: number) => { const n = { ...amts, [look]: v }; setAmts(n); keep('holler.amt', JSON.stringify(n)); };
+  const [flash, setFlash] = useState('');
+  const flashT = useRef(0);
+  const prefT = useRef(0);
+  const [cut, setCut] = useState<'' | 'loading' | 'ready' | 'failed'>('');
+  const chooseLook = (id: LookId, show = false) => {
+    setLook(id); setKind(lookOf(id).kind);
+    if (show) { setFlash(lookOf(id).label); clearTimeout(flashT.current); flashT.current = window.setTimeout(() => setFlash(''), 900); }
+    clearTimeout(prefT.current); prefT.current = window.setTimeout(() => void api.updateMe({ prefs: { look: id } }), 900);
+  };
+  const stepLook = (dir: number) => { const i = LOOKS.findIndex(l => l.id === look); chooseLook(LOOKS[(i + dir + LOOKS.length) % LOOKS.length].id, true); };
 
   const load = useCallback(async () => {
     try { const c = await api.chat(chatId); setChat(c); setErr(''); }
@@ -85,8 +100,10 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     setCamState('starting');
     try {
       if (!studio.current) studio.current = new Studio(canvasRef.current);
-      const s = studio.current; s.look = look; s.voice = voice; s.simple = isSimple();
+      const s = studio.current; s.voice = voice; s.simple = isSimple(); s.amt = amt;
+      s.onCutout = st => { setCut(st); if (st === 'failed') toast('Background looks could not load here. Try again on wifi, or on a newer phone.'); };
       await s.open({ hd });
+      s.setLook(look);
       s.onLevel = v => setLevel(v);
       if (!s.glOk && previewRef.current && !previewRef.current.contains(s.video)) { s.video.className = `raw-video ${s.facing === 'user' ? 'mirror' : ''}`; previewRef.current.appendChild(s.video); }
       setCamState('on');
@@ -110,6 +127,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     } catch (e) {
       console.warn(e); setCamState('denied');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hd, look, voice]);
 
   const startRef = useRef(startCam); startRef.current = startCam;
@@ -125,8 +143,9 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { if (studio.current) { studio.current.look = look; } }, [look]);
-  useEffect(() => { if (studio.current) { studio.current.voice = voice; } }, [voice]);
+  useEffect(() => { studio.current?.setLook(look); }, [look]);
+  useEffect(() => { if (studio.current) studio.current.amt = amt; }, [amt]);
+  useEffect(() => { void studio.current?.setVoice(voice); }, [voice]);
   useEffect(() => { const s = studio.current; if (s) { s.text = text.trim() ? { text, y: textY, style: textStyle, color: textColor } : null; s.markDirty(); } }, [text, textY, textStyle, textColor]);
 
   // scroll strip to the end on new polos
@@ -174,18 +193,17 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     if (!pressAt.current) return;
     const long = Date.now() - pressAt.current > 650; pressAt.current = 0;
     await beginP.current;
-    if (long && studio.current?.recording) void finish();
+    if (long && studio.current?.recording && studio.current.elapsed() >= 1.5) void finish();
   };
   useEffect(() => {
     if (!recording) { setHeld(false); return; }
-    const t = setTimeout(() => { if (pressAt.current) setHeld(true); }, 650);
+    const t = setTimeout(() => { if (pressAt.current) setHeld(true); }, 1500);
     return () => clearTimeout(t);
   }, [recording]);
 
   const begin = async () => {
     const s = studio.current;
     if (!s || camState !== 'on') { void startCam(); return; }
-    setPanel(p => (p === 'draw' || p === 'text' ? p : null));
     try {
       await s.start(audioOnly ? 'audio' : 'video');
       recStart();
@@ -213,7 +231,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     setRecording(false); setLevel(0); setCaption('');
     const segs = captioner.current?.stop() || []; captioner.current = null;
     if (!rec) return;
-    if (rec.duration < 0.8) { toast('Too short. Tap once to start, tap again to send.'); return; }
+    if (rec.duration < 1) { toast('Too short. Tap once to start, tap again to send.'); return; }
+    if (rec.blob.size < 1000) { toast('That one came out empty. Please try again.'); return; }
     if (prefs.review) { setReview({ rec, segs, url: URL.createObjectURL(rec.blob) }); }
     else {
       const key = sendRecording(chatId, me.id, rec, segs.length ? JSON.stringify(segs) : null, () => { void load(); void refresh(); });
@@ -257,8 +276,12 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     const x = (e.clientX - r.left - (r.width - dw) / 2) / dw, y = (e.clientY - r.top - (r.height - dh) / 2) / dh;
     return [Math.min(1, Math.max(0, x)), Math.min(1, Math.max(0, y))] as [number, number];
   };
+  const swipe = useRef<{ x: number; y: number; t: number } | null>(null);
+  const dragCtr = useRef(false);
+  const fx = !isSimple() && !audioOnly;
   const onDown = (e: React.PointerEvent) => {
     const s = studio.current; if (!s) return;
+    s.wake();
     if (!panel && !audioOnly) {
       const now = Date.now();
       if (now - lastTap.current < 320) { lastTap.current = 0; void flip(); return; }
@@ -266,14 +289,23 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     }
     if (panel === 'draw') { drawing.current = true; (e.target as Element).setPointerCapture(e.pointerId); s.live = { color: ink, width: inkW, pts: [ptOf(e)] } as Stroke; s.markDirty(); }
     else if (panel === 'text' && text) { drawing.current = true; (e.target as Element).setPointerCapture(e.pointerId); setTextY(ptOf(e)[1]); }
+    else if (fx && panel === 'looks' && lookOf(look).drag) { dragCtr.current = true; (e.target as Element).setPointerCapture(e.pointerId); s.ctr = ptOf(e); }
+    else if (fx && (!panel || panel === 'looks' || panel === 'voice')) swipe.current = { x: e.clientX, y: e.clientY, t: Date.now() };
   };
   const onMove = (e: React.PointerEvent) => {
-    const s = studio.current; if (!s || !drawing.current) return;
+    const s = studio.current; if (!s) return;
+    if (dragCtr.current) { s.ctr = ptOf(e); return; }
+    if (!drawing.current) return;
     if (panel === 'draw' && s.live) { s.live.pts.push(ptOf(e)); s.markDirty(); }
     else if (panel === 'text') setTextY(Math.min(0.92, Math.max(0.08, ptOf(e)[1])));
   };
-  const onUp = () => {
-    const s = studio.current; drawing.current = false;
+  const onUp = (e?: React.PointerEvent) => {
+    const s = studio.current; drawing.current = false; dragCtr.current = false;
+    const sw = swipe.current; swipe.current = null;
+    if (sw && e) {
+      const dx = e.clientX - sw.x, dy = e.clientY - sw.y;
+      if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.4 && Date.now() - sw.t < 800) { lastTap.current = 0; stepLook(dx < 0 ? 1 : -1); }
+    }
     if (s?.live) { s.strokes.push(s.live); s.live = null; s.markDirty(); bump(x => x + 1); }
   };
 
@@ -311,7 +343,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
 
   return (
     <div className="chat" style={{ ['--accent' as string]: theme }}>
-      <div className="preview" ref={previewRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+      <div className="preview" ref={previewRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => onUp()}>
         <canvas ref={canvasRef} className={`cam ${audioOnly ? 'dim' : ''}`} />
         {camState === 'denied' && (
           <div className="cam-off">
@@ -327,6 +359,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         {ring && !audioOnly && <div className="ring-light" />}
         {countdown > 0 && <div className="countdown" key={countdown}>{countdown}</div>}
         {recording && paused && <div className="paused-tag"><Icon name="pause" size={16} /> Paused</div>}
+        {flash && <div className="look-flash" key={flash}>{flash}</div>}
+        {lookOf(look).seg && cut === 'loading' && fx && <div className="cut-tag">Finding you<span className="dots"><i /><i /><i /></span></div>}
       </div>
 
       <header className="chat-top">
@@ -348,40 +382,44 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         <div key={o.id} className="rec-banner"><Avatar p={o} size={26} /> <b>{o.name.split(' ')[0]}</b> is recording<span className="dots"><i /><i /><i /></span></div>
       ))}
 
-      {recording && (
-        <aside className="rail">
-          {!audioOnly && studio.current?.canFlipLive && <button className="rail-btn" onClick={() => void flip()} aria-label="Flip camera"><Icon name="flip" /><span>Flip</span></button>}
-          {studio.current?.canPause && <button className={`rail-btn ${paused ? 'set' : ''}`} onClick={togglePause} aria-label={paused ? 'Keep recording' : 'Pause'}><Icon name={paused ? 'play' : 'pause'} fill={paused ? 'currentColor' : undefined} /><span>{paused ? 'Resume' : 'Pause'}</span></button>}
-        </aside>
-      )}
-      {!recording && (
-        <aside className="rail">
-          <button className="rail-btn" onClick={() => void flip()} aria-label="Flip camera"><Icon name="flip" /><span>Flip</span></button>
-          {!isSimple() && <>
-          <button className={`rail-btn ${panel === 'looks' ? 'on' : ''} ${look !== 'none' ? 'set' : ''}`} onClick={() => toggle('looks')}><Icon name="wand" /><span>Looks</span></button>
+      <aside className={`rail ${recording ? 'live' : ''}`}>
+        {(!recording || (!audioOnly && studio.current?.canFlipLive)) && <button className="rail-btn" onClick={() => void flip()} aria-label="Flip camera"><Icon name="flip" /><span>Flip</span></button>}
+        {recording && studio.current?.canPause && <button className={`rail-btn ${paused ? 'set' : ''}`} onClick={togglePause} aria-label={paused ? 'Keep recording' : 'Pause'}><Icon name={paused ? 'play' : 'pause'} fill={paused ? 'currentColor' : undefined} /><span>{paused ? 'Resume' : 'Pause'}</span></button>}
+        {!isSimple() && <>
+          {!(recording && audioOnly) && <button className={`rail-btn ${panel === 'looks' ? 'on' : ''} ${look !== 'none' ? 'set' : ''}`} onClick={() => toggle('looks')}><Icon name="wand" /><span>Looks</span></button>}
           <button className={`rail-btn ${panel === 'voice' ? 'on' : ''} ${voice !== 'none' ? 'set' : ''}`} onClick={() => toggle('voice')}><Icon name="mic" /><span>Voice</span></button>
-          <button className={`rail-btn ${panel === 'draw' ? 'on' : ''} ${studio.current?.strokes.length ? 'set' : ''}`} onClick={() => toggle('draw')}><Icon name="pen" /><span>Draw</span></button>
-          <button className={`rail-btn ${panel === 'text' ? 'on' : ''} ${text ? 'set' : ''}`} onClick={() => toggle('text')}><Icon name="text" /><span>Text</span></button>
-          </>}
-          <button className={`rail-btn ${hd ? 'set' : ''}`} onClick={async () => { const v = !hd; setHd(v); await studio.current?.setHD(v); void api.updateMe({ prefs: { hd: v } }); toast(v ? 'HD on: sharper, bigger files' : 'HD off'); }}><Icon name="hd" /><span>{hd ? 'HD' : 'SD'}</span></button>
-          <button className={`rail-btn ${timer ? 'set' : ''}`} onClick={() => { const v = timer === 0 ? 3 : timer === 3 ? 10 : 0; setTimer(v); keep('holler.timer', String(v)); toast(v ? `${v} second timer: prop your phone up, tap record, step back` : 'Timer off'); }}><Icon name="timer" /><span>{timer ? `${timer}s` : 'Timer'}</span></button>
-          <button className={`rail-btn ${ring ? 'set' : ''}`} onClick={() => { const v = !ring; setRing(v); keep('holler.ring', v ? '1' : '0'); if (v) toast('Light on. Turn your screen brightness up for the most glow.'); }}><Icon name="light" /><span>Light</span></button>
-          <button className={`rail-btn ${audioOnly ? 'set' : ''}`} onClick={() => setAudioOnly(a => !a)}><Icon name="wave" /><span>Voice only</span></button>
-          <button className="rail-btn" onClick={() => fileRef.current?.click()}><Icon name="upload" /><span>Upload</span></button>
-          <input ref={fileRef} type="file" accept="video/*,audio/*" hidden onChange={e => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
-        </aside>
-      )}
+          {!(recording && audioOnly) && <button className={`rail-btn ${panel === 'draw' ? 'on' : ''} ${studio.current?.strokes.length ? 'set' : ''}`} onClick={() => toggle('draw')}><Icon name="pen" /><span>Draw</span></button>}
+          {!(recording && audioOnly) && <button className={`rail-btn ${panel === 'text' ? 'on' : ''} ${text ? 'set' : ''}`} onClick={() => toggle('text')}><Icon name="text" /><span>Text</span></button>}
+        </>}
+        {!recording && <button className={`rail-btn ${hd ? 'set' : ''}`} onClick={async () => { const v = !hd; setHd(v); await studio.current?.setHD(v); void api.updateMe({ prefs: { hd: v } }); toast(v ? 'HD on: sharper, bigger files' : 'HD off'); }}><Icon name="hd" /><span>{hd ? 'HD' : 'SD'}</span></button>}
+        {!recording && <button className={`rail-btn ${timer ? 'set' : ''}`} onClick={() => { const v = timer === 0 ? 3 : timer === 3 ? 10 : 0; setTimer(v); keep('holler.timer', String(v)); toast(v ? `${v} second timer: prop your phone up, tap record, step back` : 'Timer off'); }}><Icon name="timer" /><span>{timer ? `${timer}s` : 'Timer'}</span></button>}
+        {!(recording && audioOnly) && <button className={`rail-btn ${ring ? 'set' : ''}`} onClick={() => { const v = !ring; setRing(v); keep('holler.ring', v ? '1' : '0'); if (v && !recording) toast('Light on. Turn your screen brightness up for the most glow.'); }}><Icon name="light" /><span>Light</span></button>}
+        {!recording && <button className={`rail-btn ${audioOnly ? 'set' : ''}`} onClick={() => setAudioOnly(a => !a)}><Icon name="wave" /><span>Voice only</span></button>}
+        {!recording && <button className="rail-btn" onClick={() => fileRef.current?.click()}><Icon name="upload" /><span>Upload</span></button>}
+        <input ref={fileRef} type="file" accept="video/*,audio/*" hidden onChange={e => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
+      </aside>
 
       <div className="bottom">
-        {panel === 'looks' && !recording && (
-          <div className="chips">
-            {LOOKS.map(l => <button key={l.id} className={`chip ${look === l.id ? 'on' : ''}`} onClick={() => { setLook(l.id); void api.updateMe({ prefs: { look: l.id } }); }}>{l.label}</button>)}
+        {panel === 'looks' && (
+          <div className="looks-panel">
+            <div className="kind-tabs">
+              {KINDS.map(k => <button key={k.id} className={`ktab ${kind === k.id ? 'on' : ''}`} onClick={() => setKind(k.id)}>{k.label}</button>)}
+            </div>
+            <div className="chips">
+              {LOOKS.filter(l => l.kind === kind).map(l => <button key={l.id} className={`chip ${look === l.id ? 'on' : ''}`} onClick={() => chooseLook(l.id)}>{l.label}{l.voice ? <Icon name="mic" size={12} className="chip-ic" /> : null}</button>)}
+            </div>
+            {look !== 'none' && (
+              <label className="amt-row"><span>Less</span>
+                <input type="range" min={0} max={1} step={0.01} value={amt} onChange={e => setAmt(Number(e.target.value))} aria-label="Strength" />
+                <span>More</span></label>
+            )}
+            <div className="chip-note">{lookOf(look).kind === kind && lookOf(look).drag ? 'Drag on the picture to move it.' : KINDS.find(k => k.id === kind)?.note} {recording ? '' : 'Swipe across the picture to try the next one, even while recording.'}</div>
           </div>
         )}
-        {panel === 'voice' && !recording && (
+        {panel === 'voice' && (
           <div className="chips">
             {VOICES.map(v => <button key={v.id} className={`chip ${voice === v.id ? 'on' : ''}`} onClick={() => { setVoice(v.id); void api.updateMe({ prefs: { voice: v.id } }); }}>{v.label}</button>)}
-            <span className="chip-note">Your voice changes in the recording.</span>
+            <span className="chip-note">{recording ? 'Switch any time. It changes from this moment on.' : 'Your voice changes in the recording. You can switch mid-video too.'}</span>
           </div>
         )}
         {panel === 'draw' && (
@@ -429,6 +467,12 @@ export function ChatScreen({ chatId }: { chatId: string }) {
                   <span className="tile-av"><Avatar p={author} size={20} /></span>
                   {p.duration ? <span className="tile-dur">{clock(p.duration)}</span> : null}
                   {p.savedBy.includes(me.id) && <span className="tile-star"><Icon name="star" size={12} fill="currentColor" /></span>}
+                  {p.author === me.id && others.length > 0 && (() => {
+                    const seenBy = others.filter(o => p.views.some(v => v.who === o.id));
+                    return seenBy.length
+                      ? <span className={`tile-seen ${seenBy.length === others.length ? 'all' : ''}`} title={`Seen by ${seenBy.map(o => o.name.split(' ')[0]).join(', ')}`}>{seenBy.slice(0, 3).map(o => <Avatar key={o.id} p={o} size={16} />)}</span>
+                      : <span className="tile-seen none" title="Not watched yet"><Icon name="check" size={12} stroke={3} /></span>;
+                  })()}
                 </button>
               );
             })}

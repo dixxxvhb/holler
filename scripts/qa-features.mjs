@@ -24,8 +24,8 @@ await A.waitForTimeout(2500);
 // 1. hold to record: press 2.5 s, let go, it sends
 let r = await rec(A);
 await A.mouse.move(r.x + r.width / 2, r.y + r.height / 2); await A.mouse.down();
-await A.waitForTimeout(1200); out.holdHint = await A.textContent('.rec-hint').catch(() => null);
-await A.waitForTimeout(1300); await A.mouse.up();
+await A.waitForTimeout(1700); out.holdHint = await A.textContent('.rec-hint').catch(() => null);
+await A.waitForTimeout(800); await A.mouse.up();
 out.holdSent = await waitTiles(A, 1);
 
 // 2. tap, pause 2.5 s in the middle, resume, tap to send: duration should be about 2 s, not 4.5

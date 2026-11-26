@@ -74,6 +74,17 @@ export function ago(iso: string) {
   if (s < 86400 * 6) return new Date(iso).toLocaleDateString(undefined, { weekday: 'short' });
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
+/** "2:14 PM", "Yesterday 9:02 PM", "Mon 4:30 PM", "Nov 3, 4:30 PM" */
+export function when(iso: string) {
+  const d = new Date(iso); const now = new Date();
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 86400000);
+  if (diff === 0) return time;
+  if (diff === 1) return `Yesterday ${time}`;
+  if (diff < 6) return `${d.toLocaleDateString(undefined, { weekday: 'short' })} ${time}`;
+  return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${time}`;
+}
 export function clock(sec: number) {
   const s = Math.max(0, Math.floor(sec)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }

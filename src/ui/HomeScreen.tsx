@@ -45,6 +45,13 @@ function InstallHint() {
   );
 }
 
+function seenLine(seen: string[], others: { id: string; name: string }[]) {
+  const names = others.filter(o => seen.includes(o.id)).map(o => o.name.split(' ')[0]);
+  if (!names.length) return 'Not seen yet';
+  if (names.length === others.length && others.length > 1) return 'Seen by everyone';
+  return `Seen by ${names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2}` : names.join(' and ')}`;
+}
+
 export function HomeScreen() {
   const { home, go, refresh } = useApp();
   const [sheet, setSheet] = useState<'new' | 'join' | null>(null);
@@ -110,7 +117,7 @@ export function HomeScreen() {
                     <div className="cc-sub">
                       {recording ? <span className="live-txt">{recording.name.split(' ')[0]} is recording</span>
                         : c.unread ? <span className="hot">{c.unread} new {c.unread === 1 ? 'holler' : 'hollers'}</span>
-                        : c.last ? <span>{lastBy?.id === me.id ? 'You' : lastBy?.name.split(' ')[0]} · {ago(c.last.at)}</span>
+                        : c.last ? <span>{lastBy?.id === me.id ? 'You' : lastBy?.name.split(' ')[0]} · {ago(c.last.at)}{lastBy?.id === me.id && others.length > 0 ? <> · <span className={c.last.seen?.length ? 'seen-txt' : ''}>{seenLine(c.last.seen || [], others)}</span></> : null}</span>
                         : <span>No hollers yet</span>}
                       {here.length > 0 && !recording && <span className="here-dot" title="Here now" />}
                     </div>
