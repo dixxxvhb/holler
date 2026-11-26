@@ -103,12 +103,13 @@ export function QuickPage({ game, chat, me, onClose, onChanged }: {
   const finish = async (play: { words: string[] } | { answers: { pick: number; ms: number }[] }) => {
     const g = await act(() => api.gamePlay(game.id, play));
     if (g) { dropGo(game.id); setGoing(false); }
+    return !!g;
   };
 
   if (going && game.began && !played(me.id)) {
     return kind === 'words'
-      ? <WordsGo game={game} onDone={words => void finish({ words })} onClose={() => setGoing(false)} />
-      : <TriviaGo game={game} onDone={answers => void finish({ answers })} onClose={() => setGoing(false)} />;
+      ? <WordsGo game={game} onDone={words => finish({ words })} onClose={() => setGoing(false)} />
+      : <TriviaGo game={game} onDone={answers => finish({ answers })} onClose={() => setGoing(false)} />;
   }
 
   const scores = kind === 'words' ? wordsScores(game) : triviaScores(game);
@@ -135,6 +136,9 @@ export function QuickPage({ game, chat, me, onClose, onChanged }: {
             : 'The clock starts when you tap. Right answers score 100, plus up to 50 for speed.'}</span>
           <button className="btn g-go wide" disabled={busy} onClick={() => void begin()}>Start my go</button>
         </div>
+      )}
+      {mine && game.began && !played(me.id) && (
+        <button className="btn g-go wide" onClick={() => setGoing(true)}>Back to my go</button>
       )}
 
       <ol className="g-track">
@@ -182,7 +186,7 @@ function useClock(endsAt: number) {
 }
 
 // ---------------------------------------------------------------- Seven Letters: your go
-function WordsGo({ game, onDone, onClose }: { game: Game; onDone: (words: string[]) => void; onClose: () => void }) {
+function WordsGo({ game, onDone, onClose }: { game: Game; onDone: (words: string[]) => Promise<boolean>; onClose: () => void }) {
   const rack = game.rack || '';
   const saved = loadGo<{ words: string[]; order: number[] }>(game.id);
   const [dict, setDict] = useState<Set<string> | null>(null);
@@ -195,8 +199,12 @@ function WordsGo({ game, onDone, onClose }: { game: Game; onDone: (words: string
   const left = useClock(endsAt);
   useEffect(() => { void loadDict().then(d => setDict(d.words)).catch(() => toast('The word list would not load.')); }, []);
   useEffect(() => { saveGo(game.id, { words: found, order }); }, [found, order, game.id]);
-  const send = () => { if (sent.current) return; sent.current = true; onDone(found); };
-  useEffect(() => { if (left <= 0) send(); }); // eslint-disable-line react-hooks/exhaustive-deps
+  const [failed, setFailed] = useState(false);
+  const send = async () => {
+    if (sent.current) return; sent.current = true; setFailed(false);
+    if (!(await onDone(found))) { sent.current = false; setFailed(true); }
+  };
+  useEffect(() => { if (left <= 0 && !failed) void send(); }); // eslint-disable-line react-hooks/exhaustive-deps
 
   const word = picked.map(i => rack[i]).join('');
   const say = (text: string, good: boolean) => { setNote({ text, good }); window.setTimeout(() => setNote(n => (n?.text === text ? null : n)), 1400); };
@@ -243,7 +251,9 @@ function WordsGo({ game, onDone, onClose }: { game: Game; onDone: (words: string
         <span className="lbl">{found.length} {found.length === 1 ? 'word' : 'words'}</span>
         <p>{found.map(w => <span key={w} className={w.length === 7 ? 'seven' : ''}>{w}</span>)}</p>
       </div>
-      <button className="link-btn" onClick={send}>I'm done, hand it in</button>
+      {failed
+        ? <button className="btn g-go wide" onClick={() => void send()}>That didn't go through. Hand it in again</button>
+        : <button className="link-btn" onClick={() => void send()}>{left <= 0 ? 'Handing it in...' : "I'm done, hand it in"}</button>}
     </div>
   );
 }
@@ -281,7 +291,7 @@ function WordsResults({ game, me, person }: { game: Game; me: Person; person: (i
 }
 
 // ---------------------------------------------------------------- Trivia: your go
-function TriviaGo({ game, onDone, onClose }: { game: Game; onDone: (answers: { pick: number; ms: number }[]) => void; onClose: () => void }) {
+function TriviaGo({ game, onDone, onClose }: { game: Game; onDone: (answers: { pick: number; ms: number }[]) => Promise<boolean>; onClose: () => void }) {
   const qids = game.qids || [];
   const saved = loadGo<{ answers: { pick: number; ms: number }[] }>(game.id);
   const [answers, setAnswers] = useState<{ pick: number; ms: number }[]>(saved?.answers || []);
@@ -292,8 +302,13 @@ function TriviaGo({ game, onDone, onClose }: { game: Game; onDone: (answers: { p
   const q = question(qids[i]);
   const left = useClock(shownAt + TRIVIA_SEC * 1000);
   useEffect(() => { saveGo(game.id, { answers }); }, [answers, game.id]);
+  const [failed, setFailed] = useState(false);
+  const handIn = async () => {
+    if (sent.current) return; sent.current = true; setFailed(false);
+    if (!(await onDone(answers))) { sent.current = false; setFailed(true); }
+  };
   useEffect(() => {
-    if (i >= qids.length && qids.length && !sent.current) { sent.current = true; onDone(answers); }
+    if (i >= qids.length && qids.length) void handIn();
   }, [i, qids.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const answer = (pick: number) => {
     if (reveal !== null || i >= qids.length) return;
@@ -302,7 +317,12 @@ function TriviaGo({ game, onDone, onClose }: { game: Game; onDone: (answers: { p
     window.setTimeout(() => { setAnswers(a => [...a, { pick, ms }]); setReveal(null); setShownAt(Date.now()); }, pick === -1 ? 1300 : 1000);
   };
   useEffect(() => { if (left <= 0 && reveal === null && i < qids.length) answer(-1); }); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!q) return <div className="g-page q-go"><p className="g-meta">Sending your answers...</p></div>;
+  if (!q) return (
+    <div className="g-page q-go">
+      <p className="g-meta">{failed ? "Your answers didn't go through." : 'Sending your answers...'}</p>
+      {failed && <><button className="btn g-go wide" onClick={() => void handIn()}>Try again</button><button className="link-btn" onClick={onClose}>Back</button></>}
+    </div>
+  );
   const sec = Math.ceil(left / 1000);
   const total = answers.reduce((n, a, k) => n + answerPoints(question(qids[k]), a), 0);
   return (

@@ -348,6 +348,7 @@ export function CharadesGuess({ game, act, chat, me, onClose, onChanged }: {
   const [ended, setEnded] = useState(false);
   const [busy, setBusy] = useState(false);
   const watchOnly = !canGuess;
+  const [rolling, setRolling] = useState(false); // "I know it" waits for the clip to actually play
 
   useEffect(() => {
     if (!act.clip?.path) return;
@@ -374,7 +375,7 @@ export function CharadesGuess({ game, act, chat, me, onClose, onChanged }: {
 
   return (
     <div className="g-reveal g-guess">
-      <video ref={vid} playsInline className="g-rv-vid" onClick={() => { if (needTap) void vid.current?.play().then(() => setNeedTap(false)); }}
+      <video ref={vid} playsInline className="g-rv-vid" onPlaying={() => setRolling(true)} onClick={() => { if (needTap) void vid.current?.play().then(() => setNeedTap(false)); }}
         onEnded={() => { setEnded(true); if (canGuess && !result) { setT(vid.current?.duration || game.turnSec); setAsking(true); } else if (watchOnly && !result) setResult(settled()); }} />
       <div className="g-rv-top">
         <span className="g-rv-ic"><Icon name="chain" size={22} /></span>
@@ -382,7 +383,7 @@ export function CharadesGuess({ game, act, chat, me, onClose, onChanged }: {
         <button className="icon-btn glass" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
       </div>
       {needTap && <div className="paused tap g-rv-tap"><Icon name="play" size={56} fill="currentColor" /><span>Tap to play</span></div>}
-      {canGuess && !asking && !result && <button className="btn g-go g-know" onClick={know}>I know it</button>}
+      {canGuess && !asking && !result && <button className="btn g-go g-know" onClick={know} disabled={!rolling}>I know it</button>}
       {asking && !result && (
         <form className="g-guessbar" onSubmit={e => { e.preventDefault(); void send(); }}>
           <span className="g-guess-t">You stopped it at {t.toFixed(1)} s</span>

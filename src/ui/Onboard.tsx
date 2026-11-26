@@ -13,6 +13,7 @@ export function Onboard({ onDone, joining }: { onDone: () => void; joining?: str
   const [mode, setMode] = useState<'new' | 'code'>('new');
   const [code, setCode] = useState('');
   const redeem = async () => {
+    if (busy || code.length < 6) return;
     setBusy(true); setErr('');
     try { const r = await api.redeemCode(code); setToken(r.token); onDone(); }
     catch (e) { setErr(e instanceof Error ? e.message : 'Try again'); setBusy(false); }
@@ -20,7 +21,7 @@ export function Onboard({ onDone, joining }: { onDone: () => void; joining?: str
   const homeScreenIPhone = isIOS() && standalone();
 
   const go = async () => {
-    if (!name.trim()) return;
+    if (!name.trim() || busy) return;
     setBusy(true); setErr('');
     try {
       const r = await api.signup(name.trim(), color);
@@ -38,8 +39,8 @@ export function Onboard({ onDone, joining }: { onDone: () => void; joining?: str
       {mode === 'code' ? (
         <div className="ob-card">
           <label className="lbl" htmlFor="lc">Your 6-letter code</label>
-          <input id="lc" className="field code" autoFocus maxLength={6} placeholder="ABC123" value={code}
-            onChange={e => setCode(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter' && code.length === 6) void redeem(); }} />
+          <input id="lc" className="field code" autoFocus autoCapitalize="characters" autoComplete="one-time-code" placeholder="ABC123" value={code}
+            onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} onKeyDown={e => { if (e.key === 'Enter') void redeem(); }} />
           <p className="fine">Find it where you already use Holler: on the card at the top of its home screen, or in Settings under "Use on another device".</p>
           {err && <p className="err">{err}</p>}
           <button className="btn primary wide" disabled={code.length < 6 || busy} onClick={() => void redeem()}>{busy ? 'One sec' : "That's me"}</button>
@@ -56,7 +57,7 @@ export function Onboard({ onDone, joining }: { onDone: () => void; joining?: str
           onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void go(); }} />
         <div className="lbl">Your color</div>
         <div className="swatches">
-          {COLORS.map(c => <button key={c} className={`sw ${c === color ? 'on' : ''}`} style={{ background: c }} onClick={() => setColor(c)} aria-label={`Color ${c}`} />)}
+          {COLORS.map(c => <button key={c} className={`sw ${c === color ? 'on' : ''}`} style={{ background: c }} onClick={() => setColor(c)} aria-label={`Color ${COLORS.indexOf(c) + 1}`} aria-pressed={c === color} />)}
         </div>
         {err && <p className="err">{err}</p>}
         <button className="btn primary wide" disabled={!name.trim() || busy} onClick={() => void go()}>{busy ? 'One sec' : joining ? 'Join the chat' : "Let's go"}</button>

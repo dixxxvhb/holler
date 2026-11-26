@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../App';
-import { api, publicUrl, type ChatFull, type Game, type Polo } from '../lib/api';
+import { api, publicUrl, type ChatFull, type Game, type Person, type Polo } from '../lib/api';
 import { onLive, onPresence, onReconnect, presenceOf, send as liveSend, setStatus } from '../lib/live';
 import { onOutbox, outgoing, retry, discard, sendRecording, sendText, undo, UNDO_MS } from '../lib/outbox';
 import { Studio, probeFile, type Recording, type Stroke } from '../lib/studio';
@@ -8,7 +8,7 @@ import { KINDS, LOOKS, lookOf, type LookId, type LookKind } from '../lib/looks';
 import { VOICES, type VoiceId } from '../lib/voice';
 import { Captioner, isIOS, speechSupported, type Seg } from '../lib/speech';
 import { pop, recStart, recStop } from '../lib/sound';
-import { Avatar, Sheet, chatTitle, clock, toast, tone } from './bits';
+import { Avatar, Sheet, ago, chatTitle, clock, toast, tone } from './bits';
 import { Icon } from './icons';
 import { isSimple, setSimple, routeInMemory } from '../lib/device';
 import { Player } from './Player';
@@ -181,7 +181,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       else if (!document.hidden && closedByHide) { closedByHide = false; void startRef.current(); }
     };
     document.addEventListener('visibilitychange', vis);
-    return () => { document.removeEventListener('visibilitychange', vis); studio.current?.close(); studio.current = null; };
+    return () => { document.removeEventListener('visibilitychange', vis); studio.current?.dispose(); studio.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -298,7 +298,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       clearInterval(tickRef.current);
       tickRef.current = window.setInterval(() => {
         const t = s.elapsed(); setElapsed(t);
-        if (t >= maxSec) void finish();
+        if (t >= maxSec) void finishRef.current();
       }, 200);
     } catch (e) { settling.current = false; toast('Could not start recording: ' + (e as Error).message); }
   };
@@ -317,7 +317,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     if (rec.duration < 1) { toast('Too short. Tap once to start, tap again to send.'); return; }
     if (rec.blob.size < 1000) { toast('That one came out empty. Please try again.'); return; }
     // drawings are one-shot: clear them after a send (a Charades drawing used to stay on for the next holler)
-    const clearInk = () => { if (s.strokes.length) { s.strokes = []; s.markDirty(); bump(x => x + 1); } };
+    // text on the picture is one-shot too, or it rides along on every holler after
+    const clearInk = () => { if (s.strokes.length) { s.strokes = []; s.markDirty(); bump(x => x + 1); } setText(''); };
     if (turn) {
       clearInk();
       if (turn.kind === 'passiton' && roleOf(turn) === 'guess') { setGuessRec({ rec, segs, text: segs.map(x => x.text).join(' ').trim().slice(0, 200) }); return; }
@@ -334,6 +335,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   };
 
   const beginRef = useRef(begin); beginRef.current = begin;
+  const finishRef = useRef(finish); finishRef.current = finish; // the auto-stop timer always calls the latest one
 
   const sendTurn = (g: Game, rec: Recording, segs: Seg[], guess: string | null) => {
     const picks = [...spotPicks.current]; while (picks.length < 3) picks.push({ pick: -1, ms: 10000 });
@@ -430,8 +432,12 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     try {
       const isAudio = f.type.startsWith('audio');
       const meta = isAudio ? { duration: 0, w: 0, h: 0, thumb: null } : await probeFile(f);
-      const ext = (f.name.split('.').pop() || (isAudio ? 'm4a' : 'mp4')).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5);
-      const key = sendRecording(chatId, me.id, { blob: f, mime: f.type || 'video/mp4', ext, duration: meta.duration, w: meta.w, h: meta.h, thumb: meta.thumb, kind: isAudio ? 'audio' : 'video', effects: { uploaded: true } }, null, () => { void load(); void refresh(); });
+      // a name with no dot, or an odd extension, used to leave the file path ending in "." (storage says 400)
+      const raw = f.name.includes('.') ? f.name.split('.').pop() || '' : '';
+      const ext = raw.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5) || (isAudio ? 'm4a' : 'mp4');
+      const mime = f.type || (isAudio ? 'audio/mp4' : 'video/mp4');
+      const blob = f.type ? f : new Blob([f], { type: mime }); // storage only takes video, audio and image types
+      const key = sendRecording(chatId, me.id, { blob, mime, ext, duration: meta.duration, w: meta.w, h: meta.h, thumb: meta.thumb, kind: isAudio ? 'audio' : 'video', effects: { uploaded: true } }, null, () => { void load(); void refresh(); });
       toast('Sending your video', { label: 'Undo', run: () => undo(key) }, UNDO_MS);
     } catch (e) { toast((e as Error).message); }
   };
@@ -476,7 +482,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         {flash && <div className="look-flash" key={flash}>{flash}</div>}
         {turn && chat && (turn.kind === 'passiton'
           ? <TurnBanner game={turn} me={me} chat={chat} phrase={turn.phrase} />
-          : turn.kind === 'spot' ? <SpotLive game={turn} studio={camState === 'on' ? studio.current : null} recording={recording} onDone={p => { spotPicks.current = p; void finish(); }} />
+          : turn.kind === 'spot' ? <SpotLive game={turn} studio={camState === 'on' ? studio.current : null} recording={recording} onDone={p => { spotPicks.current = p; void finish(); }} onFail={() => { if (recording) cancelRec(); }} />
           : turn.kind === 'laugh' ? <LaughBanner game={turn} />
           : <RoundBanner game={turn} word={turnWord} recording={recording} onAnother={anotherWord} />)}
         {lookOf(look).seg && cut === 'loading' && fx && <div className="cut-tag">Finding you<span className="dots"><i /><i /><i /></span></div>}
@@ -485,7 +491,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       <header className="chat-top">
         {turn
           ? <button className="icon-btn glass" onClick={() => { if (recording) cancelRec(); setTurn(null); }} aria-label="Leave this turn for now"><Icon name="close" /></button>
-          : <button className="icon-btn glass" onClick={() => go('/')} aria-label="Back"><Icon name="back" /></button>}
+          : <button className="icon-btn glass" onClick={() => { if (recording && !confirm('You are still recording. Leave and throw this one away?')) return; if (recording) cancelRec(); go('/'); }} aria-label="Back"><Icon name="back" /></button>}
         <button className="chat-title glass" onClick={() => setInfo(true)}>
           <span className="t">{chat ? chatTitle(chat, me.id) : ' '}</span>
           <span className="who">
@@ -549,7 +555,12 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           <div className="more-tools">
           <button className={`rail-btn ${ring ? 'set' : ''}`} onClick={() => { const v = !ring; setRing(v); keep('holler.ring', v ? '1' : '0'); if (v && !recording) toast('Light on. Turn your screen brightness up for the most glow.'); }}><Icon name="light" /><span>Light</span></button>
           <button className={`rail-btn ${timer ? 'set' : ''}`} onClick={() => { const v = timer === 0 ? 3 : timer === 3 ? 10 : 0; setTimer(v); keep('holler.timer', String(v)); toast(v ? `${v} second timer: prop your phone up, tap record, step back` : 'Timer off'); }}><Icon name="timer" /><span>{timer ? `${timer}s` : 'Timer'}</span></button>
-          <button className={`rail-btn ${hd ? 'set' : ''}`} onClick={async () => { const v = !hd; setHd(v); await studio.current?.setHD(v); void api.updateMe({ prefs: { hd: v } }); toast(v ? 'HD on: sharper, bigger files' : 'HD off'); }}><Icon name="hd" /><span>{hd ? 'HD' : 'SD'}</span></button>
+          <button className={`rail-btn ${hd ? 'set' : ''}`} onClick={async () => {
+            const v = !hd; setHd(v);
+            try { await studio.current?.setHD(v); }
+            catch { setHd(!v); if (studio.current) studio.current.hd = !v; void startCam(); toast(v ? 'This camera would not switch to HD.' : 'Could not switch back to SD.'); return; }
+            void api.updateMe({ prefs: { hd: v } }).catch(() => {}); toast(v ? 'HD on: sharper, bigger files' : 'HD off');
+          }}><Icon name="hd" /><span>{hd ? 'HD' : 'SD'}</span></button>
           <button className={`rail-btn ${audioOnly ? 'set' : ''}`} onClick={() => setAudioOnly(a => !a)}><Icon name="wave" /><span>Voice only</span></button>
           <button className="rail-btn" onClick={() => fileRef.current?.click()}><Icon name="upload" /><span>Upload</span></button>
           </div>
@@ -562,7 +573,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         )}
         {panel === 'draw' && (
           <div className="tools">
-            <div className="inks">{INK.map(c => <button key={c} className={`ink ${c === ink ? 'on' : ''}`} style={{ background: c }} onClick={() => setInk(c)} aria-label="Ink color" />)}</div>
+            <div className="inks">{INK.map(c => <button key={c} className={`ink ${c === ink ? 'on' : ''}`} style={{ background: c }} onClick={() => setInk(c)} aria-label={`Ink color ${INK.indexOf(c) + 1}`} aria-pressed={c === ink} />)}</div>
             <div className="row gap wrap draw-row">
               {[6, 10, 18].map(w => <button key={w} className={`wbtn ${inkW === w ? 'on' : ''}`} onClick={() => setInkW(w)} aria-label={`Brush ${w}`}><i style={{ width: w, height: w }} /></button>)}
               <button className="chip" onClick={() => { const s = studio.current; if (s) { s.strokes.pop(); s.markDirty(); bump(x => x + 1); } }}><Icon name="undo" size={16} /> Undo</button>
@@ -580,7 +591,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
               <button className="chip on done" onClick={() => setPanel(null)}>Done</button>
             </div>
             <div className="inks">
-              {INK.slice(0, 7).map(c => <button key={c} className={`ink sm ${c === textColor ? 'on' : ''}`} style={{ background: c }} onClick={() => setTextColor(c)} aria-label="Text color" />)}
+              {INK.slice(0, 7).map(c => <button key={c} className={`ink sm ${c === textColor ? 'on' : ''}`} style={{ background: c }} onClick={() => setTextColor(c)} aria-label={`Text color ${INK.indexOf(c) + 1}`} aria-pressed={c === textColor} />)}
               {text && <button className="chip" onClick={() => setText('')}>Remove</button>}
             </div>
             <div className="chip-note">Drag on the screen to move it.</div>
@@ -642,7 +653,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
               const orig = p.reactTo ? polos.find(x => x.id === p.reactTo) : undefined;
               const seen = p.author === me.id || p.views.some(v => v.who === me.id);
               return (
-                <button key={p.id} className={`tile ${seen ? '' : 'new'} ${p.author === me.id ? 'mine' : ''}`} style={{ ['--c' as string]: tone(author?.color) }} onClick={() => openPlayer(polos, i)}>
+                <button key={p.id} className={`tile ${seen ? '' : 'new'} ${p.author === me.id ? 'mine' : ''}`} style={{ ['--c' as string]: tone(author?.color) }} onClick={() => openPlayer(polos, i)}
+                  aria-label={`${p.author === me.id ? 'Your' : `${author?.name.split(' ')[0] || 'Someone'}'s`} ${p.kind === 'text' ? 'note' : p.kind === 'audio' ? 'voice holler' : 'holler'}, ${ago(p.at)}${seen ? '' : ', new'}`}>
                   {orig?.thumb && <span className="g-tile-pip"><img src={publicUrl(orig.thumb)} alt="" loading="lazy" /></span>}
                   {p.kind === 'video' && p.thumb ? <img src={publicUrl(p.thumb)} alt="" loading="lazy" />
                     : p.kind === 'text' ? <span className="tile-text">{p.body}</span>
@@ -698,14 +710,12 @@ export function ChatScreen({ chatId }: { chatId: string }) {
 
       {review && (
         <div className="review">
-          {review.rec.kind === 'video'
-            ? <video src={review.url} autoPlay loop playsInline className="p-video" />
-            : <div className="p-audio" style={{ ['--c' as string]: tone(me.color) }}><div className="p-audio-ring"><Avatar p={me} size={140} /></div><audio src={review.url} autoPlay loop /></div>}
+          <ReviewMedia url={review.url} kind={review.rec.kind} me={me} />
           <div className="review-bar">
             <button className="btn" onClick={() => { URL.revokeObjectURL(review.url); setReview(null); }}><Icon name="undo" size={18} /> Retake</button>
             <button className="btn primary" onClick={() => {
               sendRecording(chatId, me.id, review.rec, review.segs.length ? JSON.stringify(review.segs) : null, () => { void load(); void refresh(); });
-              setReview(null); toast('Sent');
+              const url = review.url; setReview(null); toast('Sending'); setTimeout(() => URL.revokeObjectURL(url), 1000);
             }}><Icon name="send" size={18} /> Send</button>
           </div>
         </div>
@@ -755,5 +765,21 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         <button className="btn primary wide" disabled={!msg.trim()} onClick={() => void sendMsg()}><Icon name="send" size={18} /> Send</button>
       </Sheet>
     </div>
+  );
+}
+
+// "Look before sending": iPhone may refuse to start it with sound outside the tap, so offer one
+function ReviewMedia({ url, kind, me }: { url: string; kind: 'video' | 'audio'; me: Person }) {
+  const el = useRef<HTMLVideoElement & HTMLAudioElement>(null);
+  const [tap, setTap] = useState(false);
+  useEffect(() => { el.current?.play().then(() => setTap(false)).catch(() => setTap(true)); }, [url]);
+  const play = () => { void el.current?.play().then(() => setTap(false)).catch(() => {}); };
+  return (
+    <>
+      {kind === 'video'
+        ? <video ref={el} src={url} loop playsInline className="p-video" onClick={play} />
+        : <div className="p-audio" style={{ ['--c' as string]: tone(me.color) }} onClick={play}><div className="p-audio-ring"><Avatar p={me} size={140} /></div><audio ref={el} src={url} loop /></div>}
+      {tap && <button className="paused tap review-tap" onClick={play}><Icon name="play" size={56} fill="currentColor" /><span>Tap to play</span></button>}
+    </>
   );
 }

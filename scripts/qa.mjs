@@ -15,7 +15,7 @@ for (const [n, p] of [['A', A], ['B', B]]) {
   p.on('console', m => { if (m.text().startsWith('[live]')) console.log(n, m.text()); });
   p.on('pageerror', e => errs.push(`${n} pageerror: ${e.message}`));
   p.on('console', m => { if (m.type() === 'error') errs.push(`${n} console: ${m.text()}`); });
-  p.on('response', r => { if (r.status() >= 400) errs.push(`${n} ${r.status()} ${r.request().method()} ${r.url().replace(/[?#].*/, '').slice(0, 140)}`); });
+  p.on('response', r => { if (r.status() >= 400) errs.push(`${n} ${r.status()} ${r.request().method()} ${r.url().replace(/[?#].*/, '').slice(0, 220)}`); });
 }
 const shot = (p, name) => p.screenshot({ path: `${OUT}/${name}.png` });
 const step = s => console.log('--', s);

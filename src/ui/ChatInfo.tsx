@@ -26,15 +26,19 @@ export function ChatInfo({ open, onClose, chat, onChanged }: { open: boolean; on
     try { await navigator.clipboard.writeText(link); toast('Link copied'); } catch { toast(link, undefined, 8000); }
   };
   const saveName = async () => {
-    if (name === chat.name) return;
-    await api.chatUpdate(chat.id, { name }).catch(e => toast(e.message));
+    if (name.trim() === chat.name) { setName(chat.name); return; }
+    await api.chatUpdate(chat.id, { name: name.trim() }).catch(e => toast(e.message));
     liveSend(chat.id, 'chat'); onChanged();
   };
   const setTheme = async (t: string) => { await api.chatUpdate(chat.id, { theme: t }).catch(e => toast(e.message)); liveSend(chat.id, 'chat'); onChanged(); };
-  const mute = async () => { await api.chatUpdate(chat.id, { muted: !chat.muted }); onChanged(); toast(chat.muted ? 'Sounds back on for this chat' : 'Muted. No pings from this chat.'); };
+  const mute = async () => {
+    try { await api.chatUpdate(chat.id, { muted: !chat.muted }); onChanged(); toast(chat.muted ? 'Sounds back on for this chat' : 'Muted. No pings from this chat.'); }
+    catch (e) { toast((e as Error).message); }
+  };
   const leave = async () => {
     if (!confirm('Leave this chat? You will need the code to get back in.')) return;
-    await api.leave(chat.id); liveSend(chat.id, 'chat'); onClose(); go('/');
+    try { await api.leave(chat.id); } catch (e) { toast((e as Error).message); return; }
+    liveSend(chat.id, 'chat'); onClose(); go('/');
   };
   const n = chat.polos.length;
 

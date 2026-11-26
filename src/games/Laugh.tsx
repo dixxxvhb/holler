@@ -216,19 +216,27 @@ function LaughWatch({ act, game, chat, me, studio, onClose }: {
       }
     }
     if (g) setFinal(g);
+    setSettled(true);
   };
   const [final, setFinal] = useState<Game | null>(null);
+  const [settled, setSettled] = useState(false);
 
   const start = async () => {
     const v = vid.current; if (!v || !src) return;
     setStage('loading');
-    if (camOk && studio) {
+    // play inside the tap so iPhone allows sound, then hold on the first frame while the camera gets going
+    if (v.getAttribute('src') !== src) v.src = src;
+    try { await v.play(); } catch { setStage('ready'); toast('Tap Start again to play it'); return; }
+    v.pause(); v.currentTime = 0;
+    if (camOk && studio && !studio.recording) {
       const lm = await loadFace();
       if (lm) { watcher.current = new SmileWatch(); setFaceOn(true); }
-      try { await studio.start('video', { videoBits: 500_000 }); filming.current = true; } catch { filming.current = false; }
+      try { await studio.start('video', { videoBits: 500_000 }); filming.current = true; } catch { /* plays on without filming */ }
     }
-    v.src = src;
-    try { await v.play(); } catch { setStage('ready'); toast('Tap Start again to play it'); return; }
+    try { await v.play(); } catch {
+      if (filming.current && studio?.recording) studio.cancel();
+      filming.current = false; setStage('ready'); toast('Tap Start again to play it'); return;
+    }
     setStage('watching');
     const loop = () => {
       const w = watcher.current;
@@ -267,7 +275,7 @@ function LaughWatch({ act, game, chat, me, studio, onClose }: {
           <div className={`g-box ${result == null ? 'truth' : ''}`}><small>{actor}'s clip</small>
             <p>{result == null ? 'Straight face. +1' : `You cracked at ${result.toFixed(1)} seconds`}</p></div>
           <p className="g-meta">{result == null ? `Not even a smile. ${actor} gets nothing for this one.` : `${actor} gets a point, and your face goes to the game.`}</p>
-          <button className="btn g-go wide" onClick={() => onClose(final || undefined)}>Done</button>
+          <button className="btn g-go wide" disabled={!settled} onClick={() => onClose(final || undefined)}>{settled ? 'Done' : 'Saving...'}</button>
         </div>
       )}
     </div>

@@ -11,7 +11,7 @@ const DEVICES = [
   { n: 'max', w: 430, h: 932, t: 59, b: 34 },
 ];
 const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
-const b = await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
+const b = await chromium.launch({ channel: process.env.PW_CHANNEL || undefined, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
 const mk = async (d, standalone) => {
   const ctx = await b.newContext({ viewport: { width: d.w, height: d.h }, deviceScaleFactor: 2, permissions: ['camera', 'microphone'], userAgent: UA });
   await ctx.addInitScript(([t, bt, sa]) => {

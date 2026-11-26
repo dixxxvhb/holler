@@ -38,7 +38,7 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
 
   const polo = items[idx];
   // ---- reactions: the original a reaction answers, played small beside it in sync ----
-  const orig = polo?.reactTo ? (chat?.polos.find(p => p.id === polo.reactTo) || list.find(p => p.id === polo.reactTo)) : undefined;
+  const orig = polo?.reactTo ? (chat?.polos?.find(p => p.id === polo.reactTo) || list.find(p => p.id === polo.reactTo)) : undefined;
   const sync = readSync(polo?.effects);
   const [origSrc, setOrigSrc] = useState<string | null>(null);
   const [swap, setSwap] = useState(false);
@@ -211,7 +211,7 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
 
   const save = async () => {
     const on = !polo.savedBy.includes(me.id);
-    await api.save(polo.id, on).catch(() => {});
+    try { await api.save(polo.id, on); } catch (e) { toast((e as Error).message || 'Could not save that'); return; }
     setItems(it => it.map(p => (p.id === polo.id ? { ...p, savedBy: on ? [...p.savedBy, me.id] : p.savedBy.filter(x => x !== me.id) } : p)));
     toast(on ? 'Saved forever. Find it under Saved.' : 'Removed from Saved'); onChanged?.();
   };
@@ -224,7 +224,7 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
   };
   const del = async () => {
     if (!confirm('Delete this holler for everyone?')) return;
-    await removeMine(polo).catch(e => toast(e.message));
+    try { await removeMine(polo); } catch (e) { toast((e as Error).message || 'Could not delete that'); return; }
     const rest = items.filter(p => p.id !== polo.id);
     if (!rest.length) { onClose(); return; }
     setItems(rest); setIdx(i => Math.min(i, rest.length - 1)); setMenu(false); onChanged?.();
@@ -279,7 +279,7 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
         {orig && origSrc && (
           <SyncedVideo src={origSrc} sync={sync} main={mainEl} className={swap ? 'p-video g-orig-big' : 'g-pip'} onClick={() => setSwap(s => !s)} />
         )}
-        {orig && origSrc && <span className={`g-pip-lab ${swap ? 'big' : ''}`} onClick={() => setSwap(s => !s)}><Icon name="swap" size={14} /> {swap ? (author?.id === me.id ? 'You' : author?.name.split(' ')[0]) : (orig.author === me.id ? 'Yours' : (members.find(m => m.id === orig.author)?.name.split(' ')[0] || 'Theirs'))}</span>}
+        {orig && origSrc && <button type="button" className={`g-pip-lab ${swap ? 'big' : ''}`} onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()} onClick={() => setSwap(s => !s)} aria-label="Swap which video is big"><Icon name="swap" size={14} /> {swap ? (author?.id === me.id ? 'You' : author?.name.split(' ')[0]) : (orig.author === me.id ? 'Yours' : (members.find(m => m.id === orig.author)?.name.split(' ')[0] || 'Theirs'))}</button>}
         {polo.reactTo && !orig && <span className="g-gone">The holler this reacts to is gone.</span>}
         {answer && card?.answer && <div className="g-answer"><small>Real answer</small><b>{card.answer.n}%</b><span>{card.answer.source}, {card.answer.year}</span></div>}
         {polo.kind === 'audio' && (
@@ -333,7 +333,7 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
           {segs.length > 0 && <button className={`pill-btn ${cc ? 'on' : ''}`} onClick={() => setCc(c => !c)} aria-label="Captions" aria-pressed={cc}><Icon name="cc" size={20} /><span className="lb">Captions</span></button>}
           <button className={`pill-btn ${polo.savedBy.includes(me.id) ? 'on' : ''}`} onClick={() => void save()} aria-label={polo.savedBy.includes(me.id) ? 'Saved' : 'Save'}><Icon name="star" size={20} fill={polo.savedBy.includes(me.id) ? 'currentColor' : undefined} /><span className="lb">{polo.savedBy.includes(me.id) ? 'Saved' : 'Save'}</span></button>
           {polo.path && <button className="pill-btn" onClick={() => void download()} aria-label="Download"><Icon name="download" size={20} /></button>}
-          {polo.author === me.id && !standalone && <button className="pill-btn" onClick={() => setMenu(m => !m)} aria-label="More"><Icon name="trash" size={20} /></button>}
+          {polo.author === me.id && !standalone && <button className="pill-btn" onClick={() => setMenu(m => !m)} aria-label="Delete" aria-expanded={menu}><Icon name="trash" size={20} /></button>}
           {cardId && onAnswerCard && !standalone && <button className="pill-btn g-cardans" onClick={() => { const id = cardId; void stopFilm(() => { onClose(); onAnswerCard(id); }); }} aria-label="Answer this card"><Icon name="cards" size={20} /><span className="lb">Answer this card</span></button>}
         </div>
         {menu && <div className="p-menu"><button className="btn danger wide" onClick={() => void del()}>Delete for everyone</button></div>}
@@ -351,9 +351,12 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
 function ReactionReview({ r, onDone }: { r: { url: string; sync: SyncPoint[]; origUrl: string | null }; onDone: (send: boolean) => void }) {
   const v = useRef<HTMLVideoElement>(null);
   const main = useCallback(() => v.current, []);
+  const [tap, setTap] = useState(false);
+  useEffect(() => { v.current?.play().catch(() => setTap(true)); }, [r.url]);
   return (
     <div className="g-review">
-      <video ref={v} src={r.url} autoPlay loop playsInline className="p-video" />
+      <video ref={v} src={r.url} autoPlay loop playsInline className="p-video" onClick={() => { if (tap) void v.current?.play().then(() => setTap(false)); }} />
+      {tap && <button className="paused tap" onClick={() => void v.current?.play().then(() => setTap(false))}><Icon name="play" size={56} fill="currentColor" /><span>Tap to play</span></button>}
       {r.origUrl && <SyncedVideo src={r.origUrl} sync={r.sync} main={main} className="g-pip" muted />}
       <div className="g-review-bar">
         <span className="g-row-btns"><button className="btn" onClick={() => onDone(false)}>Toss it</button><button className="btn primary" onClick={() => onDone(true)}>Send my reaction</button></span>

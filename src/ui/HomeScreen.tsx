@@ -68,9 +68,11 @@ export function HomeScreen() {
   const openNew = () => {
     const used = new Set(home.chats.map(c => c.theme));
     setTheme(Object.keys(THEMES).find(k => !used.has(k)) || 'ember');
-    setSheet('new');
+    setVal(''); setSheet('new');
   };
+  const openJoin = () => { setVal(''); setSheet('join'); };
   const create = async () => {
+    if (busy) return;
     setBusy(true);
     try {
       const c = await api.createChat(val.trim());
@@ -79,6 +81,7 @@ export function HomeScreen() {
     catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };
   const join = async () => {
+    if (busy || val.trim().length < 6) return;
     setBusy(true);
     try { const c = await api.join(val.trim()); await refresh(); setSheet(null); setVal(''); go(`/c/${c.id}`); }
     catch (e) { toast((e as Error).message); } finally { setBusy(false); }
@@ -103,7 +106,7 @@ export function HomeScreen() {
           <p className="muted">Make a chat, then send the invite link to up to a few friends or family. Or join one with a code.</p>
           <div className="col gap">
             <button className="btn primary wide" onClick={openNew}>Start a chat</button>
-            <button className="btn wide" onClick={() => setSheet('join')}>I have a code</button>
+            <button className="btn wide" onClick={openJoin}>I have a code</button>
           </div>
         </div>
       ) : (
@@ -143,7 +146,7 @@ export function HomeScreen() {
 
       {home.chats.length > 0 && (
         <div className="fab-row">
-          <button className="btn" onClick={() => setSheet('join')}>Join with code</button>
+          <button className="btn" onClick={openJoin}>Join with code</button>
           <button className="btn primary" onClick={openNew}><Icon name="plus" size={18} /> New chat</button>
         </div>
       )}
@@ -160,7 +163,7 @@ export function HomeScreen() {
       </Sheet>
       <Sheet open={sheet === 'join'} onClose={() => setSheet(null)} title="Join a chat">
         <label className="lbl center" htmlFor="jc">Invite code</label>
-        <input id="jc" className="field code" autoFocus maxLength={6} placeholder="ABC123" value={val} onChange={e => setVal(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') void join(); }} />
+        <input id="jc" className="field code" autoFocus autoCapitalize="characters" autoComplete="off" placeholder="ABC123" value={val} onChange={e => setVal(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} onKeyDown={e => { if (e.key === 'Enter') void join(); }} />
         <p className="fine center">It's on the invite they sent you.</p>
         <button className="btn primary wide" disabled={busy || val.trim().length < 6} onClick={() => void join()}>Join</button>
       </Sheet>

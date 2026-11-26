@@ -15,7 +15,9 @@ const LIMIT = 1024 ** 3; // the free storage room Holler shares
 export function Settings({ onSignOut }: { onSignOut: () => void }) {
   const { home, go, refresh } = useApp();
   const me = home!.me;
-  const prefs: Prefs = me.prefs || {};
+  // flips show at once; the server's copy catches up on the next refresh
+  const [pending, setPending] = useState<Prefs>({});
+  const prefs: Prefs = { ...(me.prefs || {}), ...pending };
   const [name, setName] = useState(me.name);
   const [local, setLocal] = useState(0);
   const [link, setLink] = useState<{ url: string; qr: string; code: string } | null>(null);
@@ -24,8 +26,20 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => { void cacheBytes().then(setLocal); void pushState().then(setPush); }, []);
 
-  const set = async (p: Prefs) => { await api.updateMe({ prefs: p }).catch(e => toast(e.message)); void refresh(); };
-  const saveName = async () => { if (name.trim() && name !== me.name) { await api.updateMe({ name }); void refresh(); toast('Name saved'); } };
+  const set = async (p: Prefs) => {
+    setPending(x => ({ ...x, ...p }));
+    try { await api.updateMe({ prefs: p }); await refresh(); }
+    catch (e) { toast((e as Error).message); }
+    setPending(x => { const y = { ...x }; for (const k of Object.keys(p)) delete y[k as keyof Prefs]; return y; });
+  };
+  const saveName = async () => {
+    const n = name.trim();
+    if (!n) { setName(me.name); return; }
+    if (n === me.name) return;
+    try { await api.updateMe({ name: n }); void refresh(); toast('Name saved'); } catch (e) { toast((e as Error).message); setName(me.name); }
+  };
+  const setColor = async (c: string) => { try { await api.updateMe({ color: c }); void refresh(); } catch (e) { toast((e as Error).message); } };
+  const removePhoto = async () => { try { await api.updateMe({ avatar: null }); void refresh(); } catch (e) { toast((e as Error).message); } };
 
   const onAvatar = async (f?: File) => {
     if (!f) return;
@@ -42,9 +56,11 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
   };
 
   const makeLink = async () => {
-    const [tok, code] = await Promise.all([api.linkDevice(), api.linkCode()]);
-    const url = `${location.origin}${location.pathname}#/link/${tok}`;
-    setLink({ url, code, qr: await QRCode.toDataURL(url, { margin: 1, width: 360 }) });
+    try {
+      const [tok, code] = await Promise.all([api.linkDevice(), api.linkCode()]);
+      const url = `${location.origin}${location.pathname}#/link/${tok}`;
+      setLink({ url, code, qr: await QRCode.toDataURL(url, { margin: 1, width: 360 }) });
+    } catch (e) { toast((e as Error).message || 'Could not make a link'); }
   };
 
   const used = home!.usage.bytes;
@@ -62,11 +78,11 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
           <Avatar p={me} size={96} /><span className="av-badge"><Icon name="camera" size={16} /></span>
         </button>
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { void onAvatar(e.target.files?.[0]); e.target.value = ''; }} />
-        <input className="field" maxLength={40} aria-label="Your name" value={name} onChange={e => setName(e.target.value)} onBlur={() => void saveName()} />
+        <input className="field" maxLength={40} aria-label="Your name" value={name} onChange={e => setName(e.target.value)} onBlur={() => void saveName()} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
         <div className="swatches">
-          {COLORS.map(c => <button key={c} className={`sw ${c === tone(me.color) ? 'on' : ''}`} style={{ background: c }} onClick={async () => { await api.updateMe({ color: c }); void refresh(); }} aria-label="Color" aria-pressed={c === tone(me.color)} />)}
+          {COLORS.map(c => <button key={c} className={`sw ${c === tone(me.color) ? 'on' : ''}`} style={{ background: c }} onClick={() => void setColor(c)} aria-label={`Color ${COLORS.indexOf(c) + 1}`} aria-pressed={c === tone(me.color)} />)}
         </div>
-        {me.avatar && <button className="link-btn" onClick={async () => { await api.updateMe({ avatar: null }); void refresh(); }}>Remove photo</button>}
+        {me.avatar && <button className="link-btn" onClick={() => void removePhoto()}>Remove photo</button>}
       </section>
 
       <h3 className="sec">Recording</h3>
@@ -91,7 +107,7 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
       <section className="card">
         <p className="fine">{push === 'on' ? 'On for this device.' : push === 'ios-install' ? 'On iPhone: tap Share, then Add to Home Screen, open Holler from there, then turn this on.' : push === 'denied' ? 'Blocked in your browser settings for this site.' : push === 'unsupported' ? 'This browser cannot do notifications.' : 'Get a ping when someone hollers, even with the app closed.'}</p>
         {push !== 'on' && push !== 'unsupported' && push !== 'ios-install' && (
-          <button className="btn primary" onClick={async () => { const r = await enablePush(); setPush(r); toast(r === 'on' ? 'Notifications on' : 'Notifications not turned on'); }}><Icon name="bell" size={18} /> Turn on notifications</button>
+          <button className="btn primary" onClick={async () => { const r = await enablePush().catch(() => 'off'); setPush(r); toast(r === 'on' ? 'Notifications on' : r === 'denied' ? 'Blocked. Allow notifications for this site in your browser settings.' : 'Notifications not turned on'); }}><Icon name="bell" size={18} /> Turn on notifications</button>
         )}
       </section>
 

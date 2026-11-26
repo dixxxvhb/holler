@@ -7,6 +7,7 @@ import type { Recording } from './studio';
 export type Outgoing = {
   key: string; chat: string; me: string; rec: Recording; transcript: string | null;
   polo: Polo; progress: number; error?: string; cancelled?: boolean; done?: boolean; serverId?: string;
+  running?: boolean; abort?: AbortController;
 };
 
 const items = new Map<string, Outgoing>();
@@ -77,9 +78,22 @@ export function sendRecording(chat: string, me: string, rec: Recording, transcri
   return key;
 }
 
+// the local copies stay up a while after sending so the strip can swap to the server's without a blank
+function release(o: Outgoing, ms: number) {
+  setTimeout(() => {
+    const pd = o.polo.pending;
+    if (pd?.localUrl) URL.revokeObjectURL(pd.localUrl);
+    if (pd?.thumbUrl) URL.revokeObjectURL(pd.thumbUrl);
+    items.delete(o.key);
+  }, ms);
+}
+
 async function run(o: Outgoing, onSent?: (p: Polo) => void) {
+  if (o.running || o.done || o.cancelled) return; // the online event and a Retry tap can land together
+  o.running = true; o.abort = new AbortController();
   o.error = undefined; emit();
   const stoppedAt = Date.now();
+  const signal = o.abort.signal;
   try {
     let reserved: Polo;
     if (o.serverId) reserved = { ...o.polo, id: o.serverId } as Polo;
@@ -92,10 +106,11 @@ async function run(o: Outgoing, onSent?: (p: Polo) => void) {
     const total = o.rec.blob.size + (o.rec.thumb?.size || 0);
     let thumbDone = 0;
     if (o.rec.thumb && o.polo.thumb) {
-      await upload(o.polo.thumb, o.rec.thumb, f => { o.progress = (f * o.rec.thumb!.size) / total; o.polo.pending!.progress = o.progress; emit(); });
+      await upload(o.polo.thumb, o.rec.thumb, f => { o.progress = (f * o.rec.thumb!.size) / total; o.polo.pending!.progress = o.progress; emit(); }, signal);
       thumbDone = o.rec.thumb.size;
     }
-    await upload(o.polo.path!, o.rec.blob, f => { o.progress = (thumbDone + f * o.rec.blob.size) / total; o.polo.pending!.progress = o.progress; emit(); });
+    await upload(o.polo.path!, o.rec.blob, f => { o.progress = (thumbDone + f * o.rec.blob.size) / total; o.polo.pending!.progress = o.progress; emit(); }, signal);
+    if (o.cancelled) return cleanup(o); // undone while the file was landing: take the file back down
     void seedCache(o.polo.path!, o.rec.blob);
     const wait = UNDO_MS - (Date.now() - stoppedAt);
     if (wait > 0) await new Promise(r => setTimeout(r, wait));
@@ -103,29 +118,30 @@ async function run(o: Outgoing, onSent?: (p: Polo) => void) {
     const fin = await api.finishPolo(o.serverId!, {
       duration: o.rec.duration, w: o.rec.w, h: o.rec.h, transcript: o.transcript, effects: o.rec.effects, hasThumb: !!o.polo.thumb,
     });
-    o.done = true; emit(); void forget(o.key);
+    o.done = true; emit(); void forget(o.key); release(o, 60_000);
     liveSend(o.chat, 'polo', { id: fin.id });
     onSent?.(fin);
   } catch (e) {
+    if (o.cancelled) { void cleanup(o); return; }
     o.error = e instanceof Error ? e.message : 'Could not send';
     emit();
-  }
+  } finally { o.running = false; }
 }
 
 async function cleanup(o: Outgoing) {
-  o.cancelled = true; emit(); void forget(o.key);
+  const first = !o.cancelled;
+  o.cancelled = true; o.abort?.abort(); emit(); void forget(o.key);
+  if (first) release(o, 5000);
   if (o.serverId) {
-    try {
-      await api.deletePolo(o.serverId);
-      const paths = [o.polo.path, o.polo.thumb].filter(Boolean) as string[];
-      if (paths.length) await sb.storage.from('holler').remove(paths);
-    } catch { /* leftovers are harmless */ }
+    await api.deletePolo(o.serverId).catch(() => { /* already gone */ });
+    const paths = [o.polo.path, o.polo.thumb].filter(Boolean) as string[];
+    if (paths.length) await sb.storage.from('holler').remove(paths).catch(() => { /* leftovers are harmless */ });
   }
 }
 
 if (typeof window !== 'undefined') window.addEventListener('online', () => { for (const o of items.values()) if (o.error && !o.done && !o.cancelled) void run(o); });
 
-export function undo(key: string) { const o = items.get(key); if (o && !o.done) { o.cancelled = true; emit(); if (o.serverId) void cleanup(o); } }
+export function undo(key: string) { const o = items.get(key); if (o && !o.done) void cleanup(o); }
 export function retry(key: string) { const o = items.get(key); if (o) void run(o); }
 export function discard(key: string) { const o = items.get(key); if (o) void cleanup(o); }
 

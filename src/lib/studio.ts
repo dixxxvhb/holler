@@ -303,7 +303,13 @@ export class Studio {
 
   /** One second of silent canvas recording, decoded and checked for real pixels. Some phones record
    *  black from a canvas; on those we fall back to the plain camera. true = safe, false = black, null = couldn't tell. */
-  async selfTest(): Promise<boolean | null> {
+  private testP: Promise<boolean | null> | null = null;
+  /** The one-time check below records too; a real take waits for it rather than running two recorders at once. */
+  selfTest(): Promise<boolean | null> {
+    if (!this.testP) this.testP = this.runSelfTest().finally(() => { this.testP = null; });
+    return this.testP;
+  }
+  private async runSelfTest(): Promise<boolean | null> {
     if (!this.glOk || !this.canvas.captureStream || typeof MediaRecorder === 'undefined') return true;
     try {
       const avg = (src: CanvasImageSource, w: number, h: number) => {
@@ -357,6 +363,7 @@ export class Studio {
   get canPause() { return typeof MediaRecorder !== 'undefined' && 'pause' in MediaRecorder.prototype; }
 
   async start(kind: 'video' | 'audio' = 'video', opts: { videoBits?: number } = {}) {
+    if (this.testP) await this.testP.catch(() => null);
     if (!this.stream) throw new Error('camera off');
     if (this.recording) throw new Error('already recording');
     this.recKind = kind;
@@ -381,7 +388,7 @@ export class Studio {
     let tracks: MediaStreamTrack[] = [];
     if (kind === 'video') {
       let vt: MediaStreamTrack | undefined;
-      if (this.glOk && this.canvas.captureStream) vt = this.canvas.captureStream(30).getVideoTracks()[0];
+      if (this.glOk && this.canvas.captureStream) { vt = this.canvas.captureStream(30).getVideoTracks()[0]; this.capTrack = vt || null; }
       if (!vt) vt = this.stream.getVideoTracks()[0];
       tracks = [vt];
     }
@@ -456,7 +463,7 @@ export class Studio {
     rec.stop();
     await done;
     if (this.rec === rec) {
-      this.rec = null; this.analyser = null;
+      this.rec = null; this.analyser = null; this.dropCapTrack();
       this.audio?.stop(); this.audio?.ctx.close().catch(() => {}); this.audio = null;
     }
     const chunks = (rec as unknown as { _chunks?: Blob[] })._chunks || this.chunks;
@@ -469,13 +476,25 @@ export class Studio {
       effects: { look: this.look, voice: this.voice, looks: [...this.looksUsed], voices: [...this.voicesUsed], text: this.text?.text || null, card: this.card ? this.card.text : undefined, scribbles: this.strokes.length > 0, hd: this.hd } };
   }
 
+  // the canvas track made for a take; stopped after it so they don't pile up over a session
+  private capTrack: MediaStreamTrack | null = null;
+  private dropCapTrack() { this.capTrack?.stop(); this.capTrack = null; }
+
   cancel() {
+    this.dropCapTrack();
     if (this.rec) { this.rec.ondataavailable = null; try { this.rec.stop(); } catch { /* */ } this.rec = null; }
     this.audio?.stop(); this.audio?.ctx.close().catch(() => {}); this.audio = null; this.analyser = null;
   }
 
   /** Leave the camera. Tracks are paused, not stopped, so coming back never asks for permission again. */
-  close() { cancelAnimationFrame(this.raf); this.cancel(); this.stopMeter(); this.video.srcObject = null; this.stream = null; pauseMedia(); }
+  close() {
+    cancelAnimationFrame(this.raf); this.cancel(); this.stopMeter(); this.video.srcObject = null; this.stream = null; pauseMedia();
+  }
+  /** Leaving the chat for good: also hand the WebGL context back (iPhone only allows a few, and every chat opened makes one). */
+  dispose() {
+    this.close();
+    try { this.gl?.getExtension('WEBGL_lose_context')?.loseContext(); } catch { /* */ }
+  }
 }
 
 // ---- one camera + mic for the whole app session ----

@@ -76,8 +76,8 @@ export function SpotStart({ open, onClose, chat, me, onStarted }: {
 }
 
 // ---------------------------------------------------------------- live, over the camera, while you record
-export function SpotLive({ game, studio, recording, onDone }: {
-  game: Game; studio: Studio | null; recording: boolean; onDone: (picks: Pick[]) => void;
+export function SpotLive({ game, studio, recording, onDone, onFail }: {
+  game: Game; studio: Studio | null; recording: boolean; onDone: (picks: Pick[]) => void; onFail?: () => void;
 }) {
   const [qids, setQids] = useState<string[] | null>(null);
   const [i, setI] = useState(0);
@@ -86,12 +86,13 @@ export function SpotLive({ game, studio, recording, onDone }: {
   const [locked, setLocked] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   const done = useRef(false);
+  const lockTimer = useRef(0);
   // the questions arrive the moment recording starts (a retake starts over with the same three)
   useEffect(() => {
-    if (!recording) { setI(0); setPicks([]); setLocked(null); done.current = false; return; }
+    if (!recording) { clearTimeout(lockTimer.current); setI(0); setPicks([]); setLocked(null); done.current = false; return; }
     let gone = false;
     void api.gameBegin(game.id).then(g => { if (gone) return; setQids(g.qids || []); setShownAt(Date.now()); })
-      .catch(e => toast((e as Error).message));
+      .catch(e => { if (gone) return; toast(`${(e as Error).message || 'The questions would not load'}. Try again in a moment.`); onFail?.(); });
     return () => { gone = true; };
   }, [recording, game.id]);
   useEffect(() => { if (!recording) return; const t = window.setInterval(() => setNow(Date.now()), 200); return () => clearInterval(t); }, [recording]);
@@ -101,7 +102,7 @@ export function SpotLive({ game, studio, recording, onDone }: {
     if (!q || locked !== null || done.current) return;
     const p = [...picks, { pick, ms: Math.min(SPOT_SEC * 1000, Date.now() - shownAt) }];
     setLocked(pick); setPicks(p);
-    window.setTimeout(() => {
+    lockTimer.current = window.setTimeout(() => {
       setLocked(null);
       if (p.length >= (qids?.length || 3)) { done.current = true; onDone(p); return; }
       setI(p.length); setShownAt(Date.now());
@@ -118,6 +119,7 @@ export function SpotLive({ game, studio, recording, onDone }: {
     studio.markDirty();
   }, [studio, recording, q, i, locked, Math.ceil(left / 1000)]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { if (studio) { studio.card = null; studio.markDirty(); } }, [studio]);
+  useEffect(() => () => clearTimeout(lockTimer.current), []);
 
   if (!recording) return (
     <div className="g-banner"><Icon name="timer" size={24} /><span><b>Three questions, on camera</b>

@@ -513,7 +513,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; letter-sp
 .more-tools .rail-btn.set { color: var(--room); box-shadow: inset 0 0 0 2.5px var(--room); }
 
 .review { position: fixed; inset: 0; z-index: var(--z-review); background: #000; }
-.review-bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 10px; padding: 14px 16px calc(var(--safe-b) + 14px); background: var(--room); }
+.review-bar { position: absolute; z-index: 3; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 10px; padding: 14px 16px calc(var(--safe-b) + 14px); background: var(--room); }
 .review-bar .btn { flex: 1; background: none; color: var(--on-color); box-shadow: inset 0 0 0 2.5px var(--on-color); }
 .review-bar .btn.primary { background: var(--on-color); color: var(--chalk); box-shadow: none; }
 
@@ -612,3 +612,6 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; letter-sp
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   .chat::before, .chat::after { display: none; }
 }
+
+/* audit 11-26: "Look before sending" asks for a tap when iPhone won't start it with sound */
+.review .paused.tap.review-tap { pointer-events: auto; z-index: 2; border: 0; width: 100%; color: var(--chalk); font: inherit; font-weight: 700; }

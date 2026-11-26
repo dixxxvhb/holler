@@ -124,9 +124,12 @@ export const api = {
 export const publicUrl = (path: string) => `${SB_URL}/storage/v1/object/public/holler/${path}`;
 
 /** Upload with progress. Retries network failures with backoff. */
-export function upload(path: string, blob: Blob, onProgress?: (f: number) => void): Promise<void> {
+export function upload(path: string, blob: Blob, onProgress?: (f: number) => void, signal?: AbortSignal): Promise<void> {
+  const stopped = () => Object.assign(new Error('cancelled'), { fatal: true });
   const attempt = () => new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) { reject(stopped()); return; }
     const xhr = new XMLHttpRequest();
+    signal?.addEventListener('abort', () => { xhr.abort(); reject(stopped()); }, { once: true });
     xhr.open('POST', `${SB_URL}/storage/v1/object/holler/${path}`);
     xhr.setRequestHeader('apikey', SB_KEY);
     xhr.setRequestHeader('Authorization', `Bearer ${SB_KEY}`);
@@ -136,7 +139,13 @@ export function upload(path: string, blob: Blob, onProgress?: (f: number) => voi
     xhr.onload = () => {
       if (xhr.status < 300) resolve();
       else if (/already exists|Duplicate/i.test(xhr.responseText)) resolve();
-      else reject(Object.assign(new Error(xhr.responseText || `upload ${xhr.status}`), { fatal: xhr.status === 413 || xhr.status === 403 }));
+      else {
+        // 4xx (bar timeouts and rate limits) won't fix itself by retrying; storage reports a refused upload as 400
+        const fatal = xhr.status >= 400 && xhr.status < 500 && xhr.status !== 408 && xhr.status !== 429;
+        const msg = xhr.status === 413 || /too large|exceeded/i.test(xhr.responseText) ? 'That file is too big to send'
+          : fatal ? 'The upload was refused. Try recording it again.' : `Upload failed (${xhr.status})`;
+        reject(Object.assign(new Error(msg), { fatal, detail: xhr.responseText }));
+      }
     };
     xhr.onerror = () => reject(new Error('network'));
     xhr.send(blob);
@@ -146,7 +155,7 @@ export function upload(path: string, blob: Blob, onProgress?: (f: number) => voi
     for (let i = 0; ; i++) {
       try { return await attempt(); }
       catch (e) {
-        if ((e as { fatal?: boolean }).fatal || i >= 8) throw e;
+        if ((e as { fatal?: boolean }).fatal || i >= 8 || signal?.aborted) throw e;
         await new Promise(r => setTimeout(r, wait)); wait = Math.min(wait * 2, 15000);
       }
     }

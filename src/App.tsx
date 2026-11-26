@@ -40,6 +40,7 @@ export default function App() {
   useEffect(() => {
     if (route[0] === 'link' && route[1]) {
       setToken(route[1]); setSignedIn(true); if (!routeInMemory) history.replaceState(null, '', location.pathname + '#/'); setRoute([]);
+      setHome(null); void refresh(); // already signed in as someone else: show the linked person, not the old one
       toast('This device is linked');
     }
   }, [route]);
@@ -70,11 +71,14 @@ export default function App() {
     void caches?.open('holler-badge').then(c => c.put('./badge', new Response(String(n)))).catch(() => {});
   }, [home]);
 
-  // join links: #/join/CODE (after sign-in)
+  // join links: #/join/CODE (after sign-in); once per code, however often home refreshes meanwhile
+  const joining = useRef('');
   useEffect(() => {
-    if (!signedIn || !home || route[0] !== 'join' || !route[1]) return;
+    if (!signedIn || !home || route[0] !== 'join' || !route[1] || joining.current === route[1]) return;
+    joining.current = route[1];
     api.join(route[1]).then(c => { void refresh(); go(`/c/${c.id}`); toast(`You're in ${chatTitle(c, home.me.id)}`); })
-      .catch(e => { toast(e.message); go('/'); });
+      .catch(e => { toast(e.message); go('/'); })
+      .finally(() => { joining.current = ''; });
   }, [signedIn, home, route, refresh, go]);
 
   // anything new anywhere: refresh home; ping if it's not the chat on screen

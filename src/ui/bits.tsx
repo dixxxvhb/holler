@@ -5,7 +5,7 @@ import { Icon } from './icons';
 
 export function Avatar({ p, size = 40, status, ring }: { p?: Person | null; size?: number; status?: Status; ring?: string }) {
   const name = p?.name || '?';
-  const initials = name.split(/\s+/).map(s => s[0]).slice(0, 2).join('').toUpperCase();
+  const initials = name.trim().split(/\s+/).map(s => s[0]).slice(0, 2).join('').toUpperCase();
   return (
     <span className={`av ${status ? 'st-' + status : ''}`} style={{ width: size, height: size, background: tone(p?.color), fontSize: size * 0.4, ...(ring ? { ['--ring' as string]: ring } : null) }} title={name}>
       {p?.avatar ? <img src={publicUrl(p.avatar)} alt="" /> : <span>{initials}</span>}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../App';
 import { api, publicUrl, type ChatFull, type Polo } from '../lib/api';
-import { ago, tone } from './bits';
+import { ago, toast, tone } from './bits';
 import { Icon } from './icons';
 import { Player } from './Player';
 
@@ -9,7 +9,7 @@ export function Saved() {
   const { home, go } = useApp();
   const [list, setList] = useState<Polo[] | null>(null);
   const [open, setOpen] = useState<number | null>(null);
-  const load = () => api.saved().then(setList).catch(() => setList([]));
+  const load = () => api.saved().then(setList).catch(e => { toast((e as Error).message || 'Could not load Saved'); setList(l => l ?? []); });
   useEffect(() => { void load(); }, []);
   const me = home!.me;
   const people = new Map(home!.chats.flatMap(c => c.members).map(m => [m.id, m]));
