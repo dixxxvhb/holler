@@ -5,7 +5,7 @@ import { chromium } from 'playwright';
 const openMore = async p => { if (!(await p.locator('.rail-btn[aria-expanded="true"]').count())) await p.click('.rail-btn[aria-label="More tools"]'); };
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const OUT = 'shots';
-const b = await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
+const b = await chromium.launch({ channel: process.env.PW_CHANNEL || undefined, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
 const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: false, permissions: ['camera', 'microphone'] };
 const A = await (await b.newContext(phone)).newPage();
 const B = await (await b.newContext(phone)).newPage();
@@ -15,6 +15,7 @@ for (const [n, p] of [['A', A], ['B', B]]) {
   p.on('console', m => { if (m.text().startsWith('[live]')) console.log(n, m.text()); });
   p.on('pageerror', e => errs.push(`${n} pageerror: ${e.message}`));
   p.on('console', m => { if (m.type() === 'error') errs.push(`${n} console: ${m.text()}`); });
+  p.on('response', r => { if (r.status() >= 400) errs.push(`${n} ${r.status()} ${r.request().method()} ${r.url().replace(/[?#].*/, '').slice(0, 140)}`); });
 }
 const shot = (p, name) => p.screenshot({ path: `${OUT}/${name}.png` });
 const step = s => console.log('--', s);
