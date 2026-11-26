@@ -60,6 +60,16 @@ export default function App() {
 
   useEffect(() => { if (signedIn) void refresh(); }, [signedIn, refresh]);
 
+  // unread count on the Home Screen icon and in the tab title; the service worker adds to it when a push lands
+  useEffect(() => {
+    if (!home) return;
+    const n = home.chats.reduce((t, c) => t + (c.muted ? 0 : c.unread), 0);
+    document.title = n ? `(${n}) Holler` : 'Holler';
+    const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+    try { void (n ? nav.setAppBadge?.(n) : nav.clearAppBadge?.())?.catch(() => {}); } catch { /* not supported */ }
+    void caches?.open('holler-badge').then(c => c.put('./badge', new Response(String(n)))).catch(() => {});
+  }, [home]);
+
   // join links: #/join/CODE (after sign-in)
   useEffect(() => {
     if (!signedIn || !home || route[0] !== 'join' || !route[1]) return;

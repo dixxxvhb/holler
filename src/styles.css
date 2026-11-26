@@ -228,7 +228,8 @@ img { display: block; }
 .p-who { flex: 1; display: flex; flex-direction: column; }
 .p-who b { font-family: var(--display); font-size: 17px; }
 .p-who span { font-size: 13px; color: rgba(255,255,255,.75); }
-.stage { position: relative; flex: 1; overflow: hidden; }
+.stage { position: relative; flex: 1; overflow: hidden; touch-action: none; }
+.player { transition: transform .2s ease-out, opacity .2s, border-radius .2s; overflow: hidden; }
 .p-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 @media (min-aspect-ratio: 3/4) { .p-video { object-fit: contain; } }
 .p-audio { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--c) 45%, #000), #000 70%); }
@@ -307,3 +308,22 @@ img { display: block; }
   .bottom { max-width: min(100vw, 56.25vh); margin: 0 auto; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
+
+/* hold to record: no text selection or callout on a long press */
+.rec { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.rec.is-paused .rec-core { background: #fff; opacity: .85; }
+.rec.is-paused .prog { stroke: #fff; }
+.rec.counting .rec-core { transform: scale(.7); opacity: .6; }
+
+/* ring light: a warm glow around the edge of the screen to light a face in the dark */
+.ring-light { position: absolute; inset: 0; pointer-events: none; z-index: 2;
+  box-shadow: inset 0 0 0 26px #fff6ec, inset 0 0 50px 34px rgba(255, 246, 236, .95); border-radius: 0; }
+
+.countdown { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 7;
+  font: 800 180px/1 "Bricolage Grotesque", system-ui, sans-serif; color: #fff; text-shadow: 0 4px 24px rgba(0,0,0,.7), 0 0 2px rgba(0,0,0,.5);
+  animation: count-pop .9s ease-out both; }
+@keyframes count-pop { from { transform: scale(1.5); opacity: 0; } 25% { transform: scale(1); opacity: 1; } to { transform: scale(.85); opacity: .15; } }
+
+.paused-tag { position: absolute; top: calc(var(--safe-t) + 116px); left: 50%; transform: translateX(-50%); z-index: 6;
+  display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; background: rgba(0,0,0,.6); font-weight: 700; font-size: 14px; }
+.rec-banner.watch { background: rgba(20, 16, 14, .72); box-shadow: 0 6px 20px rgba(0,0,0,.3); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }

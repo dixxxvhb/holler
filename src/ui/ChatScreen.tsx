@@ -6,7 +6,7 @@ import { onOutbox, outgoing, retry, discard, sendRecording, sendText, undo, UNDO
 import { LOOKS, Studio, probeFile, type LookId, type Recording, type Stroke } from '../lib/studio';
 import { VOICES, type VoiceId } from '../lib/voice';
 import { Captioner, isIOS, speechSupported, type Seg } from '../lib/speech';
-import { recStart, recStop } from '../lib/sound';
+import { pop, recStart, recStop } from '../lib/sound';
 import { Avatar, Sheet, THEMES, chatTitle, clock, toast } from './bits';
 import { Icon } from './icons';
 import { isSimple, setSimple, routeInMemory } from '../lib/device';
@@ -53,6 +53,14 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const tickRef = useRef(0);
+  const [paused, setPaused] = useState(false);
+  const local = (k: string, d: string) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+  const keep = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
+  const [timer, setTimer] = useState(() => Number(local('holler.timer', '0')));
+  const [countdown, setCountdown] = useState(0);
+  const countRef = useRef(0);
+  const [ring, setRing] = useState(() => local('holler.ring', '0') === '1');
+  const [held, setHeld] = useState(false);
 
   const load = useCallback(async () => {
     try { const c = await api.chat(chatId); setChat(c); setErr(''); }
@@ -133,6 +141,47 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const maxSec = hd ? MAX_SEC.hd : MAX_SEC.sd;
 
   // ---- recording ----
+  // timer: count down, then record (tap again during the count to call it off)
+  const startCountdown = () => {
+    if (countRef.current) { clearInterval(countRef.current); countRef.current = 0; setCountdown(0); return; }
+    let n = timer; setCountdown(n); pop();
+    countRef.current = window.setInterval(() => {
+      n -= 1;
+      if (n <= 0) { clearInterval(countRef.current); countRef.current = 0; setCountdown(0); void beginRef.current(); }
+      else { setCountdown(n); pop(); }
+    }, 1000);
+  };
+  useEffect(() => () => clearInterval(countRef.current), []);
+
+  const togglePause = () => {
+    const s = studio.current; if (!s?.recording) return;
+    if (s.paused) { if (s.resume()) { setPaused(false); recStart(); } }
+    else if (s.pause()) { setPaused(true); recStop(); }
+    else toast('This browser cannot pause a recording');
+  };
+
+  // the record button: tap to start and tap to send, or hold and let go to send
+  const pressAt = useRef(0);
+  const beginP = useRef<Promise<void> | null>(null);
+  const onRecDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    if (studio.current?.recording) { void finish(); return; }
+    if (countRef.current || (timer && !audioOnly)) { startCountdown(); return; }
+    pressAt.current = Date.now();
+    beginP.current = begin();
+  };
+  const onRecUp = async () => {
+    if (!pressAt.current) return;
+    const long = Date.now() - pressAt.current > 650; pressAt.current = 0;
+    await beginP.current;
+    if (long && studio.current?.recording) void finish();
+  };
+  useEffect(() => {
+    if (!recording) { setHeld(false); return; }
+    const t = setTimeout(() => { if (pressAt.current) setHeld(true); }, 650);
+    return () => clearTimeout(t);
+  }, [recording]);
+
   const begin = async () => {
     const s = studio.current;
     if (!s || camState !== 'on') { void startCam(); return; }
@@ -160,6 +209,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     const s = studio.current; if (!s?.recording) return;
     const rec = await s.stop();
     recStop();
+    setPaused(false);
     setRecording(false); setLevel(0); setCaption('');
     const segs = captioner.current?.stop() || []; captioner.current = null;
     if (!rec) return;
@@ -173,9 +223,12 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     if (s.strokes.length) { s.strokes = []; s.markDirty(); }
   };
 
+  const beginRef = useRef(begin); beginRef.current = begin;
+
   const cancelRec = () => {
     clearInterval(tickRef.current);
     studio.current?.cancel(); captioner.current?.stop(); captioner.current = null;
+    setPaused(false);
     setRecording(false); setCaption(''); toast('Discarded');
   };
 
@@ -271,6 +324,9 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         {camState === 'off' && <div className="cam-off"><button className="btn primary" onClick={() => void startCam()}>Turn on camera</button></div>}
         {audioOnly && <div className="audio-mode"><Avatar p={me} size={120} /><div className="lvl" style={{ transform: `scale(${1 + level * 1.6})` }} /><p>Voice only</p></div>}
         {caption && recording && <div className="live-cap">{caption}</div>}
+        {ring && !audioOnly && <div className="ring-light" />}
+        {countdown > 0 && <div className="countdown" key={countdown}>{countdown}</div>}
+        {recording && paused && <div className="paused-tag"><Icon name="pause" size={16} /> Paused</div>}
       </div>
 
       <header className="chat-top">
@@ -285,13 +341,17 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         <button className="icon-btn glass" onClick={() => setInfo(true)} aria-label="Chat info"><Icon name="info" /></button>
       </header>
 
+      {!others.some(o => pres[o.id] === 'recording') && others.filter(o => pres[o.id] === 'watching').slice(0, 1).map(o => (
+        <div key={o.id} className="rec-banner watch"><Avatar p={o} size={26} /> <b>{o.name.split(' ')[0]}</b> is watching</div>
+      ))}
       {others.filter(o => pres[o.id] === 'recording').map(o => (
         <div key={o.id} className="rec-banner"><Avatar p={o} size={26} /> <b>{o.name.split(' ')[0]}</b> is recording<span className="dots"><i /><i /><i /></span></div>
       ))}
 
-      {recording && !audioOnly && studio.current?.canFlipLive && (
+      {recording && (
         <aside className="rail">
-          <button className="rail-btn" onClick={() => void flip()} aria-label="Flip camera"><Icon name="flip" /><span>Flip</span></button>
+          {!audioOnly && studio.current?.canFlipLive && <button className="rail-btn" onClick={() => void flip()} aria-label="Flip camera"><Icon name="flip" /><span>Flip</span></button>}
+          {studio.current?.canPause && <button className={`rail-btn ${paused ? 'set' : ''}`} onClick={togglePause} aria-label={paused ? 'Keep recording' : 'Pause'}><Icon name={paused ? 'play' : 'pause'} fill={paused ? 'currentColor' : undefined} /><span>{paused ? 'Resume' : 'Pause'}</span></button>}
         </aside>
       )}
       {!recording && (
@@ -304,6 +364,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           <button className={`rail-btn ${panel === 'text' ? 'on' : ''} ${text ? 'set' : ''}`} onClick={() => toggle('text')}><Icon name="text" /><span>Text</span></button>
           </>}
           <button className={`rail-btn ${hd ? 'set' : ''}`} onClick={async () => { const v = !hd; setHd(v); await studio.current?.setHD(v); void api.updateMe({ prefs: { hd: v } }); toast(v ? 'HD on: sharper, bigger files' : 'HD off'); }}><Icon name="hd" /><span>{hd ? 'HD' : 'SD'}</span></button>
+          <button className={`rail-btn ${timer ? 'set' : ''}`} onClick={() => { const v = timer === 0 ? 3 : timer === 3 ? 10 : 0; setTimer(v); keep('holler.timer', String(v)); toast(v ? `${v} second timer: prop your phone up, tap record, step back` : 'Timer off'); }}><Icon name="timer" /><span>{timer ? `${timer}s` : 'Timer'}</span></button>
+          <button className={`rail-btn ${ring ? 'set' : ''}`} onClick={() => { const v = !ring; setRing(v); keep('holler.ring', v ? '1' : '0'); if (v) toast('Light on. Turn your screen brightness up for the most glow.'); }}><Icon name="light" /><span>Light</span></button>
           <button className={`rail-btn ${audioOnly ? 'set' : ''}`} onClick={() => setAudioOnly(a => !a)}><Icon name="wave" /><span>Voice only</span></button>
           <button className="rail-btn" onClick={() => fileRef.current?.click()}><Icon name="upload" /><span>Upload</span></button>
           <input ref={fileRef} type="file" accept="video/*,audio/*" hidden onChange={e => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
@@ -390,16 +452,20 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           ) : (
             <button className="side-btn" onClick={() => setTyping(true)} aria-label="Send a text"><Icon name="keyboard" /></button>
           )}
-          <button className={`rec ${recording ? 'on' : ''} ${audioOnly ? 'audio' : ''}`} onClick={() => (recording ? void finish() : void begin())} aria-label={recording ? 'Stop and send' : 'Record'}>
+          <button className={`rec ${recording ? 'on' : ''} ${audioOnly ? 'audio' : ''} ${paused ? 'is-paused' : ''} ${countdown ? 'counting' : ''}`}
+            onPointerDown={onRecDown} onPointerUp={() => void onRecUp()} onPointerCancel={() => { pressAt.current = 0; }} onContextMenu={e => e.preventDefault()}
+            onClick={e => { if (e.detail === 0) { if (recording) void finish(); else void begin(); } }}
+            aria-label={recording ? 'Stop and send' : countdown ? 'Cancel timer' : 'Record'}>
             <svg viewBox="0 0 100 100" className="rec-ring">
               <circle cx="50" cy="50" r="46" />
               {recording && <circle cx="50" cy="50" r="46" className="prog" style={{ strokeDashoffset: 289 - (289 * elapsed) / maxSec }} />}
             </svg>
-            <span className="rec-core" style={recording ? { transform: `scale(${0.55 + level * 0.25})` } : undefined} />
+            <span className="rec-core" style={recording ? { transform: `scale(${paused ? 0.55 : 0.55 + level * 0.25})` } : undefined} />
           </button>
           {recording ? <div className="timer">{clock(elapsed)}</div> : <div className="side-btn ghost" />}
         </div>
-        {recording && <div className="rec-hint">Tap to send</div>}
+        {recording && <div className="rec-hint">{held ? 'Let go to send' : paused ? 'Paused. Tap Resume to keep going, or tap to send.' : 'Tap to send'}</div>}
+        {countdown > 0 && <div className="rec-hint">Tap to call it off</div>}
       </div>
 
       {review && (

@@ -1,12 +1,12 @@
 // Holler service worker: app-shell cache that never goes stale for long, plus web push.
-const CACHE = 'holler-shell-v1';
+const CACHE = 'holler-shell-v2';
 
 self.addEventListener('install', () => { self.skipWaiting(); });
 
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+    await Promise.all(keys.filter((k) => k.startsWith('holler-shell') && k !== CACHE).map((k) => caches.delete(k)));
     await self.clients.claim();
   })());
 });
@@ -42,15 +42,27 @@ self.addEventListener('push', (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data ? e.data.text() : '' }; }
   const chat = d.chat || '';
-  e.waitUntil(self.registration.showNotification(d.title || 'Holler', {
+  e.waitUntil(Promise.all([bumpBadge(), self.registration.showNotification(d.title || 'Holler', {
     body: d.body || '',
     icon: './icon-192.png',
     badge: './icon-192.png',
     tag: chat || 'holler',
     renotify: true,
     data: { chat, url: d.url || (chat ? '#/c/' + chat : '') },
-  }));
+  })]));
 });
+
+// one more unread on the Home Screen icon; the app sets the true count whenever it opens
+async function bumpBadge() {
+  try {
+    if (!self.navigator.setAppBadge) return;
+    const c = await caches.open('holler-badge');
+    const hit = await c.match('./badge');
+    const n = (hit ? Number(await hit.text()) || 0 : 0) + 1;
+    await c.put('./badge', new Response(String(n)));
+    await self.navigator.setAppBadge(n);
+  } catch {}
+}
 
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();

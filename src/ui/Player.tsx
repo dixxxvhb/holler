@@ -28,6 +28,8 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
   const shown = useRef(new Set<string>());
   const holdTimer = useRef(0);
   const held = useRef(false);
+  const start0 = useRef<{ x: number; y: number } | null>(null);
+  const [dragY, setDragY] = useState(0);
 
   const polo = items[idx];
   const members = chat?.members || [];
@@ -109,11 +111,26 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
     if (e.paused) { void e.play(); setPaused(false); } else { e.pause(); setPaused(true); }
   };
 
-  // tap zones: left third back, right third forward, middle pause; long press pauses while held
-  const onDown = () => { held.current = false; holdTimer.current = window.setTimeout(() => { held.current = true; el()?.pause(); setPaused(true); }, 280); };
+  // tap zones: left third back, right third forward, middle pause; long press pauses while held.
+  // Swipes: down closes, left goes to the next one, right goes back.
+  const onDown = (e: React.PointerEvent) => {
+    start0.current = { x: e.clientX, y: e.clientY };
+    held.current = false; holdTimer.current = window.setTimeout(() => { held.current = true; el()?.pause(); setPaused(true); }, 280);
+  };
+  const onMove = (e: React.PointerEvent) => {
+    const s = start0.current; if (!s) return;
+    const dx = e.clientX - s.x, dy = e.clientY - s.y;
+    if (Math.abs(dx) > 12 || Math.abs(dy) > 12) clearTimeout(holdTimer.current);
+    if (dy > 0 && dy > Math.abs(dx)) setDragY(dy); else if (dragY) setDragY(0);
+  };
   const onUp = (e: React.PointerEvent) => {
     clearTimeout(holdTimer.current);
-    if (held.current) { held.current = false; void el()?.play(); setPaused(false); return; }
+    const s = start0.current; start0.current = null; setDragY(0);
+    const dx = s ? e.clientX - s.x : 0, dy = s ? e.clientY - s.y : 0;
+    if (held.current) { held.current = false; void el()?.play(); setPaused(false); if (Math.abs(dx) < 40 && dy < 90) return; }
+    if (dy > 110 && dy > Math.abs(dx) * 1.2) { onClose(); return; }
+    if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.2) { if (dx < 0) next(); else prev(); return; }
+    if (Math.abs(dx) > 20 || Math.abs(dy) > 20) return; // a drag that went nowhere
     const x = e.clientX / window.innerWidth;
     if (x < 0.28) { const m = el(); if (m && m.currentTime > 2) m.currentTime = 0; else prev(); }
     else if (x > 0.72) next();
@@ -155,7 +172,7 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
   const realDur = dur || (el()?.duration && isFinite(el()!.duration) ? el()!.duration : 0);
 
   return (
-    <div className="player">
+    <div className="player" style={dragY ? { transition: 'none', transform: `translateY(${dragY}px) scale(${1 - Math.min(0.12, dragY / 2000)})`, borderRadius: Math.min(28, dragY / 6), opacity: 1 - Math.min(0.5, dragY / 900) } : undefined}>
       <div className="bars">
         {items.map((p, i) => (
           <i key={p.id}><b style={{ width: i < idx ? '100%' : i > idx ? '0%' : `${polo.kind === 'text' ? (paused ? 50 : 100) : realDur ? Math.min(100, (t / realDur) * 100) : 0}%`, transition: i === idx && polo.kind === 'text' && !paused ? `width ${Math.min(9, 2.5 + (polo.body || '').split(/\s+/).length * 0.28)}s linear` : undefined }} /></i>
@@ -170,7 +187,7 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone }
         <button className="icon-btn glass" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
       </div>
 
-      <div className="stage" onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={() => clearTimeout(holdTimer.current)}>
+      <div className="stage" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => { clearTimeout(holdTimer.current); start0.current = null; setDragY(0); }}>
         <video ref={vid} playsInline preload="auto" className={`p-video ${polo.kind === 'video' ? '' : 'gone'}`}
           onLoadedData={() => setLoading(false)} onCanPlay={() => setLoading(false)} onTimeUpdate={onTime} onEnded={next}
           onError={() => { if (vid.current?.getAttribute('src')) { setLoading(false); toast('This one would not play here'); } }}

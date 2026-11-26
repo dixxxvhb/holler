@@ -272,8 +272,25 @@ export class Studio {
     } catch { return null; }
   }
 
-  get recording() { return !!this.rec && this.rec.state === 'recording'; }
-  elapsed() { return this.rec ? (performance.now() - this.t0) / 1000 : 0; }
+  get recording() { return !!this.rec && this.rec.state !== 'inactive'; }
+  get paused() { return !!this.rec && this.rec.state === 'paused'; }
+  private pausedMs = 0;
+  private pausedAt = 0;
+  /** Seconds recorded so far, not counting time spent paused. */
+  elapsed() {
+    if (!this.rec) return 0;
+    const now = this.pausedAt || performance.now();
+    return (now - this.t0 - this.pausedMs) / 1000;
+  }
+  pause() {
+    if (!this.rec || this.rec.state !== 'recording') return false;
+    try { this.rec.pause(); this.pausedAt = performance.now(); return true; } catch { return false; }
+  }
+  resume() {
+    if (!this.rec || this.rec.state !== 'paused') return false;
+    try { this.rec.resume(); this.pausedMs += performance.now() - this.pausedAt; this.pausedAt = 0; return true; } catch { return false; }
+  }
+  get canPause() { return typeof MediaRecorder !== 'undefined' && 'pause' in MediaRecorder.prototype; }
 
   async start(kind: 'video' | 'audio' = 'video') {
     if (!this.stream) throw new Error('camera off');
@@ -313,7 +330,7 @@ export class Studio {
     this.chunks = [];
     rec.ondataavailable = e => { if (e.data.size) this.chunks.push(e.data); };
     rec.start(1000);
-    this.rec = rec; this.t0 = performance.now();
+    this.rec = rec; this.t0 = performance.now(); this.pausedMs = 0; this.pausedAt = 0;
     (rec as unknown as { _ext: string })._ext = ext;
     this.thumbP = kind === 'video' ? new Promise(res => setTimeout(() => this.snapshot().then(res), 450)) : Promise.resolve(null);
   }
@@ -336,7 +353,8 @@ export class Studio {
 
   async stop(): Promise<Recording | null> {
     const rec = this.rec; if (!rec) return null;
-    const duration = (performance.now() - this.t0) / 1000;
+    const duration = this.elapsed();
+    if (rec.state === 'paused') { try { rec.resume(); } catch { /* */ } }
     const done = new Promise<void>(r => { rec.onstop = () => r(); });
     try { rec.requestData(); } catch { /* not all browsers */ }
     rec.stop();
