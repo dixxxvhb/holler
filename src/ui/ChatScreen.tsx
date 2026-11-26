@@ -248,9 +248,17 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   // the record button: tap to start and tap to send, or hold and let go to send
   const pressAt = useRef(0);
   const beginP = useRef<Promise<void> | null>(null);
+  // a take that is starting or sending: taps wait, so a tap at the end of a timed turn can't start a
+  // second recording that the finishing one then wipes out (that left the screen stuck on 'recording')
+  const settling = useRef(false);
+  const endedAt = useRef(0);
   const onRecDown = (e: React.PointerEvent) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || settling.current) return;
+    // the 'done' tap that lands just after a take sent itself shouldn't start a new holler
+    if (Date.now() - endedAt.current < 1200) return;
     if (studio.current?.recording) { void finish(); return; }
+    // the screen says recording but the camera isn't: put the screen right instead of starting over
+    if (recording) { clearInterval(tickRef.current); setRecording(false); setPaused(false); setCaption(''); return; }
     if (countRef.current || (timer && !audioOnly)) { startCountdown(); return; }
     pressAt.current = Date.now();
     beginP.current = begin();
@@ -270,8 +278,11 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const begin = async () => {
     const s = studio.current;
     if (!s || camState !== 'on') { void startCam(); return; }
+    if (settling.current || s.recording) return;
+    settling.current = true;
     try {
       await s.start(audioOnly ? 'audio' : 'video');
+      settling.current = false;
       recStart();
       setRecording(true); setElapsed(0);
       if (prefs.captions !== false && speechSupported() && !isIOS()) {
@@ -285,13 +296,15 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         const t = s.elapsed(); setElapsed(t);
         if (t >= maxSec) void finish();
       }, 200);
-    } catch (e) { toast('Could not start recording: ' + (e as Error).message); }
+    } catch (e) { settling.current = false; toast('Could not start recording: ' + (e as Error).message); }
   };
 
   const finish = async () => {
     clearInterval(tickRef.current);
-    const s = studio.current; if (!s?.recording) return;
-    const rec = await s.stop();
+    const s = studio.current; if (!s?.recording || settling.current) return;
+    settling.current = true;
+    let rec: Recording | null = null;
+    try { rec = await s.stop(); } finally { settling.current = false; endedAt.current = Date.now(); }
     recStop();
     setPaused(false);
     setRecording(false); setLevel(0); setCaption('');
@@ -299,7 +312,10 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     if (!rec) return;
     if (rec.duration < 1) { toast('Too short. Tap once to start, tap again to send.'); return; }
     if (rec.blob.size < 1000) { toast('That one came out empty. Please try again.'); return; }
+    // drawings are one-shot: clear them after a send (a Charades drawing used to stay on for the next holler)
+    const clearInk = () => { if (s.strokes.length) { s.strokes = []; s.markDirty(); bump(x => x + 1); } };
     if (turn) {
+      clearInk();
       if (turn.kind === 'passiton' && roleOf(turn) === 'guess') { setGuessRec({ rec, segs, text: segs.map(x => x.text).join(' ').trim().slice(0, 200) }); return; }
       sendTurn(turn, rec, segs, null);
       return;
@@ -310,8 +326,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       const key = sendRecording(chatId, me.id, rec, segs.length ? JSON.stringify(segs) : null, () => { void load(); void refresh(); });
       toast('Sending', { label: 'Undo', run: () => undo(key) }, UNDO_MS);
     }
-    // clear one-shot overlays after a send
-    if (s.strokes.length) { s.strokes = []; s.markDirty(); }
+    clearInk();
   };
 
   const beginRef = useRef(begin); beginRef.current = begin;

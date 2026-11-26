@@ -346,6 +346,7 @@ export class Studio {
 
   async start(kind: 'video' | 'audio' = 'video', opts: { videoBits?: number } = {}) {
     if (!this.stream) throw new Error('camera off');
+    if (this.recording) throw new Error('already recording');
     this.recKind = kind;
     const mic = this.stream.getAudioTracks()[0];
     let audioTrack: MediaStreamTrack | undefined = mic;
@@ -376,8 +377,9 @@ export class Studio {
     const { mime, ext } = pickMime(kind);
     const bits = kind === 'audio' ? { audioBitsPerSecond: 64000 } : { videoBitsPerSecond: opts.videoBits ?? (this.hd ? 2_500_000 : 900_000), audioBitsPerSecond: 64000 };
     const rec = new MediaRecorder(new MediaStream(tracks), mime ? { mimeType: mime, ...bits } : bits);
-    this.chunks = [];
-    rec.ondataavailable = e => { if (e.data.size) this.chunks.push(e.data); };
+    // each recorder keeps its own pieces, so one take can never pick up (or wipe) another's
+    const chunks: Blob[] = []; this.chunks = chunks; (rec as unknown as { _chunks: Blob[] })._chunks = chunks;
+    rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
     rec.start(1000);
     this.rec = rec; this.t0 = performance.now(); this.pausedMs = 0; this.pausedAt = 0;
     (rec as unknown as { _ext: string })._ext = ext;
@@ -441,10 +443,13 @@ export class Studio {
     const done = new Promise<void>(r => { rec.onstop = () => r(); });
     rec.stop();
     await done;
-    this.rec = null; this.analyser = null;
-    this.audio?.stop(); this.audio?.ctx.close().catch(() => {}); this.audio = null;
-    const mime = (rec.mimeType || this.chunks[0]?.type || (this.recKind === 'video' ? 'video/mp4' : 'audio/mp4')).split(';')[0];
-    const blob = new Blob(this.chunks, { type: mime });
+    if (this.rec === rec) {
+      this.rec = null; this.analyser = null;
+      this.audio?.stop(); this.audio?.ctx.close().catch(() => {}); this.audio = null;
+    }
+    const chunks = (rec as unknown as { _chunks?: Blob[] })._chunks || this.chunks;
+    const mime = (rec.mimeType || chunks[0]?.type || (this.recKind === 'video' ? 'video/mp4' : 'audio/mp4')).split(';')[0];
+    const blob = new Blob(chunks, { type: mime });
     const ext = mime.includes('webm') ? 'webm' : this.recKind === 'audio' ? 'm4a' : 'mp4';
     const thumb = await this.thumbP;
     const { w, h } = this.size;
