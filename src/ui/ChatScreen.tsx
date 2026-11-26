@@ -16,7 +16,9 @@ import { ChatInfo } from './ChatInfo';
 import { GamePage, GuessSheet, LookScreen, PlaySheet, StartSheet, TurnBanner, roleOf } from '../games/Play';
 import { Reveal } from '../games/Reveal';
 import { CharadesGuess, PokerWatch, RoundBanner, RoundPage, RoundStart } from '../games/Rounds';
-import { TILE_NAME, charadesWords, markUsed, owes, tileLine, usedIn } from '../games/roundLogic';
+import { TILE_NAME, charadesWords, doneFor, isDuel, isQuick, markUsed, owes, tileLine, usedIn } from '../games/roundLogic';
+import { DuelPage, DuelStart } from '../games/Boards';
+import { QuickPage, QuickStart } from '../games/Quick';
 import type { CharadesAct } from '../lib/api';
 import { DECKS, dealOrder, type Card, type Deck } from '../games/content/cards';
 import '../games/games.css';
@@ -78,6 +80,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const [turn, setTurn] = useState<Game | null>(null);
   const [guessRec, setGuessRec] = useState<{ rec: Recording; segs: Seg[]; text: string } | null>(null);
   const [roundKind, setRoundKind] = useState<'poker' | 'charades' | null>(null);
+  const [duelKind, setDuelKind] = useState<'ttt' | 'checkers' | null>(null);
+  const [quickKind, setQuickKind] = useState<'words' | 'trivia' | null>(null);
   const [turnWord, setTurnWord] = useState<string | null>(null);
   const [wordI, setWordI] = useState(0);
   const [pokerAt, setPokerAt] = useState<Game | null>(null);
@@ -570,13 +574,13 @@ export function ChatScreen({ chatId }: { chatId: string }) {
             {games.filter(g => !g.hidden).map(g => {
               if (g.kind !== 'passiton') {
                 const mine = owes(g, me.id);
-                const done = (id: string) => g.kind === 'poker' ? (g.phase === 'vote' ? true : (g.recorded || []).includes(id)) : (g.acted || []).includes(id);
+                const done = (id: string) => doneFor(g, id);
                 return (
                   <button key={g.id} className={`tile g-tile ${mine ? 'turn' : ''} ${g.status !== 'playing' ? 'over' : ''} ${g.createdBy === me.id ? 'mine' : ''}`} onClick={() => setGameId(g.id)}>
                     <b>{TILE_NAME[g.kind]}</b>
                     <span className="g-tile-who">{g.order.map(id => {
                       const p = chat!.members.find(m => m.id === id) || (id === me.id ? me : undefined);
-                      return <span key={id} className={`g-tav ${g.status !== 'playing' || done(id) ? 'done' : 'wait'}`}><Avatar p={p} size={14} /></span>;
+                      return <span key={id} className={`g-tav ${done(id) ? 'done' : isDuel(g) ? 'up' : 'wait'}`}><Avatar p={p} size={14} /></span>;
                     })}</span>
                     <em>{tileLine(g, me, chat!)}</em>
                   </button>
@@ -689,12 +693,19 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         <PlaySheet open={playOpen} onClose={() => setPlayOpen(false)} people={chat.members.length}
           onCard={() => { setPlayOpen(false); deal(deck); setPanel('card'); }}
           onPassItOn={() => { setPlayOpen(false); setStartOpen(true); }}
-          onRound={k => { setPlayOpen(false); setRoundKind(k); }} />
+          onRound={k => { setPlayOpen(false); if (k === 'ttt' || k === 'checkers') setDuelKind(k); else if (k === 'words' || k === 'trivia') setQuickKind(k); else setRoundKind(k); }} />
+        {duelKind && <DuelStart open={!!duelKind} kind={duelKind} onClose={() => setDuelKind(null)} chat={chat} me={me}
+          onStarted={g => { setDuelKind(null); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); setGameId(g.id); }} />}
+        {quickKind && <QuickStart open={!!quickKind} kind={quickKind} onClose={() => setQuickKind(null)} chat={chat} me={me}
+          onStarted={g => { setQuickKind(null); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); setGameId(g.id); }} />}
+        {openGame && isDuel(openGame) && <DuelPage game={openGame} chat={chat} me={me} onClose={() => setGameId(null)} onChanged={gameChanged}
+          onRematch={g => { setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); setGameId(g.id); }} />}
+        {openGame && isQuick(openGame) && <QuickPage game={openGame} chat={chat} me={me} onClose={() => setGameId(null)} onChanged={gameChanged} />}
         {roundKind && <RoundStart open={!!roundKind} kind={roundKind} onClose={() => setRoundKind(null)} chat={chat} me={me}
           onStarted={g => { setRoundKind(null); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); takeTurn(g); }} />}
         <StartSheet open={startOpen} onClose={() => setStartOpen(false)} chat={chat} me={me}
           onStarted={g => { setStartOpen(false); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); takeTurn(g); }} />
-        {openGame && openGame.kind !== 'passiton' && <RoundPage game={openGame} chat={chat} me={me} onClose={() => setGameId(null)} onTakeTurn={takeTurn}
+        {openGame && (openGame.kind === 'poker' || openGame.kind === 'charades') && <RoundPage game={openGame} chat={chat} me={me} onClose={() => setGameId(null)} onTakeTurn={takeTurn}
           onWatch={g => setPokerAt(g)} onGuess={(g, a) => setGuessAt({ g, a })} onChanged={gameChanged} />}
         {pokerAt && <PokerWatch game={games.find(g => g.id === pokerAt.id) || pokerAt} chat={chat} me={me} onClose={() => { setPokerAt(null); void load(); }} onChanged={gameChanged} />}
         {guessAt && <CharadesGuess game={guessAt.g} act={guessAt.a} chat={chat} me={me} onClose={() => { setGuessAt(null); void load(); }} onChanged={gameChanged} />}

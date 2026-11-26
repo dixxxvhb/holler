@@ -47,6 +47,10 @@ const P: Record<string, string> = {
   lock: 'M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3',
   facecam: 'M3 6.5h12v11H3zM15 10.5l6-3v9l-6-3',
   eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  grid: 'M9 3v18M15 3v18M3 9h18M3 15h18',
+  board: 'M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18M3 3h6v6H3zM15 3h6v6h-6zM9 9h6v6H9zM3 15h6v6H3zM15 15h6v6h-6z',
+  letters: 'M3 20l5-14 5 14M5 15h6M15 20v-9M15 11a3 3 0 0 1 6 0v9',
+  quiz: 'M9 9a3 3 0 1 1 4.5 2.6c-1 .6-1.5 1.3-1.5 2.4M12 18h.01M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0',
 };
 
 export function Icon({ name, size = 22, stroke = 2, fill, style, className }: { name: keyof typeof P | string; size?: number; stroke?: number; fill?: string; style?: CSSProperties; className?: string }) {

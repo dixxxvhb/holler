@@ -6,9 +6,15 @@ import { WORDS } from './content/words';
 import { DECKS as WORD_DECKS } from './content/charades';
 import { freshFirst } from './content/shuffle';
 
-export const GAME_NAME: Record<Game['kind'], string> = { passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades Relay' };
+export const GAME_NAME: Record<Game['kind'], string> = {
+  passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades Relay', ttt: 'Tic-Tac-Toe', checkers: 'Checkers', words: 'Seven Letters', trivia: 'Trivia',
+};
 /** Strip tiles are narrow. */
-export const TILE_NAME: Record<Game['kind'], string> = { passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades' };
+export const TILE_NAME: Record<Game['kind'], string> = {
+  passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades', ttt: 'Tic-Tac-Toe', checkers: 'Checkers', words: '7 Letters', trivia: 'Trivia',
+};
+export const isDuel = (g: Game) => g.kind === 'ttt' || g.kind === 'checkers';
+export const isQuick = (g: Game) => g.kind === 'words' || g.kind === 'trivia';
 
 const local = (k: string, d: string) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
 const keep = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
@@ -73,13 +79,22 @@ export function charadesScores(g: Game): Record<string, number> {
 // ---------------------------------------------------------------- shared
 export const first = (p?: Person | null) => (p?.name || 'Someone').split(' ')[0];
 export const personIn = (chat: ChatFull, me: Person) => (id: string) => (id === me.id ? me : chat.members.find(m => m.id === id));
-export const owes = (g: Game, me: string) => g.status === 'playing' && (g.todo || []).includes(me);
+export const owes = (g: Game, me: string) => g.status === 'playing' && (isDuel(g) ? g.turnPerson === me : (g.todo || []).includes(me));
+/** Has this person done their part for now (for the little faces on a tile)? */
+export const doneFor = (g: Game, id: string) => g.status !== 'playing' || (isDuel(g) ? g.turnPerson !== id
+  : isQuick(g) ? (g.played || []).includes(id)
+  : g.kind === 'poker' ? (g.phase === 'vote' || (g.recorded || []).includes(id)) : (g.acted || []).includes(id));
 
 /** The line under a round game's tile in the strip. */
 export function tileLine(g: Game, me: Person, chat: ChatFull): string {
   const n = g.order.length;
+  if (isDuel(g)) {
+    if (g.status !== 'playing') return g.result === 'draw' ? 'A draw' : g.result === 'idle' ? 'Ended' : g.winner === me.id ? 'You won' : g.winner ? `${first(chat.members.find(m => m.id === g.winner))} won` : 'Over';
+    return g.turnPerson === me.id ? 'Your move' : `${first(chat.members.find(m => m.id === g.turnPerson))}'s move`;
+  }
   if (g.status === 'ended') return 'Ended early';
   if (g.status === 'done') return g.kind === 'poker' ? 'See who lied' : 'Final scores';
+  if (isQuick(g)) return owes(g, me.id) ? 'Your go' : `${(g.played || []).length} of ${n} played`;
   if (g.kind === 'poker') {
     if (g.phase === 'vote') return owes(g, me.id) ? 'Your vote' : 'Voting';
     if (owes(g, me.id)) return 'Your answer';

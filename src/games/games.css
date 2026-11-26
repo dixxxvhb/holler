@@ -307,3 +307,98 @@ video.g-pip { position: absolute; inset: auto; right: 12px; top: calc(var(--safe
 .g-result .btn:not(.g-go) { background: none; color: var(--on-color); box-shadow: inset 0 0 0 2.5px var(--on-color); }
 /* the Poker Face answer sits low, under the question card it would otherwise cover (the card is in the video; this is not) */
 .g-secret-mini.g-low { top: auto; bottom: calc(var(--bottom-h) + 10px); border-radius: 20px; }
+
+/* ---------------------------------------------------------------- round three: Play sheet sections */
+.g-play-lbl { margin: 22px 0 10px; }
+
+/* ---------------------------------------------------------------- Tic-Tac-Toe and Checkers */
+.d-players { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.d-player { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-tile); background: var(--surface); border: 2px solid transparent; }
+.d-player span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.d-player b { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d-player em { font-style: normal; font-size: 13px; color: var(--chalk-2); display: flex; align-items: center; gap: 6px; }
+.d-player.up { border-color: var(--room); }
+.d-player.won { background: var(--room); color: var(--on-color); }
+.d-player.won em { color: var(--on-color-2); }
+.d-mark { font: 400 20px/1 var(--display); font-style: normal; }
+.d-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.d-status { margin: 4px 0 0; font: 400 28px/1.05 var(--display); text-align: center; color: var(--chalk-2); }
+.d-status.mine { color: var(--room); }
+.d-hint { text-align: center; margin-top: -4px; }
+
+.d-ttt { width: min(100%, 360px); aspect-ratio: 1; margin: 4px auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--seam-w); background: var(--seam-2); border-radius: var(--r-tile); overflow: hidden; }
+.d-cell { background: var(--ground-2); border: 0; display: grid; place-items: center; font: 400 64px/1 var(--display); color: var(--chalk); padding: 0; }
+.d-cell:not(:disabled):active { background: var(--surface-2); }
+.d-cell.last { background: var(--surface); }
+.d-cell.win { background: var(--room); }
+.d-cell.win span { color: var(--on-color) !important; }
+.d-cell span { animation: d-pop var(--t-base) var(--ease-out); }
+@keyframes d-pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+.d-checkers { width: min(100%, 420px); aspect-ratio: 1; margin: 4px auto; display: grid; grid-template-columns: repeat(8, 1fr); border-radius: 10px; overflow: hidden; border: var(--seam-w) solid var(--surface-2); }
+.d-sq { border: 0; padding: 0; background: color-mix(in oklab, var(--chalk) 16%, var(--ground)); display: grid; place-items: center; position: relative; }
+.d-sq.dark { background: var(--ground); }
+.d-sq.last { background: color-mix(in oklab, var(--room) 22%, var(--ground-2)); }
+.d-sq.can::after { content: ''; position: absolute; inset: 3px; border-radius: 50%; box-shadow: 0 0 0 2px var(--chalk-3); pointer-events: none; }
+.d-sq.sel { background: color-mix(in oklab, var(--room) 45%, var(--ground-2)); }
+.d-sq.to::before { content: ''; width: 30%; height: 30%; border-radius: 50%; background: var(--room); position: absolute; }
+.d-pc { width: 76%; height: 76%; border-radius: 50%; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .28), 0 2px 4px rgba(0, 0, 0, .4); position: relative; z-index: 1; transition: transform var(--t-fast) var(--ease-out); }
+.d-sq.sel .d-pc { transform: scale(1.08); }
+.d-pc.king::after { content: ''; position: absolute; inset: 24%; border-radius: 50%; border: 3px solid var(--on-color); }
+
+/* ---------------------------------------------------------------- Seven Letters and Trivia */
+.q-ready { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 0 -16px; padding: 18px 16px; background: var(--surface); color: var(--chalk); }
+.q-ready svg { color: var(--room); }
+.q-ready b { font: 400 24px/1.08 var(--display); }
+.q-ready span { font-size: 14px; color: var(--chalk-2); line-height: 1.45; }
+.q-ready .btn { margin-top: 6px; }
+
+.q-go { gap: 16px; }
+.q-go-top { flex: none; display: flex; align-items: center; justify-content: space-between; padding-top: var(--safe-t); min-height: calc(var(--safe-t) + 56px); }
+.q-clock, .q-count { font: 400 30px/1 var(--display); }
+.q-clock.low { color: var(--rec); }
+.q-pts { font: 700 15px/1 var(--mono); color: var(--chalk-2); min-width: 44px; text-align: right; }
+.q-bar { display: block; height: 4px; margin: -10px -16px 0; background: var(--room); border-radius: 0 2px 2px 0; transition: width .2s linear; }
+.q-word { min-height: 64px; display: grid; place-items: center; font: 400 40px/1 var(--display); letter-spacing: .04em; text-align: center; }
+.q-word em { font: 500 16px/1 system-ui; font-style: normal; color: var(--chalk-3); letter-spacing: 0; }
+.q-word.good { color: var(--live); font-size: 30px; }
+.q-word.bad { color: var(--chalk-2); font-size: 22px; letter-spacing: 0; }
+.q-rack { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.q-tile { aspect-ratio: 1; border: 0; border-radius: 12px; background: var(--chalk); color: var(--on-color); font: 400 clamp(22px, 7vw, 34px)/1 var(--display); display: grid; place-items: center; padding: 0;
+  box-shadow: inset 0 -4px 0 rgba(21, 18, 28, .18); transition: transform var(--t-press) var(--ease-out), opacity var(--t-fast); }
+.q-tile:active { transform: scale(.92); }
+.q-tile.used { opacity: .18; }
+.q-rack.sm { grid-template-columns: repeat(7, 34px); justify-content: start; gap: 4px; }
+.q-rack.sm .q-tile { font-size: 18px; border-radius: 8px; }
+.q-tools { display: grid; grid-template-columns: auto 1fr 1.4fr; gap: 8px; }
+.q-found { flex: 1; min-height: 0; }
+.q-found .lbl { margin-top: 0; }
+.q-found p, .q-person p { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.q-found span, .q-person p span { font: 600 14px/1 var(--mono); padding: 6px 8px; border-radius: 8px; background: var(--surface); text-transform: uppercase; }
+.q-found span.seven, .q-person p span.seven { background: var(--room); color: var(--on-color); }
+.q-person p span.only { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.q-missed span { opacity: .6; }
+.q-missed em { font-size: 13px; color: var(--chalk-3); font-style: normal; align-self: center; }
+.q-results { display: flex; flex-direction: column; gap: 14px; }
+.q-person { display: flex; flex-direction: column; gap: 8px; }
+.q-person-h { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
+
+.q-q { margin: 0 -16px; padding: 20px 16px; background: var(--surface); }
+.q-q small { font-size: 12.5px; font-weight: 700; color: var(--chalk-2); }
+.q-q p { margin: 8px 0 0; font: 400 26px/1.12 var(--display); }
+.q-opts { display: flex; flex-direction: column; gap: 8px; }
+.q-opt { min-height: 58px; border: 2px solid var(--seam-2); border-radius: var(--r-ctl); background: transparent; color: var(--chalk); font-size: 17px; font-weight: 600; text-align: left; padding: 12px 16px; }
+.q-opt:active { background: var(--surface); }
+.q-opt.right { background: var(--live); border-color: var(--live); color: var(--on-color); }
+.q-opt.wrong { background: var(--danger); border-color: var(--danger); color: var(--on-color); }
+.q-note { text-align: center; font: 400 22px/1 var(--display); margin: 0; }
+.q-review { display: flex; flex-direction: column; gap: 4px; padding-bottom: 12px; border-bottom: 1px solid var(--seam); }
+.q-review p { margin: 0; font-size: 15px; line-height: 1.35; }
+.q-review b { font-size: 15px; color: var(--live); }
+.q-marks { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.q-mark { display: inline-flex; align-items: center; gap: 3px; color: var(--danger); font-size: 12.5px; }
+.q-mark.ok { color: var(--live); }
+.q-mark em { font-style: normal; color: var(--chalk-3); }
+.q-opt:disabled { opacity: 1; }
+.q-opt:disabled:not(.right):not(.wrong) { opacity: .45; }
+.d-cell:disabled, .d-sq:disabled, .d-sq { opacity: 1; }

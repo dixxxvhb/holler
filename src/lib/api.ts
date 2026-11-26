@@ -36,8 +36,15 @@ export type Game = {
   myVote?: string | null; truthIsMe?: boolean; answer?: string | null; truth?: string | null; votes?: Record<string, string> | null;
   // Charades Relay
   acted?: string[]; acts?: CharadesAct[];
+  // Tic-Tac-Toe and Checkers
+  board?: string; moves?: number; last?: { cell?: number; path?: number[]; captured?: number } | null; quiet?: number;
+  winner?: string | null; result?: 'win' | 'draw' | 'resign' | 'idle' | null;
+  // Seven Letters and Trivia
+  began?: boolean; beganAt?: string | null; played?: string[]; rack?: string | null; qids?: string[] | null;
+  myPlay?: QuickPlay | null; plays?: Record<string, QuickPlay> | null;
 };
-export type GameKind = 'passiton' | 'poker' | 'charades';
+export type GameKind = 'passiton' | 'poker' | 'charades' | 'ttt' | 'checkers' | 'words' | 'trivia';
+export type QuickPlay = { at: string; words?: string[]; answers?: { pick: number; ms: number }[] };
 export type CharadesGuess = { tries: number; ok: boolean; done: boolean; t: number | null; text?: string; at: string };
 export type CharadesAct = { who: string; at: string; clip: Polo | null; word: string | null; mine: CharadesGuess | null; results: Record<string, CharadesGuess> };
 export type ChatFull = ChatSummary & { polos: Polo[]; games?: Game[] };
@@ -83,12 +90,18 @@ export const api = {
   pushSub: (sub: object, on: boolean) => rpc<void>('holler_push_sub', { p_sub: sub, p_on: on }),
   gameStart: (chat: string, order: string[], turnSec: number, phrase: string, deckId: string) =>
     rpc<Game>('holler_game_start', { p_chat: chat, p_kind: 'passiton', p_order: order, p_turn_sec: turnSec, p_phrase: phrase, p_deck_id: deckId }),
-  gameStart2: (chat: string, kind: 'poker' | 'charades', order: string[], opts: object) =>
+  gameStart2: (chat: string, kind: Exclude<GameKind, 'passiton'>, order: string[], opts: object) =>
     rpc<Game>('holler_game_start2', { p_chat: chat, p_kind: kind, p_order: order, p_opts: opts }),
   gameVote: (id: string, pick: string) => rpc<Game>('holler_game_vote', { p_game: id, p_pick: pick }),
   gameGuess: (id: string, actor: string, text: string, t: number) =>
     rpc<{ ok: boolean; tries: number; done: boolean; word: string | null; game: Game }>('holler_game_guess', { p_game: id, p_actor: actor, p_text: text, p_t: t }),
   game: (id: string) => rpc<Game>('holler_game', { p_game: id }),
+  gameMove: (id: string, version: number, move: { cell: number } | { path: number[] }) =>
+    rpc<Game>('holler_game_move', { p_game: id, p_version: version, p_move: move }),
+  gameResign: (id: string) => rpc<Game>('holler_game_resign', { p_game: id }),
+  gameBegin: (id: string) => rpc<Game>('holler_game_begin', { p_game: id }),
+  gamePlay: (id: string, play: { words: string[] } | { answers: { pick: number; ms: number }[] }) =>
+    rpc<Game>('holler_game_play', { p_game: id, p_play: play }),
   gameLook: (id: string) => rpc<{ path: string; thumb: string | null; duration: number | null; who: string; mime: string | null }>('holler_game_look', { p_game: id }),
   gameLooked: (id: string) => rpc<Game>('holler_game_looked', { p_game: id }),
   gameNudge: (id: string) => rpc<Game>('holler_game_nudge', { p_game: id }),

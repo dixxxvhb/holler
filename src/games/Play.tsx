@@ -18,7 +18,7 @@ export function roleOf(g: Game): Role { return g.idx === 0 ? 'act' : g.idx >= g.
 
 // ---------------------------------------------------------------- the Play sheet
 export function PlaySheet({ open, onClose, people, onCard, onPassItOn, onRound }: {
-  open: boolean; onClose: () => void; people: number; onCard: () => void; onPassItOn: () => void; onRound: (k: 'poker' | 'charades') => void;
+  open: boolean; onClose: () => void; people: number; onCard: () => void; onPassItOn: () => void; onRound: (k: 'poker' | 'charades' | 'ttt' | 'checkers' | 'words' | 'trivia') => void;
 }) {
   return (
     <Sheet open={open} onClose={onClose} title="Play">
@@ -41,6 +41,28 @@ export function PlaySheet({ open, onClose, people, onCard, onPassItOn, onRound }
         <span className="g-opt-ic pass"><Icon name="eye" size={24} /></span>
         <span className="g-opt-txt"><b>Charades Relay</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Everyone acts out a secret word with no talking. Guess the others. Faster scores more.'}</span></span>
         <span className="g-opt-n">2 to 5</span>
+      </button>
+      <span className="lbl g-play-lbl">Quick games</span>
+      <button className="g-opt game" onClick={() => onRound('words')} disabled={people < 2}>
+        <span className="g-opt-ic pass"><Icon name="letters" size={24} /></span>
+        <span className="g-opt-txt"><b>Seven Letters</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Same seven letters for everyone. Make as many words as you can before the clock runs out.'}</span></span>
+        <span className="g-opt-n">2 to 5</span>
+      </button>
+      <button className="g-opt game" onClick={() => onRound('trivia')} disabled={people < 2}>
+        <span className="g-opt-ic pass"><Icon name="quiz" size={24} /></span>
+        <span className="g-opt-txt"><b>Trivia</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Ten questions, fifteen seconds each. Same questions for everyone. Faster scores more.'}</span></span>
+        <span className="g-opt-n">2 to 5</span>
+      </button>
+      <span className="lbl g-play-lbl">Board games</span>
+      <button className="g-opt game" onClick={() => onRound('checkers')} disabled={people < 2}>
+        <span className="g-opt-ic pass"><Icon name="board" size={24} /></span>
+        <span className="g-opt-txt"><b>Checkers</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Classic checkers, one move at a time. Jumps are a must.'}</span></span>
+        <span className="g-opt-n">2</span>
+      </button>
+      <button className="g-opt game" onClick={() => onRound('ttt')} disabled={people < 2}>
+        <span className="g-opt-ic pass"><Icon name="grid" size={24} /></span>
+        <span className="g-opt-txt"><b>Tic-Tac-Toe</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Three in a row. Quick, and always good for a rematch.'}</span></span>
+        <span className="g-opt-n">2</span>
       </button>
       <p className="g-later">Coming next: On The Spot, Don't Laugh.</p>
     </Sheet>
