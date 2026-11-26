@@ -256,3 +256,12 @@ Export `gamenight.*` to JSON in the old repo, leave the `gamenight` schema until
 (dropping is destructive and needs his yes), put up a "Game Night moved into Holler" page or unpublish Pages,
 archive the GitHub repo (ask whether to make it private), and update memory `personal/project-game-night.md`
 and both status files.
+
+## Round three built 2026-11-26: Tic-Tac-Toe, Checkers, Seven Letters, Trivia
+Dixon asked for two-player games: checkers, tic-tac-toe, a make-words-from-letters game, and trivia.
+- **Duels** (`ttt`, `checkers`): 2 people, `turn_person` is whose move. The server checks every move (`holler.ck_play`: American rules, forced capture, keep jumping, a new king stops). Give up, rematch (the other person goes first), nudge, 7 days idle ends it. Pieces wear each player's own color.
+- **Quick rounds** (`words` = Seven Letters, `trivia`): everyone at once like Poker Face (state.todo). Letters or questions stay hidden until you tap Start my go (`holler_game_begin`); one hand-in each (`holler_game_play`). 2 days idle closes it.
+- Seven Letters: same 7 letters, 60/90/120 s, words 3 to 7 letters score 1/2/4/6/10. Word list (`src/games/content/dict.ts`, 35k words, lazy-loaded) = Mac `/usr/share/dict/words` plus inflections, filtered through the macOS spell checker, plus modern words and irregular verbs. Racks come from 929 common seven-letter words.
+- Trivia: 10 questions, 15 s each, 100 + up to 50 for speed. The 450-question bank is ported from Game Night (`src/games/content/quiz.ts`).
+- SQL: `supabase/games3.sql` (applied live). Dry run: `games3-check.sql` (built by `scripts/build-check.sh` from games3.sql + games3-tests.sql). The cap went from 3 to 6 games going per chat.
+- QA: `PW_CHANNEL=chrome node scripts/qa-boards.mjs [url]` 26/26 local and live; qa-rounds 24/24 live.
