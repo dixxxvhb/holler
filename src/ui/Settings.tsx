@@ -6,7 +6,7 @@ import { LOOKS } from '../lib/studio';
 import { VOICES } from '../lib/voice';
 import { speechSupported, isIOS } from '../lib/speech';
 import { enablePush, pushState } from '../lib/push';
-import { Avatar, COLORS, Sheet, toast } from './bits';
+import { Avatar, COLORS, Sheet, toast, tone } from './bits';
 import { Icon } from './icons';
 import { isSimple, setSimple } from '../lib/device';
 
@@ -51,7 +51,7 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
   const pct = Math.min(100, (used / LIMIT) * 100);
 
   return (
-    <div className="page">
+    <div className="page" data-you="" style={{ ['--room' as string]: tone(me.color) }}>
       <header className="page-top">
         <button className="icon-btn" onClick={() => go('/')} aria-label="Back"><Icon name="back" /></button>
         <h1>You</h1><span />
@@ -59,12 +59,12 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
 
       <section className="card profile">
         <button className="av-edit" onClick={() => fileRef.current?.click()} aria-label="Change photo">
-          <Avatar p={me} size={88} /><span className="av-badge"><Icon name="camera" size={16} /></span>
+          <Avatar p={me} size={96} /><span className="av-badge"><Icon name="camera" size={16} /></span>
         </button>
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { void onAvatar(e.target.files?.[0]); e.target.value = ''; }} />
-        <input className="field" maxLength={40} value={name} onChange={e => setName(e.target.value)} onBlur={() => void saveName()} />
+        <input className="field" maxLength={40} aria-label="Your name" value={name} onChange={e => setName(e.target.value)} onBlur={() => void saveName()} />
         <div className="swatches">
-          {COLORS.map(c => <button key={c} className={`sw ${c === me.color ? 'on' : ''}`} style={{ background: c }} onClick={async () => { await api.updateMe({ color: c }); void refresh(); }} aria-label="Color" />)}
+          {COLORS.map(c => <button key={c} className={`sw ${c === tone(me.color) ? 'on' : ''}`} style={{ background: c }} onClick={async () => { await api.updateMe({ color: c }); void refresh(); }} aria-label="Color" aria-pressed={c === tone(me.color)} />)}
         </div>
         {me.avatar && <button className="link-btn" onClick={async () => { await api.updateMe({ avatar: null }); void refresh(); }}>Remove photo</button>}
       </section>

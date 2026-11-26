@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../App';
 import { api, publicUrl, type ChatFull, type Polo } from '../lib/api';
-import { ago } from './bits';
+import { ago, tone } from './bits';
 import { Icon } from './icons';
 import { Player } from './Player';
 
@@ -16,7 +16,7 @@ export function Saved() {
   const fakeChat = { members: [...people.values()] } as unknown as ChatFull;
 
   return (
-    <div className="page">
+    <div className="page" data-you="" style={{ ['--room' as string]: tone(me.color) }}>
       <header className="page-top">
         <button className="icon-btn" onClick={() => go('/')} aria-label="Back"><Icon name="back" /></button>
         <h1>Saved</h1><span />
@@ -28,7 +28,7 @@ export function Saved() {
           {list.map((p, i) => {
             const a = people.get(p.author);
             return (
-              <button key={p.id} className="g-tile" onClick={() => setOpen(i)} style={{ ['--c' as string]: a?.color }}>
+              <button key={p.id} className="g-tile" onClick={() => setOpen(i)} style={{ ['--c' as string]: tone(a?.color) }}>
                 {p.thumb ? <img src={publicUrl(p.thumb)} alt="" loading="lazy" /> : p.kind === 'text' ? <span className="tile-text">{p.body}</span> : <Icon name="wave" size={30} />}
                 <span className="g-cap">{a?.name.split(' ')[0]} · {ago(p.at)}</span>
               </button>

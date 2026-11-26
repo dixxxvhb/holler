@@ -63,6 +63,38 @@ for (const d of DEVICES) {
     await p.locator('.chat-title').evaluate(e => e.click()); await p.waitForTimeout(600); await shot('10info');
     await p.goto(BASE); await p.waitForSelector('.me-btn'); await p.click('.me-btn'); await p.waitForTimeout(800); await shot('11settings');
     await p.evaluate(() => window.scrollTo(0, 99999)); await p.locator('.settings, main, body').first().evaluate(e => e.scrollTo?.(0, 99999)); await p.waitForTimeout(300); await shot('12settings-bottom');
+    // more states (nothing below writes to the database: sheets are closed unsent, home variants are faked responses)
+    await p.goto(BASE); await p.waitForSelector('.chat-card'); await p.waitForTimeout(500);
+    await p.click('.fab-row .btn.primary'); await p.waitForTimeout(500); await p.fill('#cn', 'Roomies'); await shot('13newchat'); await p.keyboard.press('Escape');
+    await p.click('.fab-row .btn:not(.primary)'); await p.waitForTimeout(500); await p.fill('#jc', '94D'); await shot('14join'); await p.keyboard.press('Escape');
+    await p.click('.chat-card'); await p.waitForTimeout(2500);
+    await p.click('.side-btn[aria-label="Send a text"]'); await p.waitForTimeout(500); await p.fill('.sheet textarea', "Running late. Start without me, I'll catch up."); await shot('15typed'); await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+    await p.click('.rail-btn[aria-label="More tools"]'); await p.click('.more-tools .rail-btn:has-text("Voice only")'); await p.click('.rail-btn[aria-label="Fewer tools"]'); await p.waitForTimeout(400); await shot('16voice');
+    await p.click('.rail-btn[aria-label="More tools"]'); await p.click('.more-tools .rail-btn:has-text("Voice only")'); await p.click('.rail-btn[aria-label="Fewer tools"]');
+    await p.goto(BASE + '#/saved'); await p.waitForTimeout(1500); await shot('17saved');
+    const fakeHome = async mut => { await p.unroute('**/rpc/holler_home').catch(() => {}); await p.route('**/rpc/holler_home', async r => { const res = await r.fetch(); const j = await res.json(); mut(j); await r.fulfill({ response: res, json: j }); }); };
+    await fakeHome(j => {
+      const c = j.chats[0]; if (!c) return; const mk = (o) => ({ ...c, ...o });
+      const t = new Date(Date.now() - 7200e3).toISOString();
+      j.chats = [mk({ id: 'f1' }), mk({ id: 'f2', name: 'Besties', theme: 'sky', unread: 0 }), mk({ id: 'f3', name: 'Grandma, Grandpa and all the cousins in Ohio', theme: 'lime', unread: 0, last: { ...c.last, author: j.me.id, at: t, seen: c.members.map(m => m.id) } }),
+        mk({ id: 'f4', name: 'Nan', theme: 'violet', unread: 0, muted: true, last: { ...c.last, kind: 'text', thumb: null, body: 'Call you after class' } }), mk({ id: 'f5', name: 'Sunday crew', theme: 'sun', unread: 0, last: null })];
+    });
+    await p.goto(BASE); await p.waitForSelector('.chat-card'); await p.waitForTimeout(600);
+    await p.evaluate(() => { const li = document.querySelectorAll('.chats li')[1]; li.classList.add('is-live'); li.querySelector('.chat-card').classList.add('live'); li.querySelector('.cc-sub').innerHTML = '<span class="live-txt">Blake is recording</span>'; });
+    await shot('18many'); await p.evaluate(() => document.querySelector('.chats').scrollIntoView({ block: 'end' })); await p.evaluate(() => window.scrollTo(0, 99999)); await shot('18bmany-bottom');
+    await fakeHome(j => { j.chats = []; });
+    await p.goto(BASE); await p.waitForSelector('.empty'); await p.waitForTimeout(500); await shot('19empty');
+    await p.unroute('**/rpc/holler_home');
+    {
+      const q = await (await mk(d, sa)).newPage();
+      await q.goto(BASE); await q.waitForSelector('#nm'); await q.waitForTimeout(600); await q.screenshot({ path: `shots/layout/${d.n}-20onboard.png` });
+      await q.click('.link-btn'); await q.waitForTimeout(300); await q.fill('#lc', 'K7Q'); await q.screenshot({ path: `shots/layout/${d.n}-20bonboard-code.png` });
+      await q.close();
+      const r = await (await mk(d, sa)).newPage();
+      await r.addInitScript(tok => { localStorage.setItem('holler.token', tok); localStorage.setItem('holler.camtest2', 'ok'); navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('no', 'NotAllowedError')); }, token);
+      await r.goto(BASE); await r.waitForSelector('.chat-card'); await r.click('.chat-card'); await r.waitForTimeout(2000); await r.screenshot({ path: `shots/layout/${d.n}-21camoff.png` });
+      await r.close();
+    }
     await p.close();
   }
 }

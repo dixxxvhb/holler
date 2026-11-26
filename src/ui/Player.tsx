@@ -8,7 +8,7 @@ import { LiveFace, SyncedVideo, filmOn, readSync, setFilm, type SyncPoint } from
 import '../games/games.css';
 import { parseTranscript } from '../lib/speech';
 import { pop } from '../lib/sound';
-import { Avatar, ago, clock, toast, when } from './bits';
+import { Avatar, ago, clock, toast, tone, when } from './bits';
 import { Icon, REACTIONS } from './icons';
 
 const SPEEDS = [1, 1.5, 2];
@@ -245,14 +245,14 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
   const realDur = dur || (el()?.duration && isFinite(el()!.duration) ? el()!.duration : 0);
 
   return (
-    <div className="player" style={dragY ? { transition: 'none', transform: `translateY(${dragY}px) scale(${1 - Math.min(0.12, dragY / 2000)})`, borderRadius: Math.min(28, dragY / 6), opacity: 1 - Math.min(0.5, dragY / 900) } : undefined}>
+    <div className="player" data-room={chat?.theme} style={dragY ? { transition: 'none', transform: `translateY(${dragY}px) scale(${1 - Math.min(0.12, dragY / 2000)})`, borderRadius: Math.min(28, dragY / 6), opacity: 1 - Math.min(0.5, dragY / 900) } : undefined}>
       <div className="bars">
         {items.map((p, i) => (
           <i key={p.id}><b style={{ width: i < idx ? '100%' : i > idx ? '0%' : `${polo.kind === 'text' ? (paused ? 50 : 100) : realDur ? Math.min(100, (t / realDur) * 100) : 0}%`, transition: i === idx && polo.kind === 'text' && !paused ? `width ${Math.min(9, 2.5 + (polo.body || '').split(/\s+/).length * 0.28)}s linear` : undefined }} /></i>
         ))}
       </div>
       <div className="p-top">
-        <Avatar p={author} size={36} />
+        <Avatar p={author} size={38} />
         <div className="p-who">
           <b>{author?.id === me.id ? 'You' : author?.name || 'Someone'}</b>
           <span>{ago(polo.at)}{polo.effects?.voice && polo.effects.voice !== 'none' ? ` · ${String(polo.effects.voice)} voice` : ''}{polo.effects?.hd ? ' · HD' : ''}</span>
@@ -283,17 +283,17 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
         {polo.reactTo && !orig && <span className="g-gone">The holler this reacts to is gone.</span>}
         {answer && card?.answer && <div className="g-answer"><small>Real answer</small><b>{card.answer.n}%</b><span>{card.answer.source}, {card.answer.year}</span></div>}
         {polo.kind === 'audio' && (
-          <div className="p-audio" style={{ ['--c' as string]: author?.color }}>
+          <div className="p-audio" style={{ ['--c' as string]: tone(author?.color) }}>
             <div className="p-audio-ring"><Avatar p={author} size={140} /></div>
           </div>
         )}
         {polo.kind === 'text' && (
-          <div className="p-text" style={{ ['--c' as string]: author?.color }}><p>{polo.body}</p></div>
+          <div className="p-text" style={{ ['--c' as string]: tone(author?.color) }}><p>{polo.body}</p></div>
         )}
         {loading && polo.kind !== 'text' && <div className="spinner" />}
         {needTap && <div className="paused tap"><Icon name="play" size={56} fill="currentColor" /><span>Tap to play</span></div>}
         {paused && !needTap && <div className="paused"><Icon name="play" size={48} fill="currentColor" /></div>}
-        {cc && caption && <div className="p-cap">{caption}</div>}
+        {cc && caption && <div className="p-cap"><span>{caption}</span></div>}
         <div className="bursts">
           {bursts.map(b => {
             const r = REACTIONS.find(x => x.id === b.kind);
@@ -328,19 +328,19 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
             })}
           </div>
         )}
-        <div className="reacts">
-          {REACTIONS.map(r => <button key={r.id} style={{ color: r.color }} onClick={() => void react(r.id)} aria-label={r.label}><Icon name={r.id} size={26} /></button>)}
-        </div>
         <div className="p-tools">
-          {polo.kind !== 'text' && <button className="pill-btn" onClick={cycleSpeed}><Icon name="speed" size={16} /> {speed}x</button>}
-          {segs.length > 0 && <button className={`pill-btn ${cc ? 'on' : ''}`} onClick={() => setCc(c => !c)}><Icon name="cc" size={16} /> Captions</button>}
-          <button className={`pill-btn ${polo.savedBy.includes(me.id) ? 'on' : ''}`} onClick={() => void save()}><Icon name="star" size={16} fill={polo.savedBy.includes(me.id) ? 'currentColor' : undefined} /> {polo.savedBy.includes(me.id) ? 'Saved' : 'Save'}</button>
-          {polo.path && <button className="pill-btn" onClick={() => void download()} aria-label="Download"><Icon name="download" size={16} /></button>}
-          {polo.author === me.id && !standalone && <button className="pill-btn" onClick={() => setMenu(m => !m)} aria-label="More"><Icon name="trash" size={16} /></button>}
-          {cardId && onAnswerCard && !standalone && <button className="pill-btn g-cardans" onClick={() => { const id = cardId; void stopFilm(() => { onClose(); onAnswerCard(id); }); }}><Icon name="cards" size={16} /> Answer this card</button>}
-          {!standalone && <button className="pill-btn reply" onClick={close}>Reply</button>}
+          {polo.kind !== 'text' && <button className="pill-btn" onClick={cycleSpeed} aria-label="Speed">{speed}x</button>}
+          {segs.length > 0 && <button className={`pill-btn ${cc ? 'on' : ''}`} onClick={() => setCc(c => !c)} aria-label="Captions" aria-pressed={cc}><Icon name="cc" size={20} /><span className="lb">Captions</span></button>}
+          <button className={`pill-btn ${polo.savedBy.includes(me.id) ? 'on' : ''}`} onClick={() => void save()} aria-label={polo.savedBy.includes(me.id) ? 'Saved' : 'Save'}><Icon name="star" size={20} fill={polo.savedBy.includes(me.id) ? 'currentColor' : undefined} /><span className="lb">{polo.savedBy.includes(me.id) ? 'Saved' : 'Save'}</span></button>
+          {polo.path && <button className="pill-btn" onClick={() => void download()} aria-label="Download"><Icon name="download" size={20} /></button>}
+          {polo.author === me.id && !standalone && <button className="pill-btn" onClick={() => setMenu(m => !m)} aria-label="More"><Icon name="trash" size={20} /></button>}
+          {cardId && onAnswerCard && !standalone && <button className="pill-btn g-cardans" onClick={() => { const id = cardId; void stopFilm(() => { onClose(); onAnswerCard(id); }); }} aria-label="Answer this card"><Icon name="cards" size={20} /><span className="lb">Answer this card</span></button>}
         </div>
         {menu && <div className="p-menu"><button className="btn danger wide" onClick={() => void del()}>Delete for everyone</button></div>}
+        <div className="reacts">
+          {REACTIONS.map(r => <button key={r.id} onClick={() => void react(r.id)} aria-label={r.label}><Icon name={r.id} size={26} /></button>)}
+        </div>
+        {!standalone && <button className="pill-btn reply" onClick={close}>Reply</button>}
         {segs.length > 0 && cc && <details className="transcript"><summary>Full transcript</summary><p>{segs.map(s => s.text).join(' ')}</p></details>}
       </div>
       {review && <ReactionReview r={review} onDone={closeReview} />}

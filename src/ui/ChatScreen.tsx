@@ -8,7 +8,7 @@ import { KINDS, LOOKS, lookOf, type LookId, type LookKind } from '../lib/looks';
 import { VOICES, type VoiceId } from '../lib/voice';
 import { Captioner, isIOS, speechSupported, type Seg } from '../lib/speech';
 import { pop, recStart, recStop } from '../lib/sound';
-import { Avatar, Sheet, THEMES, chatTitle, clock, toast } from './bits';
+import { Avatar, Sheet, chatTitle, clock, toast, tone } from './bits';
 import { Icon } from './icons';
 import { isSimple, setSimple, routeInMemory } from '../lib/device';
 import { Player } from './Player';
@@ -83,8 +83,9 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   // the side rail always stops above whatever the bottom area is showing (tiles, a panel, the record button)
   useEffect(() => {
     const el = bottomRef.current, root = chatRef.current; if (!el || !root || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => root.style.setProperty('--bottom-h', `${el.offsetHeight}px`));
-    ro.observe(el); return () => ro.disconnect();
+    // also on the page root, so toasts can sit just above the deck
+    const ro = new ResizeObserver(() => { const h = `${el.offsetHeight}px`; root.style.setProperty('--bottom-h', h); document.documentElement.style.setProperty('--bottom-h', h); });
+    ro.observe(el); return () => { ro.disconnect(); document.documentElement.style.removeProperty('--bottom-h'); };
   }, []);
   useEffect(() => { if (recording) setPanel(p => (p === 'more' ? null : p)); }, [recording]);
   const [kind, setKind] = useState<LookKind>(() => lookOf((prefs.look as string) || 'none').kind);
@@ -182,7 +183,6 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const unread = polos.filter(p => p.author !== me.id && !p.views.some(v => v.who === me.id));
   const others = chat ? chat.members.filter(m => m.id !== me.id) : [];
   const pres = presenceOf(chatId);
-  const theme = THEMES[chat?.theme || 'ember']?.accent || '#ff6a3d';
   const maxSec = turn ? turn.turnSec : hd ? MAX_SEC.hd : MAX_SEC.sd;
   const games = chat?.games || [];
   const openGame = games.find(g => g.id === gameId) || null;
@@ -401,7 +401,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   );
 
   return (
-    <div className={`chat ${panel ? 'panel-open' : ''} ${turn ? (roleOf(turn) === 'act' ? 'g-in-turn g-acting' : 'g-in-turn') : ''}`} ref={chatRef} style={{ ['--accent' as string]: theme }}>
+    <div className={`chat ${panel ? 'panel-open' : ''} ${recording ? 'is-rec' : ''} ${turn ? (roleOf(turn) === 'act' ? 'g-in-turn g-acting' : 'g-in-turn') : ''}`} ref={chatRef} data-room={chat?.theme || 'ember'}>
       <div className="preview" ref={previewRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => onUp()}>
         <canvas ref={canvasRef} className={`cam ${audioOnly ? 'dim' : ''}`} />
         {camState === 'denied' && (
@@ -414,7 +414,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         )}
         {camState === 'off' && <div className="cam-off"><button className="btn primary" onClick={() => void startCam()}>Turn on camera</button></div>}
         {audioOnly && <div className="audio-mode"><Avatar p={me} size={120} /><div className="lvl" style={{ transform: `scale(${1 + level * 1.6})` }} /><p>Voice only</p></div>}
-        {caption && recording && <div className="live-cap">{caption}</div>}
+        {caption && recording && <div className="live-cap"><span>{caption}</span></div>}
         {ring && !audioOnly && <div className="ring-light" />}
         {countdown > 0 && <div className="countdown" key={countdown}>{countdown}</div>}
         {recording && paused && <div className="paused-tag"><Icon name="pause" size={16} /> Paused</div>}
@@ -430,7 +430,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         <button className="chat-title glass" onClick={() => setInfo(true)}>
           <span className="t">{chat ? chatTitle(chat, me.id) : ' '}</span>
           <span className="who">
-            {others.map(o => <Avatar key={o.id} p={o} size={22} status={pres[o.id]} />)}
+            {others.map(o => <Avatar key={o.id} p={o} size={28} status={pres[o.id]} />)}
             {others.length === 0 && <span className="fine">Tap to invite people</span>}
           </span>
         </button>
@@ -508,7 +508,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
               {[6, 10, 18].map(w => <button key={w} className={`wbtn ${inkW === w ? 'on' : ''}`} onClick={() => setInkW(w)} aria-label={`Brush ${w}`}><i style={{ width: w, height: w }} /></button>)}
               <button className="chip" onClick={() => { const s = studio.current; if (s) { s.strokes.pop(); s.markDirty(); bump(x => x + 1); } }}><Icon name="undo" size={16} /> Undo</button>
               <button className="chip" onClick={() => { const s = studio.current; if (s) { s.strokes = []; s.markDirty(); bump(x => x + 1); } }}>Clear</button>
-              <button className="chip on" onClick={() => setPanel(null)}>Done</button>
+              <button className="chip on done" onClick={() => setPanel(null)}>Done</button>
             </div>
             <div className="chip-note">Draw on the screen. It's part of your video, even while you record.</div>
           </div>
@@ -516,11 +516,13 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         {panel === 'text' && (
           <div className="tools">
             <input className="field" autoFocus maxLength={140} placeholder="Say it in words too" value={text} onChange={e => setText(e.target.value)} />
-            <div className="row gap wrap">
+            <div className="row gap">
               {(['pill', 'bold', 'type'] as const).map(s => <button key={s} className={`chip ${textStyle === s ? 'on' : ''}`} onClick={() => setTextStyle(s)}>{s === 'pill' ? 'Label' : s === 'bold' ? 'Big' : 'Typewriter'}</button>)}
+              <button className="chip on done" onClick={() => setPanel(null)}>Done</button>
+            </div>
+            <div className="inks">
               {INK.slice(0, 7).map(c => <button key={c} className={`ink sm ${c === textColor ? 'on' : ''}`} style={{ background: c }} onClick={() => setTextColor(c)} aria-label="Text color" />)}
               {text && <button className="chip" onClick={() => setText('')}>Remove</button>}
-              <button className="chip on" onClick={() => setPanel(null)}>Done</button>
             </div>
             <div className="chip-note">Drag on the screen to move it.</div>
           </div>
@@ -567,7 +569,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
               const orig = p.reactTo ? polos.find(x => x.id === p.reactTo) : undefined;
               const seen = p.author === me.id || p.views.some(v => v.who === me.id);
               return (
-                <button key={p.id} className={`tile ${seen ? '' : 'new'}`} style={{ ['--c' as string]: author?.color || '#888' }} onClick={() => openPlayer(polos, i)}>
+                <button key={p.id} className={`tile ${seen ? '' : 'new'} ${p.author === me.id ? 'mine' : ''}`} style={{ ['--c' as string]: tone(author?.color) }} onClick={() => openPlayer(polos, i)}>
                   {orig?.thumb && <span className="g-tile-pip"><img src={publicUrl(orig.thumb)} alt="" loading="lazy" /></span>}
                   {p.kind === 'video' && p.thumb ? <img src={publicUrl(p.thumb)} alt="" loading="lazy" />
                     : p.kind === 'text' ? <span className="tile-text">{p.body}</span>
@@ -585,7 +587,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
               );
             })}
             {pend.filter(o => !o.polo.effects?.game || o.error).map(o => (
-              <div key={o.key} className={`tile pending ${o.error ? 'failed' : ''}`} style={{ ['--c' as string]: me.color }}>
+              <div key={o.key} className={`tile mine pending ${o.error ? 'failed' : ''}`} style={{ ['--c' as string]: tone(me.color) }}>
                 {o.polo.pending?.thumbUrl ? <img src={o.polo.pending.thumbUrl} alt="" /> : <span className="tile-audio"><Icon name="wave" /></span>}
                 {o.error ? (
                   <span className="tile-fail">
@@ -625,7 +627,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         <div className="review">
           {review.rec.kind === 'video'
             ? <video src={review.url} autoPlay loop playsInline className="p-video" />
-            : <div className="p-audio" style={{ ['--c' as string]: me.color }}><div className="p-audio-ring"><Avatar p={me} size={140} /></div><audio src={review.url} autoPlay loop /></div>}
+            : <div className="p-audio" style={{ ['--c' as string]: tone(me.color) }}><div className="p-audio-ring"><Avatar p={me} size={140} /></div><audio src={review.url} autoPlay loop /></div>}
           <div className="review-bar">
             <button className="btn" onClick={() => { URL.revokeObjectURL(review.url); setReview(null); }}><Icon name="undo" size={18} /> Retake</button>
             <button className="btn primary" onClick={() => {
@@ -654,7 +656,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           onSend={gv => { if (turn && guessRec) sendTurn(turn, guessRec.rec, guessRec.segs, gv); }} />
       </>)}
       {chat && <ChatInfo open={info} onClose={() => setInfo(false)} chat={chat} onChanged={() => { void load(); void refresh(); }} />}
-      <Sheet open={typing} onClose={() => setTyping(false)} title="Send a note">
+      <Sheet open={typing} onClose={() => setTyping(false)} title="Send a note" className="typed" you={tone(me.color)}>
         <textarea className="field area" autoFocus maxLength={2000} rows={4} placeholder="Type something quick" value={msg} onChange={e => setMsg(e.target.value)} />
         <button className="btn primary wide" disabled={!msg.trim()} onClick={() => void sendMsg()}><Icon name="send" size={18} /> Send</button>
       </Sheet>

@@ -15,11 +15,14 @@ export function ChatInfo({ open, onClose, chat, onChanged }: { open: boolean; on
   const [qr, setQr] = useState('');
   const link = inviteLink(chat.code);
   useEffect(() => { setName(chat.name); }, [chat.name]);
-  useEffect(() => { if (open) QRCode.toDataURL(link, { margin: 1, width: 360, color: { dark: '#120d0b', light: '#fbf3ec' } }).then(setQr).catch(() => {}); }, [open, link]);
+  useEffect(() => { if (open) QRCode.toDataURL(link, { margin: 1, width: 360, color: { dark: '#15121c', light: '#ffffff' } }).then(setQr).catch(() => {}); }, [open, link]);
 
   const share = async () => {
     const text = `Come holler with me. Tap to join: ${link}`;
-    if (navigator.share) { try { await navigator.share({ title: 'Join my Holler chat', text, url: link }); return; } catch { /* closed */ } }
+    if (navigator.share) {
+      try { await navigator.share({ title: 'Join my Holler chat', text, url: link }); return; }
+      catch (e) { if ((e as Error)?.name === 'AbortError') return; /* dismissed is not a copy; anything else falls through to copying */ }
+    }
     try { await navigator.clipboard.writeText(link); toast('Link copied'); } catch { toast(link, undefined, 8000); }
   };
   const saveName = async () => {
@@ -58,8 +61,8 @@ export function ChatInfo({ open, onClose, chat, onChanged }: { open: boolean; on
       <input id="chn" className="field" maxLength={60} placeholder="Name this chat" value={name} onChange={e => setName(e.target.value)} onBlur={() => void saveName()} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
 
       <div className="lbl">Color</div>
-      <div className="swatches">
-        {Object.entries(THEMES).map(([k, v]) => <button key={k} className={`sw ${chat.theme === k ? 'on' : ''}`} style={{ background: v.accent }} onClick={() => void setTheme(k)} aria-label={v.label} />)}
+      <div className="swatches rooms">
+        {Object.entries(THEMES).map(([k, v]) => <button key={k} className={`sw ${chat.theme === k ? 'on' : ''}`} data-room={k} onClick={() => void setTheme(k)} aria-label={v.label} aria-pressed={chat.theme === k} />)}
       </div>
 
       <div className="row gap wrap" style={{ marginTop: 18 }}>

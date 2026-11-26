@@ -7,7 +7,7 @@ export function Avatar({ p, size = 40, status, ring }: { p?: Person | null; size
   const name = p?.name || '?';
   const initials = name.split(/\s+/).map(s => s[0]).slice(0, 2).join('').toUpperCase();
   return (
-    <span className={`av ${status ? 'st-' + status : ''}`} style={{ width: size, height: size, background: p?.color || '#555', fontSize: size * 0.4, boxShadow: ring ? `0 0 0 2px var(--bg), 0 0 0 4px ${ring}` : undefined }} title={name}>
+    <span className={`av ${status ? 'st-' + status : ''}`} style={{ width: size, height: size, background: tone(p?.color), fontSize: size * 0.4, ...(ring ? { ['--ring' as string]: ring } : null) }} title={name}>
       {p?.avatar ? <img src={publicUrl(p.avatar)} alt="" /> : <span>{initials}</span>}
       {status && <i className="dot" />}
     </span>
@@ -18,13 +18,13 @@ export function AvatarStack({ people, size = 34, max = 4 }: { people: Person[]; 
   const shown = people.slice(0, max);
   return (
     <span className="stack" style={{ height: size }}>
-      {shown.map((p, i) => <span key={p.id} style={{ marginLeft: i ? -size * 0.32 : 0, zIndex: 10 - i }}><Avatar p={p} size={size} ring="var(--bg)" /></span>)}
+      {shown.map((p, i) => <span key={p.id} style={{ marginLeft: i ? -size * 0.32 : 0, zIndex: 10 - i }}><Avatar p={p} size={size} /></span>)}
       {people.length > max && <span className="av more" style={{ width: size, height: size, marginLeft: -size * 0.32, fontSize: size * 0.36 }}>+{people.length - max}</span>}
     </span>
   );
 }
 
-export function Sheet({ open, onClose, children, title }: { open: boolean; onClose: () => void; children: ReactNode; title?: string }) {
+export function Sheet({ open, onClose, children, title, className, room, you }: { open: boolean; onClose: () => void; children: ReactNode; title?: string; className?: string; room?: string; you?: string }) {
   useEffect(() => {
     if (!open) return;
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -33,7 +33,7 @@ export function Sheet({ open, onClose, children, title }: { open: boolean; onClo
   if (!open) return null;
   return (
     <div className="sheet-wrap" onClick={onClose}>
-      <div className="sheet" onClick={e => e.stopPropagation()} role="dialog" aria-label={title}>
+      <div className={`sheet ${className || ''}`} data-room={room} data-you={you ? '' : undefined} style={you ? { ['--room' as string]: you } : undefined} onClick={e => e.stopPropagation()} role="dialog" aria-label={title}>
         <div className="grab" />
         {title && <div className="sheet-head"><h2>{title}</h2><button className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}
         {children}
@@ -89,13 +89,16 @@ export function clock(sec: number) {
   const s = Math.max(0, Math.floor(sec)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-export const COLORS = ['#ff6a3d', '#ff7aa2', '#ffb02e', '#4fd1a5', '#4cb3ff', '#9b7bff', '#e5484d', '#c6f432', '#f5f0e8', '#2fb8ac'];
+// three stored colors are shown a little differently (violet matches the room, red sits away from record red, cream becomes cloud); no row is edited
+const TONE: Record<string, string> = { '#9b7bff': '#a58bff', '#e5484d': '#f2616b', '#f5f0e8': '#eceaf6' };
+export const tone = (hex?: string | null) => (hex && TONE[hex.toLowerCase()]) || hex || '#555';
+export const COLORS = ['#ff6a3d', '#ff7aa2', '#ffb02e', '#4fd1a5', '#4cb3ff', '#a58bff', '#f2616b', '#c6f432', '#eceaf6', '#2fb8ac'];
 export const THEMES: Record<string, { label: string; accent: string }> = {
   ember: { label: 'Ember', accent: '#ff6a3d' },
   rose: { label: 'Rose', accent: '#ff7aa2' },
   sea: { label: 'Seafoam', accent: '#4fd1a5' },
   sky: { label: 'Sky', accent: '#4cb3ff' },
-  violet: { label: 'Violet', accent: '#9b7bff' },
+  violet: { label: 'Violet', accent: '#a58bff' },
   lime: { label: 'Lime', accent: '#c6f432' },
   sun: { label: 'Sunny', accent: '#ffb02e' },
 };

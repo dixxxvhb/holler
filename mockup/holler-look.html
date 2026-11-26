@@ -1,0 +1,1328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Holler look</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tilt+Warp:XROT,YROT@-45..45,-45..45&family=Figtree:wght@500;700&family=Chivo+Mono:wght@700&display=swap" rel="stylesheet">
+
+<!-- =====================================================================
+     HOLLER SYSTEM CSS. Everything in this first <style> is written with
+     the app's real class names so it can be lifted into src/styles.css.
+     The second <style> further down is only the mockup page (frames,
+     fake camera pictures) and is not part of the app.
+     ===================================================================== -->
+<style id="holler-system">
+:root {
+  /* ground and neutrals: cool ink. Never warm brown, never cream. */
+  --ground: #0f0d15;
+  --ground-2: #181520;
+  --surface: #211d2c;
+  --surface-2: #2d2839;
+  --chalk: #f7f6fb;
+  --chalk-2: rgba(247, 246, 251, .72);
+  --chalk-3: rgba(247, 246, 251, .54);
+  --seam: rgba(247, 246, 251, .10);
+  --seam-2: rgba(247, 246, 251, .22);
+  /* ink that sits ON a color block, and the solid dark used over video */
+  --on-color: #15121c;
+  --on-color-2: rgba(21, 18, 28, .80);
+  --on-color-fill: rgba(21, 18, 28, .13);
+  --puck: rgba(21, 18, 28, .80);
+
+  /* status */
+  --danger: #ff5c6c;
+  --live: #3ddc84;
+  --rec: #ff3b4a;
+  --watch: #59c9ff;
+
+  /* the place you are in. --room is repainted by [data-room] and [data-you] */
+  --room: #ff6a3d;
+  --room-deep: color-mix(in oklab, var(--room) 84%, #15121c);
+  --room-dim: color-mix(in oklab, var(--room) 16%, #0f0d15);
+  --pat: repeating-linear-gradient(135deg, var(--room-deep) 0 12px, transparent 12px 24px);
+  --accent: var(--room);
+
+  /* shape: rooms are square, people are round, hollers have a tail corner */
+  --r-block: 0px;
+  --r-tile: 16px;
+  --r-tail: 4px;
+  --r-field: 14px;
+  --r-ctl: 16px;
+  --r-pill: 999px;
+  --r: 16px;
+  --seam-w: 3px;
+
+  /* spacing */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px;
+
+  /* the only shadow: for the few things that float (toasts) */
+  --shadow-float: 0 10px 28px rgba(8, 7, 12, .5);
+
+  /* motion */
+  --t-press: 120ms; --t-fast: 160ms; --t-base: 220ms; --t-slow: 320ms; --t-room: 380ms;
+  --ease-out: cubic-bezier(.23, 1, .32, 1);
+  --ease-in-out: cubic-bezier(.77, 0, .175, 1);
+  --ease-drawer: cubic-bezier(.32, .72, 0, 1);
+
+  /* layers */
+  --z-video: 0; --z-light: 2; --z-deck: 4; --z-chrome: 5; --z-banner: 6; --z-count: 7; --z-door: 9;
+  --z-player: 40; --z-review: 45; --z-sheet: 60; --z-toast: 100;
+
+  /* type */
+  --display: 'Tilt Warp', 'Arial Black', system-ui, sans-serif;
+  --body: 'Figtree', system-ui, -apple-system, sans-serif;
+  --mono: 'Chivo Mono', ui-monospace, Menlo, monospace;
+  --fs-hero: clamp(72px, 24vw, 112px);
+  --fs-num: 96px; --fs-1: 34px; --fs-2: 26px; --fs-3: 21px;
+  --fs-body: 16px; --fs-sm: 14px; --fs-xs: 12.5px; --fs-micro: 10.5px;
+
+  /* room chrome sizes */
+  --band-h: 52px;
+
+  /* old names, kept as aliases (games.css and older rules use them) */
+  --bg: var(--ground);
+  --bg2: var(--ground-2);
+  --panel: var(--surface);
+  --panel2: var(--surface-2);
+  --line: var(--seam);
+  --ink: var(--chalk);
+  --ink2: var(--chalk-2);
+  --ink3: var(--chalk-3);
+
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  color-scheme: dark;
+}
+
+/* ---- rooms: one id, one color, one pattern ---- */
+[data-room], [data-you], .home, .page {
+  --room-deep: color-mix(in oklab, var(--room) 84%, #15121c);
+  --room-dim: color-mix(in oklab, var(--room) 16%, #0f0d15);
+  --accent: var(--room);
+}
+.home, .page { --room: var(--chalk); }
+[data-room="ember"]  { --room: #ff6a3d; }
+[data-room="rose"]   { --room: #ff7aa2; }
+[data-room="sea"]    { --room: #4fd1a5; }
+[data-room="sky"]    { --room: #4cb3ff; }
+[data-room="violet"] { --room: #a58bff; }
+[data-room="lime"]   { --room: #c6f432; }
+[data-room="sun"]    { --room: #ffb02e; }
+/* patterns are two-tone: the room color and a slightly deeper shade of it */
+[data-room="ember"], [data-you], .home, .page {
+  --pat: repeating-linear-gradient(135deg, var(--room-deep) 0 12px, transparent 12px 24px);
+}
+[data-room="rose"] {
+  --pat: radial-gradient(circle, var(--room-deep) 0 5px, transparent 5.6px) 0 0 / 24px 24px,
+         radial-gradient(circle, var(--room-deep) 0 5px, transparent 5.6px) 12px 12px / 24px 24px;
+}
+[data-room="sea"] {
+  --pat: radial-gradient(circle at 50% 100%, transparent 0 8px, var(--room-deep) 8.5px 12px, transparent 12.5px) 0 0 / 28px 16px;
+}
+[data-room="sky"] {
+  --pat: repeating-radial-gradient(circle at 100% 0, transparent 0 14px, var(--room-deep) 14px 19px);
+}
+[data-room="violet"] {
+  --pat: conic-gradient(var(--room-deep) 25%, transparent 0 50%, var(--room-deep) 0 75%, transparent 0) 0 0 / 32px 32px;
+}
+[data-room="lime"] {
+  --pat: linear-gradient(135deg, var(--room-deep) 25%, transparent 25%) -14px 0 / 28px 28px,
+         linear-gradient(225deg, var(--room-deep) 25%, transparent 25%) -14px 0 / 28px 28px,
+         linear-gradient(315deg, var(--room-deep) 25%, transparent 25%) 0 0 / 28px 28px,
+         linear-gradient(45deg, var(--room-deep) 25%, transparent 25%) 0 0 / 28px 28px;
+}
+[data-room="sun"] {
+  --pat: repeating-conic-gradient(from 0deg at 100% 100%, var(--room-deep) 0 5deg, transparent 5deg 10deg);
+}
+/* a full patterned wall, and a wall that is flat on the left with the pattern on the right */
+.pat { background: var(--pat), var(--room); }
+.pat-right { background: linear-gradient(90deg, var(--room) 0 58%, transparent 58%), var(--pat), var(--room); }
+
+/* ---- base ---- */
+:where(.app) * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+.app { background: var(--ground); color: var(--chalk); font: 500 var(--fs-body)/1.4 var(--body); -webkit-font-smoothing: antialiased; }
+:where(.app) button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; touch-action: manipulation; }
+:where(.app) button:disabled { opacity: .4; cursor: default; }
+:where(.app) :is(input, textarea, select) { font: inherit; color: inherit; }
+:where(.app) :is(h1, h2, h3) { font-family: var(--display); font-weight: 400; margin: 0; letter-spacing: 0; }
+.app ::selection { background: var(--accent); color: var(--on-color); }
+.app :focus-visible { outline: 3px solid var(--chalk); outline-offset: 2px; }
+.row { display: flex; align-items: center; }
+.col { display: flex; flex-direction: column; }
+.gap { gap: 10px; }
+.wrap { flex-wrap: wrap; }
+.muted { color: var(--chalk-2); }
+.fine { color: var(--chalk-3); font-size: 13px; line-height: 1.45; margin: 8px 0 0; }
+.err { color: var(--danger); font-size: 14px; }
+.hot { color: var(--accent); font-weight: 700; }
+.center { text-align: center; }
+.center-block { margin: 0 auto; }
+
+/* ---- loading ---- */
+.center-screen { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px; text-align: center; }
+.logo-pulse { width: 60px; height: 60px; border-radius: var(--r-tile) var(--r-tile) var(--r-tile) var(--r-tail); background: var(--room); animation: pulse 1.2s var(--ease-in-out) infinite; }
+@keyframes pulse { 50% { transform: scale(.86); opacity: .6; } }
+.spinner { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px; border-radius: 50%; border: 4px solid var(--seam-2); border-top-color: var(--chalk); animation: spin .8s linear infinite; }
+.spinner.static { position: relative; left: auto; top: auto; margin: 60px auto; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- buttons ---- */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 20px; border-radius: var(--r-pill); background: var(--surface-2); color: var(--chalk); font-weight: 700; font-size: 15px; transition: transform var(--t-press) var(--ease-out); }
+.btn:active { transform: scale(.96); }
+.btn.primary { background: var(--accent); color: var(--on-color); }
+.btn.ghost { background: none; color: var(--chalk-2); padding: 0 14px; }
+.btn.danger { background: none; color: var(--danger); padding: 0 12px; }
+.btn.wide { width: 100%; }
+.icon-btn { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: inherit; flex: none; }
+.glass { background: var(--puck); }   /* no backdrop-filter anywhere over video */
+.link-btn { color: var(--chalk-2); text-decoration: underline; text-underline-offset: 3px; font-size: 14px; padding: 12px 8px; }
+/* on a color block the roles flip: dark ink is the button, the color is the ground */
+:is(.on-color, .invite, .empty, .cam-off, .ob-hero, .sheet.typed) .btn { background: var(--on-color-fill); color: var(--on-color); }
+:is(.on-color, .invite, .empty, .cam-off, .ob-hero, .sheet.typed) .btn.primary { background: var(--on-color); color: var(--chalk); }
+
+/* ---- fields ---- */
+.lbl { display: block; font-size: 14px; font-weight: 700; color: var(--chalk-2); margin: 20px 0 8px; text-transform: none; letter-spacing: 0; }
+.field { width: 100%; min-height: 52px; padding: 12px 16px; border-radius: var(--r-field); background: var(--ground-2); border: 2px solid var(--seam); outline: none; font-size: 16px; color: var(--chalk); }
+.field:focus { border-color: var(--accent); }
+.field::placeholder { color: var(--chalk-3); }
+.field.big { font: 400 26px/1.1 var(--display); min-height: 64px; }
+.field.area { resize: none; min-height: 132px; line-height: 1.4; }
+.field.sel { width: auto; min-height: 44px; padding: 6px 12px; font-size: 15px; }
+/* a code is six cells. One real input or one text node; the cells are drawn behind it. */
+.field.code, .code-big {
+  --cell: 46px; --cgap: 6px;
+  width: calc(6 * var(--cell) + 5 * var(--cgap)); max-width: none; box-sizing: border-box;
+  font: 700 26px/58px var(--mono); text-transform: uppercase; text-align: left;
+  letter-spacing: calc(var(--cell) + var(--cgap) - 1ch); padding: 0 0 0 calc((var(--cell) - 1ch) / 2);
+  min-height: 58px; height: 58px; border: 0; border-radius: 0; overflow: hidden; white-space: nowrap;
+  background: repeating-linear-gradient(90deg, var(--cell-bg, var(--ground-2)) 0 var(--cell), transparent var(--cell) calc(var(--cell) + var(--cgap)));
+  color: var(--chalk);
+}
+.field.code { --cell-bg: var(--ground); display: block; margin: 0 auto; caret-color: var(--accent); box-shadow: 0 3px 0 var(--seam-2); }
+.field.code:focus { box-shadow: 0 3px 0 var(--accent); }
+.code-big { --cell-bg: var(--on-color); }
+
+/* ---- swatches: people are round, rooms are square and patterned ---- */
+.swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.sw { width: 44px; height: 44px; border-radius: 50%; flex: none; transition: transform var(--t-fast) var(--ease-out); }
+.sw.on { box-shadow: 0 0 0 3px var(--sw-gap, var(--surface)), 0 0 0 6px var(--chalk); }
+.swatches + .fine, .field.code + .fine { margin-top: 14px; }
+.sw[data-room] { width: auto; height: auto; aspect-ratio: 1; border-radius: 10px; background: var(--pat), var(--room); }
+.swatches.rooms, .swatches:has(.sw[data-room]) { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+
+/* ---- avatars ---- */
+.av { position: relative; display: inline-grid; place-items: center; border-radius: 50%; color: var(--on-color); font: 400 1em/1 var(--display); flex: none; box-shadow: 0 0 0 2px var(--ring, transparent); }
+.av img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.av.more { background: var(--surface-2); color: var(--chalk); }
+.av .dot { position: absolute; right: -1px; bottom: -1px; width: 32%; height: 32%; min-width: 8px; min-height: 8px; border-radius: 50%; background: var(--live); box-shadow: 0 0 0 2px var(--ring, var(--ground)); }
+.av.st-recording .dot { background: var(--rec); animation: blink 1s infinite; }
+.av.st-watching .dot { background: var(--watch); }
+.stack { display: inline-flex; align-items: center; }
+.stack > * + * { margin-left: -8px; }
+@keyframes blink { 50% { opacity: .35; } }
+
+/* ---- the wordmark, and type that hollers ---- */
+.wordmark { font: 400 var(--fs-hero)/.86 var(--display); letter-spacing: -.01em; color: var(--chalk); font-variation-settings: 'XROT' 18, 'YROT' 8; }
+.wordmark.sm { font-size: 36px; line-height: 1; }
+@keyframes holler {
+  0%, 100% { font-variation-settings: 'XROT' 0, 'YROT' 0; }
+  30% { font-variation-settings: 'XROT' 24, 'YROT' 16; }
+  62% { font-variation-settings: 'XROT' -16, 'YROT' -8; }
+}
+
+/* ---- toasts: above the thumb, never on the header ---- */
+.toasts { position: fixed; left: 0; right: 0; bottom: calc(var(--bottom-h, 96px) + 40px); display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: var(--z-toast); pointer-events: none; }
+.toast { pointer-events: auto; display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 2px 2px 2px 16px; max-width: min(92vw, 440px); border-radius: var(--r-ctl); background: var(--chalk); color: var(--on-color); box-shadow: var(--shadow-float); font-weight: 700; font-size: 14px; animation: rise var(--t-base) var(--ease-out) both; }
+.toast button { background: var(--on-color); color: var(--chalk); min-height: 44px; padding: 0 16px; border-radius: 14px; font-weight: 700; }
+.toast span:only-child { padding-right: 10px; }
+@keyframes rise { from { transform: translateY(10px); opacity: 0; } }
+
+/* ---- sheets: a block that slides up, with a band of the place's color on top ---- */
+.sheet-wrap { position: fixed; inset: 0; background: rgba(8, 7, 12, .62); z-index: var(--z-sheet); display: flex; align-items: flex-end; justify-content: center; animation: fade var(--t-fast); }
+.sheet { width: 100%; max-width: 520px; max-height: 88%; overflow-y: auto; overscroll-behavior: contain; background: var(--surface); border-radius: 0; padding: 0 20px calc(24px + var(--safe-b)); animation: up var(--t-slow) var(--ease-drawer); }
+.grab { display: none; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 -20px 4px; padding: 16px 8px 16px 20px; min-height: 76px; color: var(--on-color);
+  background: linear-gradient(90deg, var(--room) 0 58%, transparent 58%), var(--pat), var(--room); }
+.sheet-head h2 { font-size: 30px; line-height: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-head .icon-btn { background: var(--on-color); color: var(--chalk); margin-right: 8px; }
+.sheet > .btn.primary.wide { margin-top: 20px; }
+/* a typed note is written on a block of your own color, the same block the others will see */
+.sheet.typed { background: var(--room); color: var(--on-color); }
+.sheet.typed .field.area { background: none; border: 0; border-radius: 0; padding: 10px 0; min-height: 150px; font: 400 28px/1.15 var(--display); color: var(--on-color); }
+.sheet.typed .field.area::placeholder { color: var(--on-color-2); }
+@keyframes up { from { transform: translateY(40%); } }
+@keyframes fade { from { opacity: 0; } }
+
+/* ---- home: the rooms, stacked edge to edge ---- */
+.home { min-height: 100%; max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; padding: calc(var(--safe-t) + 4px) 0 calc(var(--safe-b) + 73px); }
+.home-top { display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 10px 0 16px; flex: none; }
+.me-btn { border-radius: 50%; width: 44px; height: 44px; display: grid; place-items: center; }
+.chats { list-style: none; padding: 0; margin: 0; flex: 1; display: flex; flex-direction: column; gap: var(--seam-w); }
+/* the blocks share the whole screen: no maximum, so one chat fills it and five still fit; past that they hit 112px and the list scrolls */
+.chats li { display: flex; flex: 1 1 112px; min-height: 112px; }
+.chats li.is-live, .chats li:has(.chat-card.live) { flex: 1.4 1 150px; }
+.chats li.is-unread, .chats li:has(.chat-card.unread) { flex: 2.2 1 232px; }
+.chat-card { position: relative; flex: 1; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 40%; grid-template-rows: 1fr auto; grid-template-areas: "body thumb" "stack thumb"; padding: 0; border: 0; border-radius: var(--r-block); background: var(--room); color: var(--on-color); text-align: left; overflow: hidden; --ring: var(--on-color); transition: transform var(--t-press) var(--ease-out); }
+.chat-card:active { transform: scale(.985); }
+.cc-body { grid-area: body; min-width: 0; padding: 14px 8px 0 16px; }
+.cc-title { font: 400 var(--fs-2)/1.05 var(--display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cc-sub { font-size: 14px; font-weight: 700; color: var(--on-color-2); margin-top: 5px; display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.cc-sub .hot, .cc-sub .seen-txt { color: var(--on-color); }
+.chat-card > .stack { grid-area: stack; align-self: end; padding: 0 0 13px 18px; }
+.chat-card > .muted { position: absolute; left: calc(60% - 34px); top: 16px; color: var(--on-color-2); }
+.cc-thumb { grid-area: thumb; position: relative; display: grid; place-items: center; width: auto; height: auto; border-radius: 0; overflow: visible; background: var(--pat), var(--room); color: var(--chalk); }
+.cc-thumb > :is(img, .cc-text, .fc) { height: min(78%, 150px); width: auto; max-width: calc(100% - 24px); aspect-ratio: 66 / 92; object-fit: cover; border-radius: var(--r-tile) var(--r-tile) var(--r-tile) var(--r-tail); box-shadow: 0 0 0 3px var(--on-color); }
+.cc-thumb > svg { width: 52px; height: 52px; padding: 13px; border-radius: 50%; background: var(--on-color); }
+.cc-text { font: 700 10.5px/1.2 var(--body); padding: 7px; overflow: hidden; }
+/* unread: the block grows, the count goes huge, the picture gets the white frame */
+.chat-card.unread .cc-title { font-size: var(--fs-1); }
+.chats li:only-child .cc-title { font-size: 44px; }
+.chats li:only-child .cc-sub { font-size: 16px; margin-top: 8px; }
+.chats li:only-child .badge { font-size: 150px; bottom: 0; }
+.chat-card.unread .cc-thumb { position: static; }
+.chat-card.unread .cc-thumb > :is(img, .cc-text, .fc) { height: min(78%, 178px); box-shadow: 0 0 0 4px var(--chalk), 0 0 0 7px var(--on-color); }
+.badge { position: absolute; left: 14px; bottom: 4px; font: 400 var(--fs-num)/1 var(--display); color: var(--on-color); background: none; min-width: 0; height: auto; padding: 0; border-radius: 0; display: block; }
+.chat-card.unread > .stack { justify-self: end; padding: 0 16px 16px 0; }
+/* someone is recording in there right now: the name hollers */
+.chat-card.live .cc-title { animation: holler 1.8s var(--ease-in-out) infinite; }
+.live-txt { display: inline-flex; align-items: center; gap: 7px; min-height: 28px; padding: 0 11px 0 9px; border-radius: var(--r-pill); background: var(--on-color); color: var(--chalk); font-weight: 700; font-size: 13px; animation: none; }
+.live-txt::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--rec); animation: blink 1s infinite; }
+.here-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--live); box-shadow: 0 0 0 2px var(--on-color); flex: none; }
+/* the dock: the only place New chat and Join live */
+.fab-row { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: stretch; gap: 4px; padding: 12px 16px calc(var(--safe-b) + 12px); background: var(--ground); pointer-events: auto; }
+.fab-row .btn { box-shadow: none; }
+.fab-row .btn:not(.primary) { background: none; color: var(--chalk-2); padding: 0 14px 0 6px; }
+.fab-row .btn.primary { flex: 1; }
+.hint { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 var(--seam-w); padding: 14px 8px 14px 16px; border-radius: 0; background: var(--surface); }
+.hint div { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.hint span { color: var(--chalk-2); line-height: 1.4; }
+.hint .hint-code { font: 700 26px/1.2 var(--mono); letter-spacing: .16em; color: var(--chalk); margin-top: 4px; }
+/* empty home: one block in your own color, wall to wall */
+.empty { flex: 1; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: 12px; text-align: left; padding: 0 20px calc(var(--safe-b) + 24px); color: var(--on-color);
+  background: linear-gradient(var(--room) 0 0) bottom / 100% 62% no-repeat, var(--pat), var(--room); }
+.empty h2 { font-size: 44px; line-height: .98; max-width: 300px; }
+.empty .muted { color: var(--on-color-2); font-weight: 700; margin: 0; max-width: 310px; }
+.empty .col { width: 100%; margin-top: 12px; }
+.empty-art { display: none; }
+.home .empty { margin-bottom: calc(-1 * (var(--safe-b) + 73px)); }   /* no dock on an empty home: the block runs to the bottom edge */
+.page .empty { margin: 0 -16px; min-height: 420px; padding-bottom: 28px; }
+
+/* ---- pages (You, Saved) ---- */
+.page { min-height: 100%; max-width: 620px; margin: 0 auto; padding: var(--safe-t) 16px calc(var(--safe-b) + 40px); }
+.page-top { display: flex; align-items: center; gap: 4px; height: 60px; margin: 0 -16px 16px; padding: 0 16px 0 6px; }
+.page-top h1 { font-size: var(--fs-1); flex: 1; }
+.page-top > span { display: none; }
+
+/* ---- You ---- */
+.page[data-you] { background: linear-gradient(var(--on-color) 0 0) top / 100% var(--safe-t) no-repeat, var(--ground); }
+.page[data-you] .page-top { margin-bottom: 0; color: var(--on-color); background: linear-gradient(90deg, var(--room) 0 58%, transparent 58%), var(--pat), var(--room); }
+.card { background: none; border: 0; border-radius: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0; align-items: stretch; }
+.card.profile { margin: 0 -16px; padding: 8px 16px 22px; background: var(--room); color: var(--on-color); display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; column-gap: 16px; row-gap: 16px; --ring: var(--on-color); }
+.av-edit { position: relative; width: 96px; height: 96px; }
+.av-edit .av { box-shadow: 0 0 0 4px var(--on-color); }
+.av-edit .av-badge { position: absolute; right: -4px; bottom: -4px; width: 34px; height: 34px; border-radius: 50%; background: var(--on-color); color: var(--chalk); display: grid; place-items: center; box-shadow: 0 0 0 3px var(--room); }
+.card.profile .field { background: none; border: 0; border-bottom: 3px solid var(--on-color); border-radius: 0; padding: 4px 0; min-height: 48px; font: 400 28px/1.1 var(--display); color: var(--on-color); }
+.card.profile .swatches, .ob-card .swatches { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 8px 16px; gap: 12px; }
+.card.profile .swatches { grid-column: 1 / -1; }
+.ob-card .swatches { margin: 0 -20px; padding: 8px 20px; }
+.card.profile .swatches::-webkit-scrollbar, .ob-card .swatches::-webkit-scrollbar { display: none; }
+.card.profile .sw { box-shadow: inset 0 0 0 3px var(--on-color); }
+.card.profile .sw.on { box-shadow: inset 0 0 0 3px var(--on-color), 0 0 0 3px var(--room), 0 0 0 6px var(--on-color); }
+.card.profile .link-btn { grid-column: 1 / -1; color: var(--on-color-2); padding: 0; justify-self: start; }
+.sec { font: 400 var(--fs-3)/1.1 var(--display); text-transform: none; letter-spacing: 0; color: var(--chalk); margin: 30px 0 4px; }
+.toggle, .srow { width: 100%; display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 12px 0; border-bottom: 1px solid var(--seam); cursor: pointer; }
+.srow { justify-content: space-between; }
+.toggle span { flex: 1; display: flex; flex-direction: column; }
+.toggle b, .srow b { font-weight: 700; }
+.toggle em { font-style: normal; font-size: 13px; line-height: 1.4; color: var(--chalk-3); margin-top: 2px; }
+.toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.toggle i { width: 54px; height: 32px; border-radius: 16px; background: var(--surface-2); position: relative; transition: background var(--t-fast); flex: none; }
+.toggle i::after { content: ''; position: absolute; top: 4px; left: 4px; width: 24px; height: 24px; border-radius: 50%; background: var(--chalk-2); transition: transform var(--t-fast) var(--ease-out), background var(--t-fast); }
+.toggle input:checked + i { background: var(--accent); }
+.toggle input:checked + i::after { transform: translateX(22px); background: var(--on-color); }
+.seg { display: flex; background: var(--ground-2); border-radius: 12px; padding: 3px; }
+.seg button { min-height: 44px; padding: 0 14px; border-radius: 9px; font: 700 14px var(--mono); color: var(--chalk-2); }
+.seg button.on { background: var(--accent); color: var(--on-color); }
+.card > .fine { margin: 12px 0; }
+.card > .btn { align-self: flex-start; margin: 4px 0 12px; }
+.meter { width: 100%; height: 12px; border-radius: 0; background: var(--surface-2); overflow: hidden; margin-top: 14px; }
+.meter i { display: block; height: 100%; background: var(--accent); }
+
+/* ---- Saved ---- */
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.g-tile { position: relative; aspect-ratio: 3 / 4; border-radius: var(--r-tile) var(--r-tile) var(--r-tile) var(--r-tail); overflow: hidden; background: var(--surface-2); display: grid; place-items: center; box-shadow: none; }
+.g-tile img { width: 100%; height: 100%; object-fit: cover; }
+.g-cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 5px 8px; font-size: 12px; font-weight: 700; background: var(--puck); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- onboarding: your color fills the top, and repaints as you pick ---- */
+.onboard { min-height: 100%; display: flex; flex-direction: column; max-width: 520px; margin: 0 auto; padding: 0 0 calc(var(--safe-b) + 20px); background: var(--ground); }
+.ob-hero { flex: 1; position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; min-height: 300px; padding: calc(var(--safe-t) + 24px) 20px 22px; color: var(--on-color);
+  background: linear-gradient(var(--on-color) 0 0) top / 100% var(--safe-t) no-repeat, linear-gradient(var(--room) 0 0) bottom / 100% 64% no-repeat, var(--pat), var(--room); transition: background-color var(--t-base); }
+.ob-hero .wordmark { color: var(--on-color); }
+.tag { font-size: 18px; font-weight: 700; line-height: 1.35; color: var(--on-color-2); margin: 14px 0 0; }
+.ob-rings { display: none; }
+.ob-card { background: none; border-radius: 0; padding: 0 20px; --sw-gap: var(--ground); }
+.ob-card .btn { margin-top: 22px; }
+.ob-card .link-btn { display: block; margin: 6px auto 0; }
+.note.as-btn { display: block; width: 100%; text-align: left; font: inherit; font-weight: 700; cursor: pointer; }
+.note { margin-top: 16px; padding: 12px 14px; border-radius: var(--r-field); background: var(--room-dim); color: var(--chalk); font-weight: 700; font-size: 14px; }
+
+/* ---- the room: color band, picture, color deck ---- */
+.chat { position: fixed; inset: 0; overflow: hidden; background: #000; --bottom-h: 260px; --ring: var(--on-color); }
+.preview { position: absolute; inset: 0; touch-action: none; }
+.cam, .raw-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.raw-video.mirror { transform: scaleX(-1); }
+.cam.dim { visibility: hidden; }  /* voice only: no blurred live camera, the room's wall shows instead */
+/* walking in: two blocks of the room's color part and settle into the band and the deck */
+.chat::before, .chat::after { content: ''; position: absolute; left: 0; right: 0; z-index: var(--z-door); background: var(--room); pointer-events: none; animation: door-up var(--t-room) var(--ease-drawer) 80ms both; }
+.chat::before { top: 0; height: 42%; }
+.chat::after { top: 42%; bottom: 0; background: var(--pat), var(--room); animation-name: door-down; }
+@keyframes door-up { to { transform: translateY(-100%); } }
+@keyframes door-down { to { transform: translateY(100%); } }
+
+.chat-top { position: absolute; top: 0; left: 0; right: 0; z-index: var(--z-chrome); display: flex; align-items: center; gap: 0; height: calc(var(--safe-t) + var(--band-h)); padding: var(--safe-t) 4px 0; color: var(--on-color);
+  background: linear-gradient(var(--on-color) 0 0) top / 100% var(--safe-t) no-repeat, var(--room); transition: background-color var(--t-base) var(--ease-out), color var(--t-base); }
+.chat-top .glass { background: none; }
+.chat-title { flex: 1; min-width: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 0 6px 0 2px; border-radius: 0; }
+.chat-title .t { font: 400 22px/1 var(--display); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-title .who { display: flex; gap: 0; margin: 0; align-items: center; flex: none; }
+.chat-title .who .av + .av { margin-left: -6px; }
+.chat-title .fine { margin: 0; font-size: 13px; font-weight: 700; color: var(--on-color-2); }
+
+.rec-banner { position: absolute; top: calc(var(--safe-t) + var(--band-h) + 10px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px 0 5px; border-radius: var(--r-pill); background: var(--rec); color: #fff; font-size: 14px; font-weight: 700; z-index: var(--z-banner); white-space: nowrap; box-shadow: none; --ring: transparent; }
+.rec-banner.watch { background: var(--puck); }
+.dots { display: inline-flex; gap: 3px; margin-left: 2px; }
+.dots i { width: 4px; height: 4px; border-radius: 50%; background: #fff; animation: blink 1s infinite; }
+.dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
+.paused-tag, .cut-tag { position: absolute; top: calc(var(--safe-t) + var(--band-h) + 56px); left: 50%; transform: translateX(-50%); z-index: var(--z-banner); display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px; border-radius: var(--r-pill); background: var(--puck); font-weight: 700; font-size: 14px; }
+.live-cap { position: absolute; left: 16px; right: 74px; bottom: calc(var(--bottom-h) + 12px); text-align: left; pointer-events: none; }
+.live-cap span, .p-cap span { background: var(--puck); color: var(--chalk); padding: 3px 8px; border-radius: 6px; font: 700 17px/1.6 var(--body); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.ring-light { position: absolute; left: 0; right: 0; top: calc(var(--safe-t) + var(--band-h)); bottom: var(--bottom-h); pointer-events: none; z-index: var(--z-light); box-shadow: inset 0 0 0 22px #fff, inset 0 0 46px 30px rgba(255, 255, 255, .92); }
+.countdown { position: absolute; left: 0; right: 0; top: calc(var(--safe-t) + var(--band-h)); bottom: var(--bottom-h); display: grid; place-items: center; pointer-events: none; z-index: var(--z-count); font: 400 150px/1 var(--display); color: var(--chalk); animation: count-pop .9s var(--ease-out) both; }
+.countdown::before { content: ''; position: absolute; left: 50%; top: 50%; width: 230px; height: 230px; margin: -115px; border-radius: 50%; background: var(--puck); z-index: -1; }
+@keyframes count-pop { from { font-variation-settings: 'XROT' 0, 'YROT' 40; opacity: 0; } 25% { font-variation-settings: 'XROT' 0, 'YROT' 0; opacity: 1; } to { opacity: .2; } }
+.look-flash { position: absolute; left: 50%; top: 36%; transform: translate(-50%, -50%); pointer-events: none; z-index: var(--z-banner); padding: 6px 16px 8px; border-radius: var(--r-ctl); background: var(--puck); font: 400 28px/1.1 var(--display); color: #fff; white-space: nowrap; animation: flash-in .9s var(--ease-out) both; }
+@keyframes flash-in { 0% { opacity: 0; } 20% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
+
+/* camera off, and voice only: the room's wall, not a grey void */
+.cam-off, .audio-mode { position: absolute; left: 0; right: 0; top: calc(var(--safe-t) + var(--band-h)); bottom: var(--bottom-h); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 30px; text-align: center; color: var(--on-color); background: var(--pat), var(--room); }
+.cam-off p { margin: 0; max-width: 280px; font-weight: 700; }
+.cam-off .fine { color: var(--on-color-2); font-weight: 500; }
+.audio-mode { pointer-events: none; }
+.audio-mode .av { z-index: 1; box-shadow: 0 0 0 5px var(--on-color); }
+.audio-mode .lvl { position: absolute; width: 150px; height: 150px; margin-top: -46px; border-radius: 50%; background: none; border: 5px solid var(--on-color); opacity: .5; transition: transform 80ms linear; }
+.audio-mode p { margin: 0; font: 400 26px/1 var(--display); color: var(--on-color); z-index: 1; padding: 6px 14px 8px; background: var(--room); border-radius: var(--r-pill); }
+
+/* the rail: one solid dark column, 48px targets, no blur */
+.rail { position: absolute; right: 8px; top: calc(var(--safe-t) + var(--band-h) + 8px); z-index: var(--z-chrome); display: flex; flex-direction: column; gap: 0; padding: 4px; border-radius: 20px; background: var(--puck);
+  max-height: calc(100% - var(--safe-t) - var(--band-h) - var(--bottom-h) - 46px); overflow-y: auto; overflow-x: hidden; scrollbar-width: none; overscroll-behavior: contain; }
+.rail::-webkit-scrollbar { display: none; }
+.rail-btn { flex: none; width: 50px; min-height: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 5px 0; border-radius: var(--r-ctl); color: var(--chalk); filter: none; }
+.rail-btn span { font: 700 var(--fs-micro)/1 var(--body); }
+.rail-btn.set { color: var(--room); }
+.rail-btn.on { background: var(--room); color: var(--on-color); }
+.chat.panel-open .rail .rail-btn span, .rail.live .rail-btn span { display: none; }
+.chat.panel-open .rail .rail-btn, .rail.live .rail-btn { min-height: 46px; }
+
+/* the deck: a block of the room's color. Strip above, record at the bottom center. */
+.bottom { position: absolute; left: 0; right: 0; bottom: 0; z-index: var(--z-deck); display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 14px 0 calc(var(--safe-b) + 14px);
+  --deck: var(--room); --deck-ink: var(--on-color); --deck-ink-2: var(--on-color-2); --deck-fill: var(--on-color-fill);
+  background: var(--deck); color: var(--deck-ink); transition: background-color var(--t-base) var(--ease-out), color var(--t-base); }
+.new-pill { display: inline-flex; align-items: center; gap: 8px; min-height: 46px; margin-top: -39px; padding: 0 20px 0 16px; border-radius: var(--r-pill); background: var(--chalk); color: var(--on-color); font-weight: 700; font-size: 15px; box-shadow: 0 0 0 3px var(--on-color); animation: rise var(--t-slow) var(--ease-out) both; }
+.new-pill b { font: 700 15px var(--mono); }
+.strip { width: 100%; display: flex; gap: 12px; overflow-x: auto; padding: 6px 16px; scroll-behavior: smooth; scrollbar-width: none; min-height: 104px; align-items: center; }
+.strip::-webkit-scrollbar { display: none; }
+.strip-empty { color: var(--deck-ink); font-weight: 700; margin: 0 auto; }
+.tile { position: relative; flex: none; width: 66px; height: 92px; border-radius: var(--r-tile) var(--r-tile) var(--r-tile) var(--r-tail); overflow: hidden; background: var(--on-color); color: var(--chalk); box-shadow: 0 0 0 2px var(--on-color); display: grid; place-items: center; --ring: var(--on-color); }
+.tile.mine { border-radius: var(--r-tile) var(--r-tile) var(--r-tail) var(--r-tile); }
+.tile.new { box-shadow: 0 0 0 3px var(--chalk), 0 0 0 5px var(--on-color); }
+.tile.new::after { content: none; }
+.tile img, .tile .fc { width: 100%; height: 100%; object-fit: cover; }
+.tile-text { padding: 7px; font: 700 var(--fs-micro)/1.2 var(--body); text-align: left; overflow: hidden; height: 100%; width: 100%; background: var(--c); color: var(--on-color); display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; }
+.tile-audio { display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--chalk-2); margin-top: -12px; }
+.tile-av { position: absolute; left: 4px; bottom: 4px; display: flex; }
+.tile-dur { position: absolute; right: 4px; bottom: 4px; font: 700 10px/1 var(--mono); background: var(--on-color); color: var(--chalk); padding: 3px 4px; border-radius: 5px; }
+.tile.mine .tile-av { left: auto; right: 4px; }
+.tile.mine .tile-dur { right: auto; left: 4px; }
+.tile-star { position: absolute; top: 5px; left: 5px; color: var(--chalk); filter: drop-shadow(0 0 2px var(--on-color)); }
+.tile-seen { position: absolute; top: 4px; right: 4px; display: flex; padding: 2px; border-radius: 999px; background: var(--on-color); --ring: transparent; }
+.tile-seen .av + .av { margin-left: -6px; }
+.tile-seen.all { box-shadow: 0 0 0 2px var(--live); }
+.tile-seen.none { color: var(--chalk-3); padding: 3px; }
+.tile.pending img, .tile.pending .fc { opacity: .5; }
+.tile-prog { position: absolute; left: 6px; right: 6px; bottom: 6px; height: 5px; border-radius: 3px; background: rgba(247, 246, 251, .28); overflow: hidden; }
+.tile-prog i { display: block; height: 100%; background: var(--chalk); transition: width .2s; }
+.tile.failed { box-shadow: 0 0 0 3px var(--danger), 0 0 0 5px var(--on-color); }
+.tile-fail { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 4px; background: var(--puck); }
+.tile-fail button { flex: 1; font-size: 11px; font-weight: 700; min-height: 30px; border-radius: 8px; color: var(--chalk); }
+.tile-fail button:first-child { background: var(--chalk); color: var(--on-color); }
+.rec-row { display: flex; align-items: center; justify-content: center; gap: 32px; width: 100%; }
+.side-btn { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--on-color); color: var(--chalk); flex: none; }
+.side-btn.ghost { background: none; }
+.timer { width: 52px; text-align: left; white-space: nowrap; font: 700 21px/1 var(--mono); color: var(--chalk); text-shadow: none; }
+.rec { position: relative; width: 88px; height: 88px; display: grid; place-items: center; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; flex: none; }
+.rec-ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+.rec-ring circle { fill: none; stroke: var(--on-color); stroke-width: 7; }
+.rec-ring .prog { stroke: var(--rec); stroke-dasharray: 289; transition: stroke-dashoffset .2s linear; }
+.rec-core { width: 64px; height: 64px; border-radius: 50%; background: var(--on-color); display: grid; place-items: center; transition: transform var(--t-press), border-radius var(--t-base) var(--ease-out), background var(--t-base); }
+.rec-core::after { content: ''; width: 22px; height: 22px; border-radius: 50%; background: var(--rec); transition: opacity var(--t-fast); }
+.rec.audio .rec-core { background: var(--chalk); }
+.rec.on .rec-core { background: var(--rec); border-radius: 18px; }
+.rec.on .rec-core::after { opacity: 0; }
+.rec:active .rec-core { transform: scale(.92); }
+.rec.is-paused .rec-core { background: var(--chalk); }
+.rec.is-paused .prog { stroke: var(--chalk); }
+.rec.counting .rec-core { transform: scale(.7); opacity: .6; }
+.rec-hint { font-size: 13px; font-weight: 700; color: var(--deck-ink-2); margin-top: -4px; }
+
+/* while you record the room goes quiet: color drains to ink, the strip leaves, a thin line keeps the room */
+.chat.is-rec .bottom, .chat:has(.rec.on) .bottom { --deck: var(--on-color); --deck-ink: var(--chalk); --deck-ink-2: var(--chalk-2); --deck-fill: rgba(247, 246, 251, .14); box-shadow: 0 calc(-1 * var(--seam-w)) 0 var(--room); }
+.chat.is-rec .chat-top, .chat:has(.rec.on) .chat-top { background-color: var(--on-color); color: var(--chalk); box-shadow: 0 var(--seam-w) 0 var(--room); --ring: var(--chalk); }
+.chat.is-rec .strip, .chat:has(.rec.on) .strip { display: none; }
+.chat.is-rec .rec-ring circle:not(.prog), .chat:has(.rec.on) .rec-ring circle:not(.prog) { stroke: rgba(247, 246, 251, .24); }
+.chat.is-rec .side-btn:not(.ghost), .chat:has(.rec.on) .side-btn:not(.ghost) { background: var(--deck-fill); }
+
+/* panels live on the deck. Chosen = solid ink. Done = outline. Never two fills that mean different things. */
+.chips { display: flex; gap: 8px; overflow-x: auto; width: 100%; padding: 0 16px; scrollbar-width: none; align-items: center; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border-radius: var(--r-pill); background: var(--deck-fill); color: var(--deck-ink); font-weight: 700; font-size: 14px; border: 0; }
+.chip.on { background: var(--deck-ink); color: var(--deck); }
+.chip.done, .chip.on.done { background: none; color: var(--deck-ink); box-shadow: inset 0 0 0 2.5px var(--deck-ink); margin-left: auto; }  /* Done keeps .on for the QA scripts; .done wins */
+.chip-note { flex: none; font-size: 13px; font-weight: 500; color: var(--deck-ink-2); padding: 0 6px; }
+.chip-ic { opacity: .7; }
+.tools { width: 100%; padding: 0 16px; display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
+.tools .field { background: var(--on-color); color: var(--chalk); border-color: var(--on-color); }
+.tools .field:focus { border-color: var(--chalk); }
+.inks { display: flex; gap: 8px; justify-content: space-between; align-items: center; }
+.ink { position: relative; width: 32px; height: 32px; border-radius: 50%; border: 3px solid var(--deck-ink); flex: none; }
+.ink::after { content: ''; position: absolute; inset: -9px; }  /* 44px to touch, 32px to look at */
+.ink.sm { width: 32px; height: 32px; }
+.ink.on { box-shadow: 0 0 0 3px var(--deck), 0 0 0 6px var(--deck-ink); }
+.wbtn { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--deck-fill); flex: none; }
+.wbtn i { border-radius: 50%; background: var(--deck-ink); }
+.wbtn.on { background: var(--deck-ink); }
+.wbtn.on i { background: var(--deck); }
+.draw-row { justify-content: flex-start; padding: 0; row-gap: 8px; }
+.looks-panel { width: 100%; display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.kind-tabs { display: flex; gap: 2px; padding: 0 10px; overflow-x: auto; scrollbar-width: none; }
+.kind-tabs::-webkit-scrollbar { display: none; }
+.ktab { flex: none; min-height: 44px; min-width: 44px; padding: 0 10px; border-radius: 0; font-size: 15px; font-weight: 700; color: var(--deck-ink-2); background: none; }
+.ktab.on { color: var(--deck-ink); background: none; box-shadow: inset 0 -3px 0 var(--deck-ink); }
+.amt-row { display: flex; align-items: center; gap: 10px; padding: 0 18px; font-size: 13px; font-weight: 700; color: var(--deck-ink-2); }
+.amt-row input { flex: 1; accent-color: var(--on-color); height: 44px; }
+.looks-panel .chip-note { padding: 0 18px; white-space: normal; }
+.more-tools { display: flex; justify-content: center; gap: 6px; padding: 0 12px; width: 100%; }
+.more-tools .rail-btn { width: auto; flex: 1; max-width: 76px; min-height: 60px; padding: 8px 0; background: var(--on-color); color: var(--chalk); border: 0; }
+.more-tools .rail-btn span { font-size: 11px; }
+.more-tools .rail-btn.set { color: var(--room); box-shadow: inset 0 0 0 2.5px var(--room); }
+
+.review { position: fixed; inset: 0; z-index: var(--z-review); background: #000; }
+.review-bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 10px; padding: 14px 16px calc(var(--safe-b) + 14px); background: var(--room); }
+.review-bar .btn { flex: 1; background: none; color: var(--on-color); box-shadow: inset 0 0 0 2.5px var(--on-color); }
+.review-bar .btn.primary { background: var(--on-color); color: var(--chalk); box-shadow: none; }
+
+/* ---- player: the picture is full screen here; chrome is scrim, never a band ---- */
+.player { position: fixed; inset: 0; z-index: var(--z-player); background: #000; display: flex; flex-direction: column; overflow: hidden; animation: fade var(--t-fast); transition: transform .2s var(--ease-out), opacity .2s, border-radius .2s; }
+.player::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: calc(var(--safe-t) + 120px); background: linear-gradient(rgba(8, 7, 12, .78), rgba(8, 7, 12, 0)); z-index: 2; pointer-events: none; }
+.bars { position: absolute; top: calc(var(--safe-t) + 8px); left: 10px; right: 10px; display: flex; gap: 3px; z-index: 3; }
+.bars i { flex: 1; height: 4px; border-radius: 2px; background: rgba(247, 246, 251, .34); overflow: hidden; }
+.bars b { display: block; height: 100%; background: var(--room); }
+.p-top { position: absolute; top: calc(var(--safe-t) + 22px); left: 12px; right: 8px; display: flex; align-items: center; gap: 10px; z-index: 3; text-shadow: none; --ring: var(--chalk); }
+.p-who { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.p-who b { font: 400 20px/1.15 var(--display); }
+.p-who span { font-size: 13px; font-weight: 700; color: var(--chalk-2); }
+.stage { position: relative; flex: 1; overflow: hidden; touch-action: none; }
+.p-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.p-video.gone { opacity: 0; pointer-events: none; }
+@media (max-width: 1px) { .p-video { object-fit: contain; } }
+.p-audio { position: absolute; inset: 0; display: grid; place-items: center; background: var(--pat), var(--room); --ring: var(--on-color); }
+.p-audio-ring { position: relative; border-radius: 50%; box-shadow: 0 0 0 6px var(--on-color); animation: none; }
+.p-audio-ring::after { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 5px solid var(--on-color); animation: talk 1.2s var(--ease-out) infinite; }
+@keyframes talk { from { transform: scale(1); opacity: .7; } to { transform: scale(1.45); opacity: 0; } }
+.p-text { position: absolute; inset: 0; display: grid; align-content: center; padding: calc(var(--safe-t) + 96px) 24px 250px; background: var(--c); color: var(--on-color); }
+.p-text p { font: 400 clamp(26px, 7.4vw, 40px)/1.12 var(--display); margin: 0; white-space: pre-wrap; word-break: break-word; text-align: left; }
+.paused { position: absolute; inset: 0; display: grid; place-items: center; color: var(--chalk); pointer-events: none; }
+.paused.tap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-weight: 700; background: rgba(8, 7, 12, .4); }
+.bursts { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.burst { position: absolute; bottom: 10%; display: flex; flex-direction: column; align-items: center; animation: floatup 2.2s var(--ease-out) forwards; }
+.burst svg { padding: 8px; box-sizing: content-box; border-radius: 50%; background: var(--puck); }
+.burst em { font-style: normal; font-size: 12px; font-weight: 700; color: var(--chalk); margin-top: 4px; }
+@keyframes floatup { 0% { transform: translateY(0) scale(.4); opacity: 0; } 15% { transform: translateY(-30px) scale(1.15); opacity: 1; } 100% { transform: translateY(-340px) scale(.9); opacity: 0; } }
+.paused svg { width: 84px; height: 84px; padding: 22px; border-radius: 50%; background: var(--puck); }
+.p-cap { position: absolute; left: 14px; right: 74px; bottom: 150px; text-align: left; pointer-events: none; }
+.p-bottom { position: relative; z-index: 3; margin-top: -150px; padding: 60px 14px calc(var(--safe-b) + 12px); background: linear-gradient(to top, rgba(8, 7, 12, .92) 58%, rgba(8, 7, 12, 0)); }
+.p-meta { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--chalk-2); min-height: 44px; }
+.p-time { font: 700 13px/1 var(--mono); flex: none; color: var(--chalk); }
+.scrub { flex: 1; min-width: 60px; accent-color: var(--room); height: 44px; }
+.seen { display: inline-flex; align-items: center; gap: 4px; }
+.rx-sum { display: inline-flex; align-items: center; gap: 2px; }
+.rx-sum b { margin-left: 4px; }
+.receipts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rcpt { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; background: var(--on-color); font-size: 13px; }
+.rcpt em { font-style: normal; color: var(--chalk-3); display: inline-flex; align-items: center; gap: 3px; }
+.rcpt.seen em, .seen-txt { color: var(--live); }
+.reacts { display: flex; justify-content: space-between; margin: 0 -6px 10px; padding: 0; border-radius: 0; background: none; }
+.reacts button { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; color: var(--chalk); transition: transform var(--t-press); }
+.reacts button:active { transform: scale(1.25); background: var(--on-color); }
+.p-tools { position: absolute; right: 8px; bottom: calc(100% - 44px); display: flex; flex-direction: column; flex-wrap: nowrap; gap: 0; padding: 4px; border-radius: 20px; background: var(--puck); }
+.pill-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 50px; min-height: 48px; padding: 0; border-radius: var(--r-ctl); background: none; color: var(--chalk); font: 700 14px var(--mono); }
+.pill-btn .lb { display: none; }
+.pill-btn.on { background: none; color: var(--room); }
+.pill-btn.reply { width: 100%; min-height: 54px; margin: 0; border-radius: var(--r-pill); background: var(--room); color: var(--on-color); font: 700 16px var(--body); }
+
+.p-menu { margin-top: 10px; }
+.p-menu .btn.danger { background: var(--on-color); }
+.transcript { margin-top: 10px; font-size: 14px; color: var(--chalk-2); }
+.transcript summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; }
+.transcript p { max-height: 120px; overflow-y: auto; line-height: 1.45; margin: 0; }
+
+/* ---- chat info: the invite is a pass in the room's color ---- */
+.invite { display: grid; grid-template-columns: 124px minmax(0, 1fr); grid-template-areas: "lbl lbl" "code code" "qr btn" "qr fine"; column-gap: 16px; row-gap: 0; align-items: start; margin: -4px -20px 0; padding: 0 20px 22px; border-radius: 0; background: var(--room); color: var(--on-color); }
+.invite-side { display: contents; }
+.invite-side .lbl { grid-area: lbl; margin: 0 0 8px; color: var(--on-color-2); }
+.code-big { grid-area: code; margin-bottom: 16px; }
+.code-big.center { margin: 0 auto; text-align: left; }
+.sheet .row > .btn.danger { margin-left: auto; }
+.qr { grid-area: qr; width: 124px; height: 124px; border-radius: 0; background: #fff; border: 8px solid #fff; }
+.invite .btn { grid-area: btn; justify-self: start; }
+.invite .fine { grid-area: fine; color: var(--on-color-2); font-weight: 500; margin: 10px 0 0; }
+.people { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.people li { display: flex; align-items: center; gap: 12px; min-height: 52px; border-bottom: 1px solid var(--seam); }
+.people .pname { font-weight: 700; flex: 1; }
+.people em { font-style: normal; font-size: 13px; color: var(--chalk-3); }
+
+@media (min-width: 99999px) {
+  .chat { background: var(--pat), var(--room-dim); }
+  .chat .preview, .chat-top, .bottom { left: 50%; right: auto; width: min(100vw, 56.25vh); transform: translateX(-50%); }
+  .rail { right: calc(50% - min(50vw, 28.1vh) + 8px); }
+}
+@media (max-height: 1px) {
+  .rail-btn { min-height: 44px; padding: 3px 0; }
+  .rail-btn span { font-size: 9.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app *, .app *::before, .app *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  .chat::before, .chat::after { display: none; }
+}
+</style>
+
+<!-- =====================================================================
+     MOCKUP PAGE ONLY. Nothing below is part of the app.
+     ===================================================================== -->
+<style>
+html { background: #08070c; }
+body { margin: 0; color: #f7f6fb; font: 500 16px/1.5 'Figtree', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+.doc { max-width: 430px; margin: 0 auto; padding: 28px 12px 80px; }
+.doc > header h1 { font: 400 54px/.9 'Tilt Warp', sans-serif; margin: 0 0 14px; font-variation-settings: 'XROT' 18, 'YROT' 8; }
+.doc > header p { margin: 0 0 10px; color: rgba(247, 246, 251, .78); }
+.doc > header .key { display: flex; gap: 3px; margin: 18px 0 6px; }
+.doc > header .key i { flex: 1; height: 44px; }
+.shot { margin-top: 56px; }
+.shot .n { display: inline-grid; place-items: center; min-width: 44px; height: 44px; padding: 0 12px; background: #f7f6fb; color: #15121c; font: 400 26px/1 'Tilt Warp', sans-serif; border-radius: 16px 16px 16px 4px; }
+.shot > h2 { font: 400 26px/1.1 'Tilt Warp', sans-serif; margin: 12px 0 6px; }
+.shot > p { margin: 0 0 16px; color: rgba(247, 246, 251, .78); }
+.shot > p b { color: #f7f6fb; }
+.tagline { display: inline-block; margin: 0 0 8px; padding: 3px 10px; background: #c6f432; color: #15121c; font-weight: 700; font-size: 13px; }
+.phone-wrap { width: calc(390px * var(--s, 1)); height: calc(844px * var(--s, 1)); margin: 0 auto; }
+.phone { position: relative; width: 390px; height: 844px; overflow: hidden; border-radius: 44px; transform: scale(var(--s, 1)); transform-origin: 0 0; background: #000; --safe-t: 47px; --safe-b: 34px; outline: 1px solid rgba(247, 246, 251, .16); }
+.phone > img { width: 390px; height: 844px; display: block; }
+.app { position: absolute; inset: 0; overflow: hidden; }
+.app > .home, .app > .page, .app > .onboard { height: 100%; min-height: 0; }
+.sb { position: absolute; top: 0; left: 0; right: 0; height: 47px; z-index: 300; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 32px 9px 38px; font: 700 16px 'Figtree', sans-serif; color: #fff; pointer-events: none; }
+.sb i { width: 25px; height: 12px; border-radius: 4px; border: 1.5px solid rgba(255, 255, 255, .6); position: relative; margin-bottom: 4px; }
+.sb i::after { content: ''; position: absolute; inset: 1.5px; right: 6px; border-radius: 2px; background: #fff; }
+.hi { position: absolute; left: 50%; bottom: 8px; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: rgba(255, 255, 255, .85); z-index: 300; pointer-events: none; }
+.hi.dark { background: rgba(21, 18, 28, .85); }
+.still .chat::before, .still .chat::after { display: none; }
+.still *, .still *::before, .still *::after { animation: none !important; }
+/* stand-in pictures: a soft gradient person, no photos */
+.fc { position: relative; display: block; overflow: hidden; background: radial-gradient(ellipse 8% 6% at 50% 48%, var(--sk) 97%, transparent), radial-gradient(120% 70% at 72% 12%, var(--w1), var(--w2) 55%, var(--w3)); }
+.fc::before { content: ''; position: absolute; left: 50%; top: 52%; width: 128%; height: 70%; transform: translateX(-50%); border-radius: 50% 50% 0 0 / 38% 38% 0 0; background: linear-gradient(var(--t1), var(--t2)); }
+.fc::after { content: ''; position: absolute; left: 50%; top: 23%; width: 39%; aspect-ratio: .8; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(ellipse 47% 44% at 50% 60%, var(--sk) 96%, transparent), var(--hr); }
+.fc-a { --w1: #f6dcc0; --w2: #c99b7c; --w3: #5d4640; --t1: #3e5078; --t2: #222c47; --sk: #e2ab86; --hr: #33231d; }
+.fc-b { --w1: #cfe6d3; --w2: #7fae95; --w3: #2f4a44; --t1: #e0a53a; --t2: #a36f1c; --sk: #b9805c; --hr: #1d1513; }
+.fc-c { --w1: #dfe6f5; --w2: #9aa9cc; --w3: #3d4466; --t1: #2a2a33; --t2: #17171d; --sk: #f0c4a4; --hr: #8a5a35; }
+.fc-d { --w1: #f4d3dc; --w2: #c98aa0; --w3: #4f2f44; --t1: #f1efe9; --t2: #bdb8ae; --sk: #7d5038; --hr: #120d0c; }
+.cam.fc { position: absolute; inset: 0; }
+.dimmed { filter: brightness(.38); }
+.ghost-home { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 3px; padding-top: 103px; background: var(--ground); }
+.ghost-home i { flex: 1; }
+.ic { display: inline-flex; }
+.overlay-label { position: absolute; left: 22px; top: 430px; z-index: 3; padding: 6px 14px 7px; border-radius: 999px; background: #fff; color: #15121c; font: 700 20px 'Figtree', sans-serif; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+<header>
+  <h1>holler</h1>
+  <p><b>The idea in one line:</b> every chat is a solid block of its own color and pattern, and Holler is built from those blocks touching edge to edge. No cards, no blurred glass, no drop shadows. Video is the only thing that is not a block.</p>
+  <p>Three shapes do all the work: rooms are square blocks, people are circles, and anything someone sent has one sharp corner pointing at who said it.</p>
+  <div class="key">
+    <i data-room="ember" class="pat"></i><i data-room="rose" class="pat"></i><i data-room="sea" class="pat"></i><i data-room="sky" class="pat"></i><i data-room="violet" class="pat"></i><i data-room="lime" class="pat"></i><i data-room="sun" class="pat"></i>
+  </div>
+  <p style="font-size:14px">The seven rooms. Same ids as today, so no chat changes color. Sixteen screens after today's. Give notes by number. Names and faces here are made up; the people are soft color shapes standing in for the camera.</p>
+</header>
+
+<section class="shot" id="s1">
+  <span class="n">1</span>
+  <h2>Today's home</h2>
+  <p>For comparison. One thin row, a big empty space, two buttons with the same weight, and the chat's color is a hairline border.</p>
+  <div class="phone-wrap"><div class="phone"><img src="../shots/layout/i15-1home.png" alt="Today's Holler home screen"></div></div>
+</section>
+
+<section class="shot" id="s2">
+  <span class="n">2</span>
+  <h2>The same screen, new look</h2>
+  <p>Same chat, same 4 new hollers as the screen above. With one chat, its block <b>is</b> the screen: the name, the count as the biggest thing on it, and the last holler waiting in its window. Tap anywhere on the block to go in.</p>
+  <div class="phone-wrap"><div class="phone still">
+    <div class="sb"><span>9:41</span><i></i></div>
+    <div class="app">
+      <div class="home">
+        <header class="home-top">
+          <h1 class="wordmark sm">holler</h1>
+          <div class="row">
+            <button class="icon-btn" aria-label="Saved"><span class="ic" data-i="bookmark"></span></button>
+            <button class="me-btn" aria-label="Settings"><span class="av" style="width:36px;height:36px;background:#ff6a3d;font-size:15px">AQ</span></button>
+          </div>
+        </header>
+        <ul class="chats">
+          <li class="is-unread"><button class="chat-card unread" data-room="ember">
+            <div class="cc-thumb"><span class="fc fc-b"></span><span class="badge">4</span></div>
+            <div class="cc-body"><div class="cc-title">QA Crew</div><div class="cc-sub"><span class="hot">new from Blake · just now</span><span class="here-dot"></span></div></div>
+            <span class="stack"><span class="av" style="width:34px;height:34px;background:#4fd1a5;font-size:14px">BQ</span></span>
+          </button></li>
+        </ul>
+        <div class="fab-row">
+          <button class="btn">Join with code</button>
+          <button class="btn primary"><span class="ic" data-i="plus" data-s="18"></span> New chat</button>
+        </div>
+      </div>
+    </div>
+    <div class="hi"></div>
+  </div></div>
+</section>
+
+<section class="shot" id="s3">
+  <span class="n">3</span>
+  <h2>Home, four chats</h2>
+  <p>With more chats the blocks share the screen, so there is still no empty space. <b>The Fam has 3 new</b>, so it is the tallest and the count is huge. In Besties someone is recording right now, so its name moves (it leans and swells like a voice). New chat is the only filled button; Join with code is quiet text beside it.</p>
+  <div class="phone-wrap"><div class="phone">
+    <div class="sb"><span>9:41</span><i></i></div>
+    <div class="app">
+      <div class="home">
+        <header class="home-top">
+          <h1 class="wordmark sm">holler</h1>
+          <div class="row">
+            <button class="icon-btn" aria-label="Saved"><span class="ic" data-i="bookmark"></span></button>
+            <button class="me-btn" aria-label="Settings"><span class="av" style="width:36px;height:36px;background:#4fd1a5;font-size:15px">DB</span></button>
+          </div>
+        </header>
+        <ul class="chats">
+          <li><button class="chat-card unread" data-room="ember">
+            <div class="cc-thumb"><span class="fc fc-a"></span><span class="badge">3</span></div>
+            <div class="cc-body"><div class="cc-title">The Fam</div><div class="cc-sub"><span class="hot">new from Mom · 12m</span></div></div>
+            <span class="stack">
+              <span class="av" style="width:30px;height:30px;background:#ff7aa2;font-size:13px">M</span>
+              <span class="av" style="width:30px;height:30px;background:#4cb3ff;font-size:13px">J</span>
+              <span class="av" style="width:30px;height:30px;background:#c6f432;font-size:13px">R</span>
+            </span>
+          </button></li>
+          <li><button class="chat-card live" data-room="sky">
+            <div class="cc-thumb"><span class="fc fc-b"></span></div>
+            <div class="cc-body"><div class="cc-title" style="font-variation-settings:'XROT' 22,'YROT' 14">Besties</div><div class="cc-sub"><span class="live-txt">Sam is recording</span></div></div>
+            <span class="stack">
+              <span class="av st-recording" style="width:26px;height:26px;background:#ffb02e;font-size:12px">S<i class="dot"></i></span>
+              <span class="av" style="width:26px;height:26px;background:#a58bff;font-size:12px">D</span>
+            </span>
+          </button></li>
+          <li><button class="chat-card" data-room="lime">
+            <div class="cc-thumb"><span class="fc fc-c"></span></div>
+            <div class="cc-body"><div class="cc-title">Sunday crew</div><div class="cc-sub"><span>You · 2h · Seen by everyone</span></div></div>
+            <span class="stack">
+              <span class="av" style="width:24px;height:24px;background:#ff6a3d;font-size:11px">R</span>
+              <span class="av" style="width:24px;height:24px;background:#2fb8ac;font-size:11px">K</span>
+              <span class="av" style="width:24px;height:24px;background:#ff7aa2;font-size:11px">T</span>
+            </span>
+          </button></li>
+          <li><button class="chat-card" data-room="violet">
+            <div class="cc-thumb"><span class="cc-text" style="background:#ffb02e;color:#15121c">Call you after class</span></div>
+            <div class="cc-body"><div class="cc-title">Nan</div><div class="cc-sub"><span>Nan · Tue</span><span class="here-dot"></span></div></div>
+            <span class="stack"><span class="av" style="width:24px;height:24px;background:#ffb02e;font-size:11px">N</span></span>
+          </button></li>
+        </ul>
+        <div class="fab-row">
+          <button class="btn">Join with code</button>
+          <button class="btn primary"><span class="ic" data-i="plus" data-s="18"></span> New chat</button>
+        </div>
+      </div>
+    </div>
+    <div class="hi"></div>
+  </div></div>
+</section>
+
+<section class="shot" id="s4">
+  <span class="n">4</span>
+  <h2>A chat, ready to record</h2>
+  <p>Walking into The Fam: a band of its color on top, your picture in the middle, and a deck of its color underneath holding the strip and the record button. Nothing sits on your face and nothing is blurred glass. Tiles with a <b>white frame are unwatched</b>; the sharp corner points left for theirs and right for yours. Watch 3 new rides the edge of the deck.</p>
+  <div class="phone-wrap"><div class="phone still">
+    <div class="sb"><span>9:41</span><i></i></div>
+    <div class="app">
+      <div class="chat" data-room="ember" style="--bottom-h:285px">
+        <div class="preview"><span class="cam fc fc-c"></span></div>
+        <header class="chat-top">
+          <button class="icon-btn glass" aria-label="Back"><span class="ic" data-i="back"></span></button>
+          <button class="chat-title glass">
+            <span class="t">The Fam</span>
+            <span class="who">
+              <span class="av" style="width:28px;height:28px;background:#ff7aa2;font-size:12px">M<i class="dot"></i></span>
+              <span class="av" style="width:28px;height:28px;background:#4cb3ff;font-size:12px">J</span>
+              <span class="av" style="width:28px;height:28px;background:#c6f432;font-size:12px">R</span>
+            </span>
+          </button>
+          <button class="icon-btn glass" aria-label="Chat info"><span class="ic" data-i="info"></span></button>
+        </header>
+        <aside class="rail">
+          <button class="rail-btn"><span class="ic" data-i="flip"></span><span>Flip</span></button>
+          <button class="rail-btn set"><span class="ic" data-i="wand"></span><span>Looks</span></button>
+          <button class="rail-btn"><span class="ic" data-i="mic"></span><span>Voice</span></button>
+          <button class="rail-btn"><span class="ic" data-i="pen"></span><span>Draw</span></button>
+          <button class="rail-btn"><span class="ic" data-i="text"></span><span>Text</span></button>
+          <button class="rail-btn"><span class="ic" data-i="more" data-w="3.2"></span><span>More</span></button>
+        </aside>
+        <div class="bottom">
+          <button class="new-pill"><span class="ic" data-i="play" data-s="16" data-f="1"></span><span>Watch <b>3</b> new</span></button>
+          <div class="strip">
+            <button class="tile"><span class="fc fc-a"></span><span class="tile-av"><span class="av" style="width:20px;height:20px;background:#ff7aa2;font-size:9px">M</span></span><span class="tile-dur">0:48</span></button>
+            <button class="tile mine"><span class="fc fc-c"></span><span class="tile-av"><span class="av" style="width:20px;height:20px;background:#4fd1a5;font-size:9px">D</span></span><span class="tile-dur">1:07</span><span class="tile-seen all"><span class="av" style="width:16px;height:16px;background:#ff7aa2;font-size:7px">M</span><span class="av" style="width:16px;height:16px;background:#4cb3ff;font-size:7px">J</span></span></button>
+            <button class="tile new" style="--c:#4cb3ff"><span class="tile-text">On my way, save me a seat</span><span class="tile-av"><span class="av" style="width:20px;height:20px;background:#4cb3ff;font-size:9px;--ring:#15121c">J</span></span></button>
+            <button class="tile new"><span class="fc fc-a"></span><span class="tile-av"><span class="av" style="width:20px;height:20px;background:#ff7aa2;font-size:9px">M</span></span><span class="tile-dur">2:14</span></button>
+            <button class="tile new"><span class="tile-audio"><span class="av" style="width:34px;height:34px;background:#c6f432;font-size:14px">R</span><span class="ic" data-i="wave" data-s="16"></span></span><span class="tile-dur">0:21</span></button>
+          </div>
+          <div class="rec-row">
+            <button class="side-btn" aria-label="Send a text"><span class="ic" data-i="keyboard"></span></button>
+            <button class="rec" aria-label="Record"><svg viewBox="0 0 100 100" class="rec-ring"><circle cx="50" cy="50" r="46"/></svg><span class="rec-core"></span></button>
+            <div class="side-btn ghost"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hi dark"></div>
+  </div></div>
+</section>
+
+<section class="shot" id="s5">
+  <span class="n">5</span>
+  <h2>Looks open</h2>
+  <p>A panel takes the strip's place on the deck. The chosen look is the one solid dark chip; the category you are in is underlined. The rail drops its labels while a panel is open, like today.</p>
+  <div class="phone-wrap"><div class="phone still">
+    <div class="sb"><span>9:41</span><i></i></div>
+    <div class="app">
+      <div class="chat panel-open" data-room="ember" style="--bottom-h:352px">
+        <div class="preview"><span class="cam fc fc-c" style="filter:sepia(.35) saturate(1.3)"></span></div>
+        <header class="chat-top">
+          <button class="icon-btn glass"><span class="ic" data-i="back"></span></button>
+          <button class="chat-title glass"><span class="t">The Fam</span><span class="who"><span class="av" style="width:28px;height:28px;background:#ff7aa2;font-size:12px">M<i class="dot"></i></span><span class="av" style="width:28px;height:28px;background:#4cb3ff;font-size:12px">J</span><span class="av" style="width:28px;height:28px;background:#c6f432;font-size:12px">R</span></span></button>
+          <button class="icon-btn glass"><span class="ic" data-i="info"></span></button>
+        </header>
+        <aside class="rail">
+          <button class="rail-btn"><span class="ic" data-i="flip"></span><span>Flip</span></button>
+          <button class="rail-btn on set"><span class="ic" data-i="wand"></span><span>Looks</span></button>
+          <button class="rail-btn"><span class="ic" data-i="mic"></span><span>Voice</span></button>
+          <button class="rail-btn"><span class="ic" data-i="pen"></span><span>Draw</span></button>
+          <button class="rail-btn"><span class="ic" data-i="text"></span><span>Text</span></button>
+          <button class="rail-btn"><span class="ic" data-i="more" data-w="3.2"></span><span>More</span></button>
+        </aside>
+        <div class="bottom">
+          <div class="looks-panel">
+            <div class="kind-tabs"><button class="ktab on">Color</button><button class="ktab">Warp</button><button class="ktab">Art</button><button class="ktab">Motion</button><button class="ktab">Background</button></div>
+            <div class="chips"><button class="chip">Natural</button><button class="chip on">Golden hour</button><button class="chip">Film</button><button class="chip">Movie</button><button class="chip">Noir</button></div>
+            <label class="amt-row"><span>Less</span><input type="range" min="0" max="1" step="0.01" value="0.62"><span>More</span></label>
+            <div class="chip-note">Slide to fade it in or out. Swipe across the picture to try the next one, even while recording.</div>
+          </div>
+          <div class="rec-row">
+            <button class="side-btn"><span class="ic" data-i="keyboard"></span></button>
+            <button class="rec"><svg viewBox="0 0 100 100" class="rec-ring"><circle cx="50" cy="50" r="46"/></svg><span class="rec-core"></span></button>
+            <div class="side-btn ghost"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hi dark"></div>
+  </div></div>
+</section>
+
+<section class="shot" id="s6">
+  <span class="n">6</span>
+  <h2>Text on your video</h2>
+  <p>Today this panel is a pile with two orange buttons. Now it is three calm rows: the words, the style, the colors. <b>Done is an outline</b>, so it never looks like a chosen style.</p>
+  <div class="phone-wrap"><div class="phone still">
+    <div class="sb"><span>9:41</span><i></i></div>
+    <div class="app">
+      <div class="chat panel-open" data-room="sky" style="--bottom-h:356px">
+        <div class="preview"><span class="cam fc fc-b"></span><span class="overlay-label" style="top:400px">save me a seat</span></div>
+        <header class="chat-top">
+          <button class="icon-btn glass"><span class="ic" data-i="back"></span></button>
+          <button class="chat-title glass"><span class="t">Besties</span><span class="who"><span class="av" style="width:28px;height:28px;background:#ffb02e;font-size:12px">S</span></span></button>
+          <button class="icon-btn glass"><span class="ic" data-i="info"></span></button>
+        </header>
+        <aside class="rail">
+          <button class="rail-btn"><span class="ic" data-i="flip"></span></button>
+          <button class="rail-btn"><span class="ic" data-i="wand"></span></button>
+          <button class="rail-btn"><span class="ic" data-i="mic"></span></button>
+          <button class="rail-btn"><span class="ic" data-i="pen"></span></button>
+          <button class="rail-btn on set"><span class="ic" data-i="text"></span></button>
+          <button class="rail-btn"><span class="ic" data-i="more" data-w="3.2"></span></button>
+        </aside>
+        <div class="bottom">
+          <div class="tools">
+            <input class="field" value="save me a seat" aria-label="Words on your video">
+            <div class="row gap">
+              <button class="chip on">Label</button><button class="chip">Big</button><button class="chip">Typewriter</button>
+              <button class="chip on done"><span class="ic" data-i="check" data-s="16" data-w="3"></span> Done</button>
+            </div>
+            <div class="inks">
+              <button class="ink sm on" style="background:#ffffff"></button><button class="ink sm" style="background:#111111"></button><button class="ink sm" style="background:#ff6a3d"></button><button class="ink sm" style="background:#ffb02e"></button><button class="ink sm" style="background:#c6f432"></button><button class="ink sm" style="background:#4fd1a5"></button><button class="ink sm" style="background:#9b7bff"></button>
+              <button class="chip">Remove</button>
+            </div>
+            <div class="chip-note" style="padding:0">Drag on the picture to move it.</div>
+          </div>
+          <div class="rec-row">
+            <button class="side-btn"><span class="ic" data-i="keyboard"></span></button>
+            <button class="rec"><svg viewBox="0 0 100 100" class="rec-ring"><circle cx="50" cy="50" r="46"/></svg><span class="rec-core"></span></button>
+            <div class="side-btn ghost"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hi dark"></div>
+  </div></div>
+</section>
+
+<section class="shot" id="s7">
+  <span class="n">7</span>
+  <h2>Recording</h2>
+  <p>The room goes quiet while you talk. The color drains out of the band and the deck, the strip leaves, and your picture gets taller. What stays: stop, the timer, discard, and the tools you can use mid-take. A thin line of the room's color stays so you know where you are.</p>
+  <div class="phone-wrap"><div class="phone still">
+    <div class="sb"><span>9:41</span><i></i></div>
+    <div class="app">
+      <div class="chat is-rec" data-room="ember" style="--bottom-h:176px">
+        <div class="preview"><span class="cam fc fc-c"></span></div>
+        <header class="chat-top">
+          <button class="icon-btn glass"><span class="ic" data-i="back"></span></button>
+          <button class="chat-title glass"><span class="t">The Fam</span><span class="who"><span class="av st-watching" style="width:28px;height:28px;background:#ff7aa2;font-size:12px">M<i class="dot"></i></span><span class="av" style="width:28px;height:28px;background:#4cb3ff;font-size:12px">J</span><span class="av" style="width:28px;height:28px;background:#c6f432;font-size:12px">R</span></span></button>
+          <button class="icon-btn glass"><span class="ic" data-i="info"></span></button>
+        </header>
+        <aside class="rail live">
+          <button class="rail-btn"><span class="ic" data-i="flip"></span></button>
+          <button class="rail-btn"><span class="ic" data-i="pause"></span></button>
+          <button class="rail-btn set"><span class="ic" data-i="wand"></span></button>
+          <button class="rail-btn"><span class="ic" data-i="mic"></span></button>
+          <button class="rail-btn"><span class="ic" data-i="pen"></span></button>
+          <button class="rail-btn"><span class="ic" data-i="text"></span></button>
+          <button class="rail-btn"><span class="ic" data-i="light"></span></button>
+        </aside>
+        <div class="bottom">
+          <div class="rec-row">
+            <button class="side-btn" aria-label="Discard recording"><span class="ic" data-i="trash"></span></button>
+            <button class="rec on"><svg viewBox="0 0 100 100" class="rec-ring"><circle cx="50" cy="50" r="46"/><circle cx="50" cy="50" r="46" class="prog" style="stroke-dashoffset:248"/></svg><span class="rec-core" style="transform:scale(.68)"></span></button>
+            <div class="timer">0:42</div>
+          </div>
+          <div class="rec-hint">Tap to send</div>
+        </div>
+      </div>
+    </div>
+    <div class="hi"></div>
+  </div></div>
+</section>
+
+<section class="shot" id="s8">
+  <span class="n">8</span>
+  <h2>Voice only</h2>
+  <p>No blurred camera behind you any more (that blur is the most expensive thing on an older iPhone). The room's own wall shows instead, and the ring around your face grows with your voice. Also here: a tile still sending, one that failed, and where the Sending and Undo message now sits (by your thumb, off the header).</p>
+  <div class="phone-wrap"><div class="phone still">
+    <div class="sb"><span>9:41</span><i></i></div>
+    <div class="app">
+      <div class="chat" data-room="sea" style="--bottom-h:266px">
+        <div class="preview">
+          <div class="audio-mode"><span class="av" style="width:120px;height:120px;background:#4fd1a5;font-size:48px">DB</span><div class="lvl" style="transform:scale(1.34)"></div><p>Voice only</p></div>
+        </div>
+        <header class="chat-top">
+          <button class="icon-btn glass"><span class="ic" data-i="back"></span></button>
+          <button class="chat-title glass"><span class="t">Mom, Jo and Ray</span><span class="who"><span class="av" style="width:28px;height:28px;background:#ff7aa2;font-size:12px">M</span><span class="av" style="width:28px;height:28px;background:#4cb3ff;font-size:12px">J</span><span class="av" style="width:28px;height:28px;background:#c6f432;font-size:12px">R</span></span></button>
+          <button class="icon-btn glass"><span class="ic" data-i="info"></span></button>
+        </header>
+        <aside class="rail">
+          <button class="rail-btn"><span class="ic" data-i="mic"></span><span>Voice</span></button>
+          <button class="rail-btn set"><span class="ic" data-i="more" data-w="3.2"></span><span>More</span></button>
+        </aside>
+        <div class="bottom">
+          <div class="strip">
+            <button class="tile"><span class="fc fc-a"></span><span class="tile-av"><span class="av" style="width:20px;height:20px;background:#ff7aa2;font-size:9px">M</span></span><span class="tile-dur">0:48</span></button>
+            <button class="tile mine"><span class="tile-audio"><span class="av" style="width:34px;height:34px;background:#4fd1a5;font-size:14px">D</span><span class="ic" data-i="wave" data-s="16"></span></span><span class="tile-dur">0:33</span><span class="tile-seen none"><span class="ic" data-i="check" data-s="12" data-w="3"></span></span></button>
+            <div class="tile mine pending"><span class="fc fc-c"></span><span class="tile-prog"><i style="width:62%"></i></span></div>
+            <div class="tile mine pending failed"><span class="fc fc-c"></span><span class="tile-fail"><button>Retry</button><button>Delete</button></span></div>
+          </div>
+          <div class="rec-row">
+            <button class="side-btn"><span class="ic" data-i="keyboard"></span></button>
+            <button class="rec audio"><svg viewBox="0 0 100 100" class="rec-ring"><circle cx="50" cy="50" r="46"/></svg><span class="rec-core"></span></button>
+            <div class="side-btn ghost"></div>
+          </div>
+        </div>
+        <div class="toasts" style="position:absolute"><div class="toast"><span>Sending</span><button>Undo</button></div></div>
+      </div>
+    </div>
+    <div class="hi dark"></div>
+  </div></div>
+</section>
+
+<section class="shot" id="s9">
+  <span class="n">9</span>
+  <h2>A typed note</h2>
+  <p>A note shows up in the strip as a block of your color, so you write it on that same block. What you type is what they get.</p>
+  <div class="phone-wrap"><div class="phone still">
+    <div class="sb"><span>9:41</span><i></i></div>
+    <div class="app">
+      <div class="chat" data-room="sea" style="--bottom-h:266px">
+        <div class="preview"><span class="cam fc fc-c dimmed"></span></div>
+        <header class="chat-top"><button class="icon-btn glass"><span class="ic" data-i="back"></span></button><button class="chat-title glass"><span class="t">Mom, Jo and Ray</span></button></header>
+        <div class="sheet-wrap">
+          <div class="sheet typed" role="dialog" data-you style="--room:#ffb02e">
+            <div class="sheet-head"><h2>Send a note</h2><button class="icon-btn" aria-label="Close"><span class="ic" data-i="close"></span></button></div>
+            <textarea class="field area" rows="4" placeholder="Type something quick">Running late. Start without me, I'll catch up.</textarea>
+            <button class="btn primary wide"><span class="ic" data-i="send" data-s="18"></span> Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hi dark"></div>
+  </div></div>
+</section>
+
+<section class="shot" id="s10">
+  <span class="n">10</span>
+  <h2>Watching</h2>
+  <p>Here the picture gets the whole screen, because watching is the point. The dark band that used to cut the video is gone: reactions sit on the picture, the small tools move into one column on the right (the same place tools live in the chat), and <b>Reply is the one big button</b>. The progress bars are in the room's color.</p>
+  <div class="phone-wrap"><div class="phone still">
+    <div class="sb"><span>9:41</span><i></i></div>
+    <div class="app">
+      <div class="player" data-room="ember">
+        <div class="bars"><i><b style="width:100%"></b></i><i><b style="width:100%"></b></i><i><b style="width:46%"></b></i><i><b style="width:0"></b></i><i><b style="width:0"></b></i></div>
+        <div class="p-top">
+          <span class="av" style="width:38px;height:38px;background:#ff7aa2;font-size:16px">M</span>
+          <div class="p-who"><b>Mom</b><span>12m · HD</span></div>
+          <button class="icon-btn glass" aria-label="Close"><span class="ic" data-i="close"></span></button>
+        </div>
+        <div class="stage">
+          <span class="p-video fc fc-a"></span>
+          <div class="p-cap"><span>so anyway, call me when you get out of class</span></div>
+        </div>
+        <div class="p-bottom">
+          <div class="p-tools">
+            <button class="pill-btn" aria-label="Speed">1x</button>
+            <button class="pill-btn on" aria-label="Captions"><span class="ic" data-i="cc" data-s="20"></span></button>
+            <button class="pill-btn" aria-label="Save"><span class="ic" data-i="star" data-s="20"></span></button>
+            <button class="pill-btn" aria-label="Download"><span class="ic" data-i="download" data-s="20"></span></button>
+          </div>
+          <div class="p-meta">
+            <span class="p-time">0:22 / 0:48</span>
+            <input class="scrub" type="range" min="0" max="48" value="22" aria-label="Seek">
+          </div>
+          <div class="reacts">
+            <button aria-label="Love"><span class="ic" data-i="heart" data-s="26"></span></button>
+            <button aria-label="Haha"><span class="ic" data-i="laugh" data-s="26"></span></button>
+            <button aria-label="Wow"><span class="ic" data-i="wow" data-s="26"></span></button>
+            <button aria-label="Fire"><span class="ic" data-i="fire" data-s="26"></span></button>
+            <button aria-label="Clap"><span class="ic" data-i="clap" data-s="26"></span></button>
+            <button aria-label="Aww"><span class="ic" data-i="cry" data-s="26"></span></button>
+          </div>
+          <button class="pill-btn reply">Reply</button>
+        </div>
+      </div>
+    </div>
+    <div class="hi"></div>
+  </div></div>
+</section>
+
+<section class="shot" id="s11">
+  <span class="n">11</span>
+  <h2>Chat info and the invite</h2>
+  <p>The top of the sheet is a pass in the room's color: the code in six cells, the QR, and Send invite as the one dark button. Chat colors are now square patterned swatches (people's colors stay round). Leave chat is plain red text at the far end, not the loudest thing on the sheet.</p>
+  <div class="phone-wrap"><div class="phone still">
+    <div class="sb"><span>9:41</span><i></i></div>
+    <div class="app">
+      <div class="chat" data-room="ember" style="--bottom-h:285px">
+        <div class="preview"><span class="cam fc fc-c"></span></div>
+        <header class="chat-top"><button class="icon-btn glass"><span class="ic" data-i="back"></span></button><button class="chat-title glass"><span class="t">The Fam</span></button></header>
+        <div class="sheet-wrap">
+          <div class="sheet" role="dialog" style="max-height:780px">
+            <div class="sheet-head"><h2>The Fam</h2><button class="icon-btn" aria-label="Close"><span class="ic" data-i="close"></span></button></div>
+            <div class="invite">
+              <svg class="qr" viewBox="0 0 21 21" shape-rendering="crispEdges" aria-label="Invite QR code" id="qr"></svg>
+              <div class="invite-side">
+                <div class="lbl">Invite code</div>
+                <div class="code-big">94DQRC</div>
+                <button class="btn primary"><span class="ic" data-i="share" data-s="18"></span> Send invite</button>
+                <p class="fine">Anyone with the link or code can join. Up to 12 people.</p>
+              </div>
+            </div>
+            <div class="lbl">People (2)</div>
+            <ul class="people">
+              <li><span class="av" style="width:36px;height:36px;background:#4fd1a5;font-size:15px">DB</span><span class="pname">Dee (you)</span></li>
+              <li><span class="av" style="width:36px;height:36px;background:#ff7aa2;font-size:15px">M</span><span class="pname">Mom</span><em>active just now</em></li>
+            </ul>
+            <label class="lbl">Chat name</label>
+            <input class="field" value="The Fam">
+            <div class="lbl">Color</div>
+            <div class="swatches">
+              <button class="sw on" data-room="ember"></button><button class="sw" data-room="rose"></button><button class="sw" data-room="sea"></button><button class="sw" data-room="sky"></button><button class="sw" data-room="violet"></button><button class="sw" data-room="lime"></button><button class="sw" data-room="sun"></button>
+            </div>
+            <div class="row gap" style="margin-top:22px">
+              <button class="btn"><span class="ic" data-i="bellOff" data-s="18"></span> Mute</button>
+              <button class="btn danger">Leave chat</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hi"></div>
+  </div></div>
+</section>
+
+<section class="shot" id="s12">
+  <span class="n">12</span>
+  <h2>New chat</h2>
+  <p>You now pick the chat's color while you name it, and the sheet repaints as you tap. It starts on a color none of your other chats use, so two chats never look alike by accident. Make it takes the color you picked.</p>
+  <div class="phone-wrap"><div class="phone still">
+    <div class="sb"><span>9:41</span><i></i></div>
+    <div class="app">
+      <div class="ghost-home dimmed"><i data-room="ember" class="pat-right" style="flex:2.2"></i><i data-room="sky" class="pat-right" style="flex:1.4"></i><i data-room="lime" class="pat-right"></i><i data-room="violet" class="pat-right"></i><i style="flex:.9;background:var(--ground)"></i></div>
+      <div class="sheet-wrap">
+        <div class="sheet" role="dialog" data-room="rose">
+          <div class="sheet-head"><h2>New chat</h2><button class="icon-btn" aria-label="Close"><span class="ic" data-i="close"></span></button></div>
+          <label class="lbl" for="cn">Name it (optional)</label>
+          <input id="cn" class="field big" placeholder="The Fam, Besties, Sunday crew" value="Roomies">
+          <div class="lbl">Color</div>
+          <div class="swatches">
+            <button class="sw" data-room="ember"></button><button class="sw on" data-room="rose"></button><button class="sw" data-room="sea"></button><button class="sw" data-room="sky"></button><button class="sw" data-room="violet"></button><button class="sw" data-room="lime"></button><button class="sw" data-room="sun"></button>
+          </div>
+          <p class="fine">Next you'll get a link to send to the people you want in it.</p>
+          <button class="btn primary wide">Make it</button>
+        </div>
+      </div>
+    </div>
+    <div class="hi"></div>
+  </div></div>
+</section>
+
+<section class="shot" id="s13">
+  <span class="n">13</span>
+  <h2>Join with a code</h2>
+  <p>Six cells, one per letter, in the same numbers typeface as the invite, so the code you were sent looks like the code you type. Join wakes up when all six are in.</p>
+  <div class="phone-wrap"><div class="phone still">
+    <div class="sb"><span>9:41</span><i></i></div>
+    <div class="app">
+      <div class="home" style="position:absolute;inset:0;padding:0">
+        <div class="ghost-home dimmed"><i data-room="ember" class="pat-right" style="flex:2.2"></i><i data-room="sky" class="pat-right" style="flex:1.4"></i><i data-room="lime" class="pat-right"></i><i data-room="violet" class="pat-right"></i><i style="flex:.9;background:var(--ground)"></i></div>
+        <div class="sheet-wrap">
+          <div class="sheet" role="dialog">
+            <div class="sheet-head"><h2>Join a chat</h2><button class="icon-btn" aria-label="Close"><span class="ic" data-i="close"></span></button></div>
+            <label class="lbl" for="jc" style="text-align:center;margin-top:24px">Invite code</label>
+            <input id="jc" class="field code" maxlength="6" placeholder="ABC123" value="94D">
+            <p class="fine" style="text-align:center">It's on the invite they sent you.</p>
+            <button class="btn primary wide" disabled>Join</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hi"></div>
+  </div></div>
+</section>
+
+<section class="shot" id="s14">
+  <span class="n">14</span>
+  <h2>You</h2>
+  <p>Settings open on a block of your own color with your face and name on it; tap another color and the whole top repaints. The ten colors are one row you slide, not a 6 and 4 grid. Below, the boxes are gone: plain rows, section names in the Holler type, switches that turn your color.</p>
+  <div class="phone-wrap"><div class="phone still">
+    <div class="sb"><span>9:41</span><i></i></div>
+    <div class="app">
+      <div class="page" data-you style="--room:#4fd1a5">
+        <header class="page-top"><button class="icon-btn" aria-label="Back"><span class="ic" data-i="back"></span></button><h1>You</h1><span></span></header>
+        <section class="card profile">
+          <button class="av-edit" aria-label="Change photo"><span class="av" style="width:96px;height:96px;background:#4fd1a5;font-size:38px">DB</span><span class="av-badge"><span class="ic" data-i="camera" data-s="16"></span></span></button>
+          <input class="field" value="Dee" aria-label="Your name">
+          <div class="swatches">
+            <button class="sw" style="background:#ff6a3d"></button><button class="sw" style="background:#ff7aa2"></button><button class="sw" style="background:#ffb02e"></button><button class="sw on" style="background:#4fd1a5"></button><button class="sw" style="background:#4cb3ff"></button><button class="sw" style="background:#a58bff"></button><button class="sw" style="background:#f2616b"></button><button class="sw" style="background:#c6f432"></button><button class="sw" style="background:#eceaf6"></button><button class="sw" style="background:#2fb8ac"></button>
+          </div>
+        </section>
+        <h3 class="sec">Recording</h3>
+        <section class="card">
+          <label class="toggle"><span><b>HD video</b><em>Sharper, about 2.5x the size. Up to 2.5 minutes.</em></span><input type="checkbox"><i></i></label>
+          <label class="toggle"><span><b>Look before sending</b><em>See your holler and choose Send or Retake.</em></span><input type="checkbox" checked><i></i></label>
+          <label class="toggle"><span><b>Simple camera</b><em>Turns off looks, drawing and text on this device.</em></span><input type="checkbox"><i></i></label>
+          <div class="srow"><b>Default look</b><select class="field sel"><option>Golden hour</option></select></div>
+        </section>
+        <h3 class="sec">Watching</h3>
+        <section class="card">
+          <div class="srow"><b>Playback speed</b><div class="seg"><button>1x</button><button class="on">1.5x</button><button>2x</button></div></div>
+          <label class="toggle"><span><b>Sounds</b><em>A little ding when someone hollers.</em></span><input type="checkbox" checked><i></i></label>
+        </section>
+      </div>
+    </div>
+    <div class="hi"></div>
+  </div></div>
+</section>
+
+<section class="shot" id="s15">
+  <span class="n">15</span>
+  <h2>Home with no chats yet</h2>
+  <p>The first block is yours: the whole screen in your own color, one headline, one dark button. No floating rings, no void.</p>
+  <div class="phone-wrap"><div class="phone still">
+    <div class="sb"><span>9:41</span><i></i></div>
+    <div class="app">
+      <div class="home">
+        <header class="home-top">
+          <h1 class="wordmark sm">holler</h1>
+          <div class="row">
+            <button class="icon-btn" aria-label="Saved"><span class="ic" data-i="bookmark"></span></button>
+            <button class="me-btn"><span class="av" style="width:36px;height:36px;background:#ffb02e;font-size:15px">DB</span></button>
+          </div>
+        </header>
+        <div class="empty" data-you style="--room:#ffb02e">
+          <div class="empty-art"><i></i><i></i><i></i></div>
+          <h2>Start a chat with your people</h2>
+          <p class="muted">Make a chat, then send the invite link to up to a few friends or family. Or join one with a code.</p>
+          <div class="col gap">
+            <button class="btn primary wide">Start a chat</button>
+            <button class="btn wide">I have a code</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hi dark"></div>
+  </div></div>
+</section>
+
+<section class="shot" id="s16">
+  <span class="n">16</span>
+  <h2>First time in</h2>
+  <p>The name gets its own shape: a little lean and swell, like it is being called out. Pick your color and the top of the screen becomes it, before you have typed a thing.</p>
+  <div class="phone-wrap"><div class="phone still">
+    <div class="sb"><span>9:41</span><i></i></div>
+    <div class="app">
+      <div class="onboard" data-you style="--room:#a58bff">
+        <div class="ob-hero">
+          <div class="ob-rings"><i></i><i></i><i></i></div>
+          <h1 class="wordmark">holler</h1>
+          <p class="tag">Video messages for your people.<br>Talk when you can. Watch when you can.</p>
+        </div>
+        <div class="ob-card">
+          <label class="lbl" for="nm">What do your people call you?</label>
+          <input id="nm" class="field big" placeholder="Your name">
+          <div class="lbl">Your color</div>
+          <div class="swatches">
+            <button class="sw" style="background:#ff6a3d"></button><button class="sw" style="background:#ff7aa2"></button><button class="sw" style="background:#ffb02e"></button><button class="sw" style="background:#4fd1a5"></button><button class="sw" style="background:#4cb3ff"></button><button class="sw on" style="background:#a58bff"></button><button class="sw" style="background:#f2616b"></button><button class="sw" style="background:#c6f432"></button>
+          </div>
+          <button class="btn primary wide" disabled>Let's go</button>
+          <button class="link-btn">I already have Holler on another phone or browser</button>
+        </div>
+      </div>
+    </div>
+    <div class="hi"></div>
+  </div></div>
+</section>
+
+<section class="shot" id="s17">
+  <span class="n">17</span>
+  <span class="tagline">An idea you didn't ask for</span>
+  <h2>Catch up</h2>
+  <p>When more than one chat has something new, a white block appears on top of home: one tap plays everything new, across every chat, oldest first, like listening to your messages. Each one still shows its chat's color, and Reply takes you to that chat. Needs one small new piece on the server, so it is drawn here but not in the build list.</p>
+  <div class="phone-wrap"><div class="phone still">
+    <div class="sb"><span>9:41</span><i></i></div>
+    <div class="app">
+      <div class="home">
+        <header class="home-top">
+          <h1 class="wordmark sm">holler</h1>
+          <div class="row">
+            <button class="icon-btn"><span class="ic" data-i="bookmark"></span></button>
+            <button class="me-btn"><span class="av" style="width:36px;height:36px;background:#4fd1a5;font-size:15px">DB</span></button>
+          </div>
+        </header>
+        <ul class="chats">
+          <li style="flex:0 0 96px;min-height:96px"><button class="chat-card catchup" style="background:var(--chalk);grid-template-columns:auto 1fr auto;grid-template-areas:none;align-items:center;column-gap:12px;padding:0 16px 0 14px">
+            <span style="font:400 72px/1 var(--display);margin-top:-4px">5</span>
+            <span style="font-weight:700;line-height:1.25">new across<br>2 chats</span>
+            <span class="btn primary" style="background:var(--on-color);color:var(--chalk)"><span class="ic" data-i="play" data-s="16" data-f="1"></span> Watch all</span>
+          </button></li>
+          <li><button class="chat-card unread" data-room="ember">
+            <div class="cc-thumb"><span class="fc fc-a"></span><span class="badge">3</span></div>
+            <div class="cc-body"><div class="cc-title">The Fam</div><div class="cc-sub"><span class="hot">new from Mom · 12m</span></div></div>
+            <span class="stack"><span class="av" style="width:30px;height:30px;background:#ff7aa2;font-size:13px">M</span><span class="av" style="width:30px;height:30px;background:#4cb3ff;font-size:13px">J</span></span>
+          </button></li>
+          <li><button class="chat-card unread" data-room="sun">
+            <div class="cc-thumb"><span class="fc fc-d"></span><span class="badge">2</span></div>
+            <div class="cc-body"><div class="cc-title">Roomies</div><div class="cc-sub"><span class="hot">new from Kit · 1h</span></div></div>
+            <span class="stack"><span class="av" style="width:30px;height:30px;background:#2fb8ac;font-size:13px">K</span></span>
+          </button></li>
+        </ul>
+        <div class="fab-row">
+          <button class="btn">Join with code</button>
+          <button class="btn primary"><span class="ic" data-i="plus" data-s="18"></span> New chat</button>
+        </div>
+      </div>
+    </div>
+    <div class="hi"></div>
+  </div></div>
+</section>
+
+</div>
+
+<script>
+// icons: the app's own paths (src/ui/icons.tsx)
+const P = {
+  back: 'M15 5l-7 7 7 7', close: 'M6 6l12 12M18 6L6 18',
+  flip: 'M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2M20 4v4h-4M4 20v-4h4',
+  wand: 'M5 19L15 9M14 4v2M19 9h2M17.5 6.5l1.5-1.5M10 4.5l.8 1.2M19.5 13.5l-1.2-.8',
+  mic: 'M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3',
+  pen: 'M4 20l4-1 11-11-3-3L5 16l-1 4zM14 6l3 3', text: 'M5 6h14M12 6v13M9 19h6',
+  keyboard: 'M3 7h18v10H3zM7 11h.01M11 11h.01M15 11h.01M8 14h8', play: 'M8 5l11 7-11 7z', pause: 'M8 5v14M16 5v14',
+  star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z', plus: 'M12 5v14M5 12h14',
+  info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 8h.01', download: 'M12 4v12M7 11l5 5 5-5M4 20h16',
+  trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3', cc: 'M3 5h18v14H3zM10 10.5a2 2 0 1 0 0 3M17 10.5a2 2 0 1 0 0 3',
+  share: 'M12 3v12M7 8l5-5 5 5M5 13v7h14v-7', bellOff: 'M6 9a6 6 0 0 1 9.5-4.9M18 9c0 6 3 7 3 7H8M10 20a2 2 0 0 0 4 0M3 3l18 18',
+  camera: 'M4 8h3l2-3h6l2 3h3v11H4zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', wave: 'M3 12h2M7 8v8M11 5v14M15 8v8M19 11v2',
+  check: 'M5 12l5 5 9-10', send: 'M4 12l16-8-6 16-3-7z',
+  heart: 'M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z',
+  laugh: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8 14c1 2 2.4 3 4 3s3-1 4-3zM8.5 9.5l1.5 1M15.5 9.5l-1.5 1',
+  wow: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 17a2 2.5 0 1 0 0-5 2 2.5 0 0 0 0 5zM9 9h.01M15 9h.01',
+  fire: 'M12 21c-4 0-6-2.7-6-6 0-4 4-6 4-10 2 1 6 4 6 8 1-1 1.5-2 1.5-3 1.5 1.5 2.5 3.5 2.5 5 0 3.3-3 6-8 6z',
+  clap: 'M8 13l5-5a1.5 1.5 0 0 1 2 2l-3 3M10 15l5-5a1.5 1.5 0 0 1 2 2l-5 5a5 5 0 0 1-7 0 5 5 0 0 1 0-7l3-3a1.5 1.5 0 0 1 2 2M16 4l1-2M19 6l2-1M20 9h2',
+  cry: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8.5 16c1-1.3 2.2-2 3.5-2s2.5.7 3.5 2M9 9.5h.01M15 9.5h.01M8 11.5v2',
+  bookmark: 'M6 3h12v18l-6-4-6 4z',
+  light: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
+};
+document.querySelectorAll('.ic').forEach(el => {
+  const s = el.dataset.s || 22, w = el.dataset.w || 2, f = el.dataset.f ? 'currentColor' : 'none';
+  el.outerHTML = `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="${f}" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${P[el.dataset.i] || ''}"/></svg>`;
+});
+// a stand-in QR (not a real code): finder squares plus a fixed scatter
+(() => {
+  const q = document.getElementById('qr'); if (!q) return;
+  let r = '', seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const finder = (x, y) => `<rect x="${x}" y="${y}" width="7" height="7"/><rect x="${x + 1}" y="${y + 1}" width="5" height="5" fill="#fff"/><rect x="${x + 2}" y="${y + 2}" width="3" height="3"/>`;
+  for (let y = 0; y < 21; y++) for (let x = 0; x < 21; x++) {
+    const inF = (x < 8 && y < 8) || (x > 12 && y < 8) || (x < 8 && y > 12);
+    if (!inF && rnd() > .52) r += `<rect x="${x}" y="${y}" width="1" height="1"/>`;
+  }
+  q.innerHTML = `<g fill="#15121c">${r}${finder(0, 0)}${finder(14, 0)}${finder(0, 14)}</g>`;
+})();
+// fit the 390px frames to narrow screens
+const fit = () => document.documentElement.style.setProperty('--s', Math.min(1, (Math.min(innerWidth, 430) - 24) / 390));
+fit(); addEventListener('resize', fit);
+</script>
+</body>
+</html>

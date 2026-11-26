@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api, setToken } from '../lib/api';
-import { COLORS } from './bits';
+import { COLORS, tone } from './bits';
 import { isIOS } from '../lib/speech';
 
 const standalone = () => (navigator as unknown as { standalone?: boolean }).standalone || matchMedia('(display-mode: standalone)').matches;
@@ -29,7 +29,7 @@ export function Onboard({ onDone, joining }: { onDone: () => void; joining?: str
   };
 
   return (
-    <div className="onboard">
+    <div className="onboard" data-you="" style={{ ['--room' as string]: tone(color) }}>
       <div className="ob-hero">
         <div className="ob-rings"><i /><i /><i /></div>
         <h1 className="wordmark">holler</h1>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useApp } from '../App';
 import { api, publicUrl } from '../lib/api';
 import { onPresence, presenceOf } from '../lib/live';
-import { Avatar, AvatarStack, Sheet, ago, chatTitle, THEMES, toast } from './bits';
+import { Avatar, AvatarStack, Sheet, ago, chatTitle, THEMES, toast, tone } from './bits';
 import { Icon } from './icons';
 import { isIOS } from '../lib/speech';
 import { enablePush, pushState } from '../lib/push';
@@ -57,15 +57,25 @@ export function HomeScreen() {
   const [sheet, setSheet] = useState<'new' | 'join' | null>(null);
   const [val, setVal] = useState('');
   const [busy, setBusy] = useState(false);
+  const [theme, setTheme] = useState('ember');
   const [, tick] = useState(0);
   useEffect(() => onPresence(() => tick(t => t + 1)), []);
   useEffect(() => { const i = setInterval(() => tick(t => t + 1), 30000); return () => clearInterval(i); }, []);
   if (!home) return null;
   const me = home.me;
 
+  // a new chat starts on the first color none of your chats use
+  const openNew = () => {
+    const used = new Set(home.chats.map(c => c.theme));
+    setTheme(Object.keys(THEMES).find(k => !used.has(k)) || 'ember');
+    setSheet('new');
+  };
   const create = async () => {
     setBusy(true);
-    try { const c = await api.createChat(val.trim()); await refresh(); setSheet(null); setVal(''); go(`/c/${c.id}/invite`); }
+    try {
+      const c = await api.createChat(val.trim());
+      if (theme !== 'ember') await api.chatUpdate(c.id, { theme }).catch(() => {});
+      await refresh(); setSheet(null); setVal(''); go(`/c/${c.id}/invite`); }
     catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };
   const join = async () => {
@@ -87,12 +97,12 @@ export function HomeScreen() {
       <InstallHint />
       {home.chats.length > 0 && <PushNudge />}
       {home.chats.length === 0 ? (
-        <div className="empty">
+        <div className="empty" data-you="" style={{ ['--room' as string]: tone(me.color) }}>
           <div className="empty-art"><i /><i /><i /></div>
           <h2>Start a chat with your people</h2>
           <p className="muted">Make a chat, then send the invite link to up to a few friends or family. Or join one with a code.</p>
           <div className="col gap">
-            <button className="btn primary wide" onClick={() => setSheet('new')}>Start a chat</button>
+            <button className="btn primary wide" onClick={openNew}>Start a chat</button>
             <button className="btn wide" onClick={() => setSheet('join')}>I have a code</button>
           </div>
         </div>
@@ -103,20 +113,20 @@ export function HomeScreen() {
             const pres = presenceOf(c.id);
             const recording = others.find(o => pres[o.id] === 'recording');
             const here = others.filter(o => pres[o.id]);
-            const accent = THEMES[c.theme]?.accent || 'var(--accent)';
             const lastBy = c.members.find(m => m.id === c.last?.author);
+            const from = lastBy && lastBy.id !== me.id && c.last ? `new from ${lastBy.name.split(' ')[0]} · ${ago(c.last.at)}` : `new ${c.unread === 1 ? 'holler' : 'hollers'}`;
             return (
-              <li key={c.id}>
-                <button className={`chat-card ${c.unread ? 'unread' : ''}`} style={{ ['--accent' as string]: accent }} onClick={() => go(`/c/${c.id}`)}>
+              <li key={c.id} className={c.unread ? 'is-unread' : recording ? 'is-live' : ''}>
+                <button className={`chat-card ${c.unread ? 'unread' : ''} ${recording ? 'live' : ''}`} data-room={c.theme || 'ember'} onClick={() => go(`/c/${c.id}`)}>
                   <div className="cc-thumb">
-                    {c.last?.thumb ? <img src={publicUrl(c.last.thumb)} alt="" loading="lazy" /> : c.last?.kind === 'text' ? <span className="cc-text" style={{ background: lastBy?.color, color: '#150c08' }}>{c.last.body}</span> : c.last?.kind === 'audio' ? <Icon name="wave" size={28} /> : <Icon name="camera" size={26} />}
+                    {c.last?.thumb ? <img src={publicUrl(c.last.thumb)} alt="" loading="lazy" /> : c.last?.kind === 'text' ? <span className="cc-text" style={{ background: tone(lastBy?.color), color: 'var(--on-color)' }}>{c.last.body}</span> : c.last?.kind === 'audio' ? <Icon name="wave" size={28} /> : <Icon name="camera" size={26} />}
                     {c.unread > 0 && <span className="badge">{c.unread}</span>}
                   </div>
                   <div className="cc-body">
                     <div className="cc-title">{chatTitle(c, me.id)}</div>
                     <div className="cc-sub">
                       {recording ? <span className="live-txt">{recording.name.split(' ')[0]} is recording</span>
-                        : c.unread ? <span className="hot">{c.unread} new {c.unread === 1 ? 'holler' : 'hollers'}</span>
+                        : c.unread ? <span className="hot">{from}</span>
                         : c.last ? <span>{lastBy?.id === me.id ? 'You' : lastBy?.name.split(' ')[0]} · {ago(c.last.at)}{lastBy?.id === me.id && others.length > 0 ? <> · <span className={c.last.seen?.length ? 'seen-txt' : ''}>{seenLine(c.last.seen || [], others)}</span></> : null}</span>
                         : <span>No hollers yet</span>}
                       {here.length > 0 && !recording && <span className="here-dot" title="Here now" />}
@@ -134,19 +144,24 @@ export function HomeScreen() {
       {home.chats.length > 0 && (
         <div className="fab-row">
           <button className="btn" onClick={() => setSheet('join')}>Join with code</button>
-          <button className="btn primary" onClick={() => setSheet('new')}><Icon name="plus" size={18} /> New chat</button>
+          <button className="btn primary" onClick={openNew}><Icon name="plus" size={18} /> New chat</button>
         </div>
       )}
 
-      <Sheet open={sheet === 'new'} onClose={() => setSheet(null)} title="New chat">
+      <Sheet open={sheet === 'new'} onClose={() => setSheet(null)} title="New chat" room={theme}>
         <label className="lbl" htmlFor="cn">Name it (optional)</label>
-        <input id="cn" className="field" autoFocus maxLength={60} placeholder="The Fam, Besties, Sunday crew" value={val} onChange={e => setVal(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void create(); }} />
+        <input id="cn" className="field big" autoFocus maxLength={60} placeholder="The Fam, Besties, Sunday crew" value={val} onChange={e => setVal(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void create(); }} />
+        <div className="lbl">Color</div>
+        <div className="swatches rooms">
+          {Object.entries(THEMES).map(([k, v]) => <button key={k} className={`sw ${theme === k ? 'on' : ''}`} data-room={k} onClick={() => setTheme(k)} aria-label={v.label} aria-pressed={theme === k} />)}
+        </div>
         <p className="fine">Next you'll get a link to send to the people you want in it.</p>
         <button className="btn primary wide" disabled={busy} onClick={() => void create()}>Make it</button>
       </Sheet>
       <Sheet open={sheet === 'join'} onClose={() => setSheet(null)} title="Join a chat">
-        <label className="lbl" htmlFor="jc">Invite code</label>
+        <label className="lbl center" htmlFor="jc">Invite code</label>
         <input id="jc" className="field code" autoFocus maxLength={6} placeholder="ABC123" value={val} onChange={e => setVal(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') void join(); }} />
+        <p className="fine center">It's on the invite they sent you.</p>
         <button className="btn primary wide" disabled={busy || val.trim().length < 6} onClick={() => void join()}>Join</button>
       </Sheet>
     </div>
