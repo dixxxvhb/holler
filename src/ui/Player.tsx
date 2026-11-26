@@ -111,7 +111,7 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
       filmT.current = window.setTimeout(() => void stopFilm(), 15000);
       return;
     }
-    if (card?.answer) { setAnswer(true); window.setTimeout(next, 4000); return; }
+    if (card?.answer) { setAnswer(true); clearTimeout(textTimer.current); textTimer.current = window.setTimeout(next, 4000); return; }
     next();
   };
 

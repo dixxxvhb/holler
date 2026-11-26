@@ -95,7 +95,7 @@ try {
     await p.click('.rec'); await p.waitForTimeout(6500);
     if (role === 'guess') {
       await p.waitForSelector('#g-guess'); await p.fill('#g-guess', 'a ghost buying jeans'); await shot(p, `19-${n}-guess`);
-      await p.click('.btn.g-go:has-text("Send my guess")');
+      await p.click('.btn.g-go:has-text("Send guess")');
     }
     await p.waitForTimeout(8000);
   }
