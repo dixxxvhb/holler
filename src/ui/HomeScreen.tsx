@@ -26,10 +26,20 @@ function PushNudge() {
 function InstallHint() {
   const standalone = (navigator as unknown as { standalone?: boolean }).standalone || matchMedia('(display-mode: standalone)').matches;
   const [hide, setHide] = useState(() => { try { return !!localStorage.getItem('holler.hint'); } catch { return false; } });
-  if (standalone || hide || !isIOS()) return null;
+  const [code, setCode] = useState('');
+  const show = !standalone && !hide && isIOS();
+  useEffect(() => {
+    if (!show) return;
+    const get = () => api.linkCode().then(setCode).catch(() => {});
+    void get(); const i = setInterval(get, 25 * 60 * 1000); return () => clearInterval(i);
+  }, [show]);
+  if (!show) return null;
   return (
     <div className="hint">
-      <div><b>Put Holler on your Home Screen</b><span>Tap Share, then Add to Home Screen. Then you can get a ping when someone hollers.</span></div>
+      <div><b>Put Holler on your Home Screen</b>
+        <span>1. Tap Share, then Add to Home Screen.<br />2. Open Holler from your Home Screen and tap "Already signed up in Safari?"<br />3. Enter this code so you stay one person and get pings:</span>
+        {code && <span className="hint-code">{code}</span>}
+      </div>
       <button className="icon-btn" aria-label="Dismiss" onClick={() => { try { localStorage.setItem('holler.hint', '1'); } catch { /* */ } setHide(true); }}><Icon name="close" size={18} /></button>
     </div>
   );

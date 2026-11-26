@@ -63,6 +63,8 @@ export const api = {
   save: (id: string, on: boolean) => rpc<void>('holler_save', { p_polo: id, p_on: on }),
   pushSub: (sub: object, on: boolean) => rpc<void>('holler_push_sub', { p_sub: sub, p_on: on }),
   linkDevice: () => rpc<string>('holler_link_device'),
+  linkCode: () => rpc<string>('holler_link_code'),
+  redeemCode: (code: string) => rpc<{ token: string }>('holler_redeem_code', { p_code: code }, false),
 };
 
 export const publicUrl = (path: string) => `${SB_URL}/storage/v1/object/public/holler/${path}`;

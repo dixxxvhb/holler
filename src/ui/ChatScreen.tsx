@@ -9,6 +9,7 @@ import { Captioner, isIOS, speechSupported, type Seg } from '../lib/speech';
 import { recStart, recStop } from '../lib/sound';
 import { Avatar, Sheet, THEMES, chatTitle, clock, toast } from './bits';
 import { Icon } from './icons';
+import { isSimple, setSimple } from '../lib/device';
 import { Player } from './Player';
 import { ChatInfo } from './ChatInfo';
 
@@ -76,23 +77,26 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     setCamState('starting');
     try {
       if (!studio.current) studio.current = new Studio(canvasRef.current);
-      const s = studio.current; s.look = look; s.voice = voice; s.simple = !!prefs.simple;
+      const s = studio.current; s.look = look; s.voice = voice; s.simple = isSimple();
       await s.open({ hd });
       s.onLevel = v => setLevel(v);
       if (!s.glOk && previewRef.current && !previewRef.current.contains(s.video)) { s.video.className = `raw-video ${s.facing === 'user' ? 'mirror' : ''}`; previewRef.current.appendChild(s.video); }
       setCamState('on');
       // once per device: make sure effects actually record; if not, quietly use the plain camera
-      let tested = false; try { tested = !!localStorage.getItem('holler.camtest'); } catch { /* */ }
-      if (!tested && s.glOk) {
+      let tested = ''; try { tested = localStorage.getItem('holler.camtest2') || ''; } catch { /* */ }
+      if ((tested === '' || tested.startsWith('unsure')) && s.glOk) {
         setTimeout(async () => {
           if (!studio.current || studio.current.recording) return;
           const ok = await studio.current.selfTest();
-          try { localStorage.setItem('holler.camtest', ok ? 'ok' : 'simple'); } catch { /* */ }
-          if (!ok) {
+          const tries = Number(tested.split(':')[1] || 0) + 1;
+          // can't tell three times running: leave effects on
+          const verdict = ok === true ? 'ok' : ok === false ? 'simple' : tries >= 3 ? 'ok' : `unsure:${tries}`;
+          try { localStorage.setItem('holler.camtest2', verdict); } catch { /* */ }
+          if (verdict === 'simple') {
             const st = studio.current; st.goSimple();
             if (previewRef.current && !previewRef.current.contains(st.video)) { st.video.className = `raw-video ${st.facing === 'user' ? 'mirror' : ''}`; previewRef.current.appendChild(st.video); }
             setLook('none'); setText(''); st.strokes = [];
-            await api.updateMe({ prefs: { simple: true } }); void refresh(); toast('Your phone records best with Simple camera, so it is on. Change it in Settings.', undefined, 7000); }
+            setSimple(true); bump(x => x + 1); toast('Your phone records best with Simple camera, so it is on. Change it in Settings.', undefined, 7000); }
         }, 1500);
       }
     } catch (e) {
@@ -269,7 +273,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       {!recording && (
         <aside className="rail">
           <button className="rail-btn" onClick={() => void studio.current?.flip()} aria-label="Flip camera"><Icon name="flip" /><span>Flip</span></button>
-          {!prefs.simple && <>
+          {!isSimple() && <>
           <button className={`rail-btn ${panel === 'looks' ? 'on' : ''} ${look !== 'none' ? 'set' : ''}`} onClick={() => toggle('looks')}><Icon name="wand" /><span>Looks</span></button>
           <button className={`rail-btn ${panel === 'voice' ? 'on' : ''} ${voice !== 'none' ? 'set' : ''}`} onClick={() => toggle('voice')}><Icon name="mic" /><span>Voice</span></button>
           <button className={`rail-btn ${panel === 'draw' ? 'on' : ''} ${studio.current?.strokes.length ? 'set' : ''}`} onClick={() => toggle('draw')}><Icon name="pen" /><span>Draw</span></button>

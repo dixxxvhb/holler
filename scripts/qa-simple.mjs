@@ -21,5 +21,15 @@ await p.screenshot({ path: 'shots/20-review.png' });
 await p.click('.review-bar .btn.primary');
 await p.waitForSelector('.tile:not(.pending)', { timeout: 30000 });
 await p.screenshot({ path: 'shots/21-simple-sent.png' });
-console.log(JSON.stringify({ raw, looksHidden: looks === 0, errs }));
+// link a second device with the 6-letter code
+await p.goto(BASE + '#/settings'); await p.click('text=Use on another device');
+await p.waitForSelector('.sheet .code-big'); const lcode = (await p.textContent('.sheet .code-big')).trim();
+const p2 = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+p2.on('pageerror', e => errs.push('p2 ' + e.message));
+await p2.goto(BASE); await p2.click('text=I already have Holler');
+await p2.fill('#lc', lcode); await p2.click("text=That's me");
+await p2.waitForSelector('.chat-card', { timeout: 15000 });
+await p2.screenshot({ path: 'shots/22-linked-device.png' });
+const linked = { code: lcode, chats: await p2.locator('.chat-card').count(), me: await p2.getAttribute('.me-btn .av', 'title') };
+console.log(JSON.stringify({ raw, looksHidden: looks === 0, linked, errs }));
 await b.close();

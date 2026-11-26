@@ -215,8 +215,8 @@ export class Studio {
   }
 
   /** One second of silent canvas recording, decoded and checked for real pixels. Some phones record
-   *  black from a canvas; on those we fall back to the plain camera. Resolves true when it's safe. */
-  async selfTest(): Promise<boolean> {
+   *  black from a canvas; on those we fall back to the plain camera. true = safe, false = black, null = couldn't tell. */
+  async selfTest(): Promise<boolean | null> {
     if (!this.glOk || !this.canvas.captureStream || typeof MediaRecorder === 'undefined') return true;
     try {
       const avg = (src: CanvasImageSource, w: number, h: number) => {
@@ -237,12 +237,16 @@ export class Studio {
       const url = URL.createObjectURL(new Blob(chunks, { type: rec.mimeType || mime }));
       const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.src = url;
       try {
-        await new Promise<void>((res, rej) => { v.onloadeddata = () => res(); v.onerror = () => rej(new Error('decode')); setTimeout(() => rej(new Error('timeout')), 5000); });
-        v.currentTime = 0.6; await new Promise<void>(res => { v.onseeked = () => res(); setTimeout(res, 2000); });
-        const got = avg(v, v.videoWidth || 1, v.videoHeight || 1);
+        // iPhones won't load a video's frames until it plays, so play it (muted is always allowed)
+        const ready = new Promise<boolean>(res => { v.onplaying = () => res(true); v.onerror = () => res(false); setTimeout(() => res(false), 5000); });
+        v.play().catch(() => {});
+        if (!(await ready) || !v.videoWidth) return null;
+        await new Promise(r => setTimeout(r, 450));
+        v.pause();
+        const got = avg(v, v.videoWidth, v.videoHeight);
         return got > Math.min(10, live * 0.3);
       } finally { URL.revokeObjectURL(url); }
-    } catch { return false; }
+    } catch { return null; }
   }
 
   get recording() { return !!this.rec && this.rec.state === 'recording'; }

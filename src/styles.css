@@ -105,6 +105,8 @@ img { display: block; }
 @keyframes ring { 0% { transform: scale(.2); opacity: .9; } 100% { transform: scale(1); opacity: 0; } }
 .ob-card { background: var(--panel); border-radius: 26px; padding: 6px 20px 22px; }
 .ob-card .btn { margin-top: 22px; }
+.note.as-btn { display: block; width: 100%; text-align: left; font: inherit; font-weight: 700; cursor: pointer; }
+.ob-card .link-btn { display: block; margin: 12px auto 0; }
 .note { margin-top: 16px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--ink); font-weight: 600; font-size: 14px; }
 
 /* home */
@@ -131,6 +133,7 @@ img { display: block; }
 .hint { display: flex; gap: 10px; align-items: flex-start; padding: 14px 8px 14px 16px; margin-bottom: 14px; border-radius: 20px; background: color-mix(in srgb, var(--accent) 16%, var(--bg2)); }
 .hint div { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .hint span { color: var(--ink2); line-height: 1.4; }
+.hint .hint-code { font-family: ui-monospace, Menlo, monospace; font-size: 26px; font-weight: 800; letter-spacing: .16em; color: var(--accent); margin-top: 4px; }
 .empty { text-align: center; padding: 40px 12px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .empty h2 { font-size: 28px; }
 .empty .col { width: 100%; max-width: 320px; margin-top: 8px; }

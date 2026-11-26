@@ -8,6 +8,7 @@ import { speechSupported, isIOS } from '../lib/speech';
 import { enablePush, pushState } from '../lib/push';
 import { Avatar, COLORS, Sheet, toast } from './bits';
 import { Icon } from './icons';
+import { isSimple, setSimple } from '../lib/device';
 
 const LIMIT = 1024 ** 3; // the free storage room Holler shares
 
@@ -17,8 +18,9 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
   const prefs: Prefs = me.prefs || {};
   const [name, setName] = useState(me.name);
   const [local, setLocal] = useState(0);
-  const [link, setLink] = useState<{ url: string; qr: string } | null>(null);
+  const [link, setLink] = useState<{ url: string; qr: string; code: string } | null>(null);
   const [push, setPush] = useState<string>('');
+  const [simple, setSimpleS] = useState(isSimple());
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => { void cacheBytes().then(setLocal); void pushState().then(setPush); }, []);
 
@@ -40,9 +42,9 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
   };
 
   const makeLink = async () => {
-    const tok = await api.linkDevice();
+    const [tok, code] = await Promise.all([api.linkDevice(), api.linkCode()]);
     const url = `${location.origin}${location.pathname}#/link/${tok}`;
-    setLink({ url, qr: await QRCode.toDataURL(url, { margin: 1, width: 360 }) });
+    setLink({ url, code, qr: await QRCode.toDataURL(url, { margin: 1, width: 360 }) });
   };
 
   const used = home!.usage.bytes;
@@ -72,7 +74,7 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
         <Toggle label="HD video" hint="Sharper, about 2.5x the size. Up to 2.5 minutes." on={!!prefs.hd} set={v => void set({ hd: v })} />
         <Toggle label="Live captions" hint={speechSupported() && !isIOS() ? 'Writes down what you say so others can read along and search.' : 'Not available in this browser. Works in Chrome on Android and computers.'} on={prefs.captions !== false} set={v => void set({ captions: v })} />
         <Toggle label="Look before sending" hint="See your holler and choose Send or Retake. Off means it sends the moment you stop, with a few seconds to undo." on={!!prefs.review} set={v => void set({ review: v })} />
-        <Toggle label="Simple camera" hint="Turns off looks, drawing and text on video. Use it if recordings come out black or choppy on your phone." on={!!prefs.simple} set={v => void set({ simple: v })} />
+        <Toggle label="Simple camera" hint="Turns off looks, drawing and text on video, on this device only. Use it if recordings come out black or choppy." on={simple} set={v => { setSimple(v); setSimpleS(v); }} />
         <Row label="Default look"><select className="field sel" value={prefs.look || 'none'} onChange={e => void set({ look: e.target.value })}>{LOOKS.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}</select></Row>
         <Row label="Default voice"><select className="field sel" value={prefs.voice || 'none'} onChange={e => void set({ voice: e.target.value })}>{VOICES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}</select></Row>
       </section>
@@ -114,8 +116,12 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
 
       <Sheet open={!!link} onClose={() => setLink(null)} title="Use on another device">
         {link && <>
+          <div className="lbl">On the other device, tap "I already have Holler" and enter</div>
+          <div className="code-big center">{link.code}</div>
+          <p className="fine center">Good for 30 minutes. This is the way to do it for a Home Screen app on iPhone.</p>
+          <div className="lbl">Or scan this with the other device's camera</div>
           <img className="qr center-block" src={link.qr} alt="Device link QR code" />
-          <p className="fine">Scan this with the other device's camera, or send yourself the link. Anyone with this link can act as you, so keep it to yourself.</p>
+          <p className="fine">Anyone with this code or link can act as you, so keep them to yourself.</p>
           <button className="btn wide" onClick={async () => { try { await navigator.clipboard.writeText(link.url); toast('Copied'); } catch { toast(link.url, undefined, 10000); } }}>Copy link</button>
         </>}
       </Sheet>

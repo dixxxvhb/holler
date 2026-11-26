@@ -138,6 +138,6 @@ await B.goto(BASE + '#/saved');
 await B.waitForTimeout(1500);
 await shot(B, '16-B-saved');
 
-const camtest = { A: await A.evaluate(() => localStorage.getItem('holler.camtest')), B: await B.evaluate(() => localStorage.getItem('holler.camtest')) };
+const camtest = { A: await A.evaluate(() => localStorage.getItem('holler.camtest2')), B: await B.evaluate(() => localStorage.getItem('holler.camtest2')) };
 console.log(JSON.stringify({ camtest, code, bSawRecordingBanner: bRec, bBannerAfterStop: bBannerAfter, aTiles, errors: errs.slice(0, 20) }, null, 1));
 await b.close();
