@@ -27,7 +27,7 @@ const back = async p => { while (await p.locator('.g-page .g-back').count()) { a
 const openTile = async (p, name, nth = 0) => { await back(p); await p.locator(`.g-tile:has-text("${name}")`).nth(nth).click(); await p.waitForSelector('.g-page'); await p.waitForTimeout(800); };
 const status = p => p.textContent('.d-status').then(t => t.trim());
 const waitStatus = async (p, txt) => { await p.waitForFunction(t => document.querySelector('.d-status')?.textContent?.includes(t), txt, { timeout: 20000 }); };
-const play = async (p, name) => { await back(p); await p.click('.g-play-tile'); await p.waitForSelector('.g-opt'); await p.waitForTimeout(450); await p.click(`.g-opt:has-text("${name}")`); await p.waitForTimeout(500); };
+const play = async (p, name) => { await back(p); await p.click('.g-play-tile'); await p.waitForSelector('.g-opt'); await p.waitForTimeout(450); await p.locator('.g-opt').filter({ has: p.locator(`b:text-is("${name}")`) }).click(); await p.waitForTimeout(500); };
 
 try {
   step('two people, one chat');

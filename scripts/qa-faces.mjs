@@ -22,7 +22,7 @@ const checks = [];
 const check = (ok, what) => { checks.push([ok, what]); console.log(ok ? '  ok ' : '  FAIL', what); };
 const back = async p => { while (await p.locator('.g-page .g-back').count()) { await p.click('.g-page .g-back'); await p.waitForTimeout(400); } };
 const openTile = async (p, name) => { await back(p); await p.locator(`.g-tile:has-text("${name}")`).first().click(); await p.waitForSelector('.g-page'); await p.waitForTimeout(900); };
-const play = async (p, name) => { await back(p); await p.click('.g-play-tile'); await p.waitForSelector('.g-opt'); await p.waitForTimeout(450); await p.click(`.g-opt:has-text("${name}")`); await p.waitForTimeout(500); };
+const play = async (p, name) => { await back(p); await p.click('.g-play-tile'); await p.waitForSelector('.g-opt'); await p.waitForTimeout(450); await p.locator('.g-opt').filter({ has: p.locator(`b:text-is("${name}")`) }).click(); await p.waitForTimeout(500); };
 
 const spotGo = async (p, i) => {
   await p.waitForSelector('.g-banner:has-text("Three questions")'); await shot(p, `02-${N[i]}-spot-ready`);

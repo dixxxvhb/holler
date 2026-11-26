@@ -692,7 +692,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           {recording ? <div className="timer">{clock(elapsed)}</div> : <div className="side-btn ghost" />}
         </div>
         {recording && <div className="rec-hint">{fixedTurn && turn ? `Sends itself at ${turn.turnSec} seconds` : turn?.kind === 'spot' ? 'Tap your answers. It sends itself after the third.' : turn ? 'Tap to send your answer' : held ? 'Let go to send' : paused ? 'Paused. Tap Resume to keep going, or tap to send.' : 'Tap to send'}</div>}
-        {turn && !recording && <div className="rec-hint">{turn.kind === 'poker' ? 'Tap record and give your answer' : turn.kind === 'charades' || roleOf(turn) === 'act' ? 'Tap record and act it out' : roleOf(turn) === 'guess' ? 'Tap record and say your guess' : 'Tap record and copy it'}</div>}
+        {turn && !recording && <div className="rec-hint">{turn.kind === 'poker' ? 'Tap record and give your answer' : turn.kind === 'spot' ? 'Tap record. Your first question shows right away.' : turn.kind === 'laugh' ? 'Tap record and make them laugh' : turn.kind === 'charades' || roleOf(turn) === 'act' ? 'Tap record and act it out' : roleOf(turn) === 'guess' ? 'Tap record and say your guess' : 'Tap record and copy it'}</div>}
         {countdown > 0 && <div className="rec-hint">Tap to call it off</div>}
       </div>
 
