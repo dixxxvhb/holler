@@ -180,6 +180,8 @@ export class Studio {
   }
 
   markDirty() { this.ovDirty = true; }
+  /** Switch to the plain camera right now (no effects). */
+  goSimple() { this.simple = true; this.glOk = false; }
 
   private draw() {
     const v = this.video; const gl = this.gl;
@@ -210,6 +212,37 @@ export class Studio {
       const a = new Uint8Array(this.analyser.fftSize); this.analyser.getByteTimeDomainData(a);
       let m = 0; for (const x of a) m = Math.max(m, Math.abs(x - 128)); this.onLevel(m / 128);
     }
+  }
+
+  /** One second of silent canvas recording, decoded and checked for real pixels. Some phones record
+   *  black from a canvas; on those we fall back to the plain camera. Resolves true when it's safe. */
+  async selfTest(): Promise<boolean> {
+    if (!this.glOk || !this.canvas.captureStream || typeof MediaRecorder === 'undefined') return true;
+    try {
+      const avg = (src: CanvasImageSource, w: number, h: number) => {
+        const c = document.createElement('canvas'); c.width = 32; c.height = 32;
+        const g = c.getContext('2d')!; g.drawImage(src, 0, 0, w, h, 0, 0, 32, 32);
+        const d = g.getImageData(0, 0, 32, 32).data; let sum = 0; for (let i = 0; i < d.length; i += 4) sum += d[i] + d[i + 1] + d[i + 2];
+        return sum / (32 * 32 * 3);
+      };
+      const live = avg(this.canvas, this.canvas.width, this.canvas.height);
+      if (live < 12) return true; // camera itself is dark (lens covered): can't judge
+      const { mime } = pickMime('video');
+      const cs = this.canvas.captureStream(30);
+      const rec = new MediaRecorder(cs, mime ? { mimeType: mime } : undefined);
+      const chunks: Blob[] = []; rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+      rec.start(300); await new Promise(r => setTimeout(r, 1300));
+      await new Promise<void>(r => { rec.onstop = () => r(); rec.stop(); });
+      cs.getTracks().forEach(t => t.stop());
+      const url = URL.createObjectURL(new Blob(chunks, { type: rec.mimeType || mime }));
+      const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.src = url;
+      try {
+        await new Promise<void>((res, rej) => { v.onloadeddata = () => res(); v.onerror = () => rej(new Error('decode')); setTimeout(() => rej(new Error('timeout')), 5000); });
+        v.currentTime = 0.6; await new Promise<void>(res => { v.onseeked = () => res(); setTimeout(res, 2000); });
+        const got = avg(v, v.videoWidth || 1, v.videoHeight || 1);
+        return got > Math.min(10, live * 0.3);
+      } finally { URL.revokeObjectURL(url); }
+    } catch { return false; }
   }
 
   get recording() { return !!this.rec && this.rec.state === 'recording'; }
@@ -259,7 +292,19 @@ export class Studio {
   }
 
   snapshot(q = 0.72): Promise<Blob | null> {
-    return new Promise(res => { try { this.canvas.toBlob(b => res(b), 'image/jpeg', q); } catch { res(null); } });
+    let src: HTMLCanvasElement = this.canvas;
+    if (!this.glOk) {
+      // plain camera: cover-crop a frame from the video itself
+      const v = this.video; const { w, h } = this.size;
+      if (!v.videoWidth) return Promise.resolve(null);
+      const c = document.createElement('canvas'); c.width = w / 2; c.height = h / 2;
+      const s = Math.max(c.width / v.videoWidth, c.height / v.videoHeight);
+      const g = c.getContext('2d')!;
+      if (this.facing === 'user') { g.translate(c.width, 0); g.scale(-1, 1); }
+      g.drawImage(v, (c.width - v.videoWidth * s) / 2, (c.height - v.videoHeight * s) / 2, v.videoWidth * s, v.videoHeight * s);
+      src = c;
+    }
+    return new Promise(res => { try { src.toBlob(b => res(b), 'image/jpeg', q); } catch { res(null); } });
   }
 
   async stop(): Promise<Recording | null> {

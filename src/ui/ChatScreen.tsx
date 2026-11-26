@@ -81,6 +81,20 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       s.onLevel = v => setLevel(v);
       if (!s.glOk && previewRef.current && !previewRef.current.contains(s.video)) { s.video.className = `raw-video ${s.facing === 'user' ? 'mirror' : ''}`; previewRef.current.appendChild(s.video); }
       setCamState('on');
+      // once per device: make sure effects actually record; if not, quietly use the plain camera
+      let tested = false; try { tested = !!localStorage.getItem('holler.camtest'); } catch { /* */ }
+      if (!tested && s.glOk) {
+        setTimeout(async () => {
+          if (!studio.current || studio.current.recording) return;
+          const ok = await studio.current.selfTest();
+          try { localStorage.setItem('holler.camtest', ok ? 'ok' : 'simple'); } catch { /* */ }
+          if (!ok) {
+            const st = studio.current; st.goSimple();
+            if (previewRef.current && !previewRef.current.contains(st.video)) { st.video.className = `raw-video ${st.facing === 'user' ? 'mirror' : ''}`; previewRef.current.appendChild(st.video); }
+            setLook('none'); setText(''); st.strokes = [];
+            await api.updateMe({ prefs: { simple: true } }); void refresh(); toast('Your phone records best with Simple camera, so it is on. Change it in Settings.', undefined, 7000); }
+        }, 1500);
+      }
     } catch (e) {
       console.warn(e); setCamState('denied');
     }
