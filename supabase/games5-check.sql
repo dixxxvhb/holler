@@ -515,6 +515,5 @@ begin
   -- older games still go through the dispatchers
   g := public.holler_game_start2(ta, chat, 'ttt', array[ida, idb], '{}');
   assert g->>'board' = '.........', 'ttt still starts';
-  raise notice 'GAMES5 CHECK PASSED';
+  raise exception 'GAMES5 CHECK PASSED (nothing kept)';
 end $$;
-rollback;
