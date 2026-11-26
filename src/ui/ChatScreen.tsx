@@ -317,8 +317,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     if (rec.duration < 1) { toast('Too short. Tap once to start, tap again to send.'); return; }
     if (rec.blob.size < 1000) { toast('That one came out empty. Please try again.'); return; }
     // drawings are one-shot: clear them after a send (a Charades drawing used to stay on for the next holler)
-    // text on the picture is one-shot too, or it rides along on every holler after
-    const clearInk = () => { if (s.strokes.length) { s.strokes = []; s.markDirty(); bump(x => x + 1); } setText(''); };
+    // text on the picture stays on until you remove it (Dixon's call, 11-26)
+    const clearInk = () => { if (s.strokes.length) { s.strokes = []; s.markDirty(); bump(x => x + 1); } };
     if (turn) {
       clearInk();
       if (turn.kind === 'passiton' && roleOf(turn) === 'guess') { setGuessRec({ rec, segs, text: segs.map(x => x.text).join(' ').trim().slice(0, 200) }); return; }
