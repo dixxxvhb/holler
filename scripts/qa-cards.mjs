@@ -104,6 +104,38 @@ try {
   const logTxt = await A.locator('.lc-page').textContent();
   check(/played|drew/.test(logTxt), 'the table says what happened');
 
+  step('stacking on');
+  await back(A); await A.click('.g-play-tile'); await A.waitForSelector('.g-opt'); await A.waitForTimeout(450);
+  await A.locator('.g-opt').filter({ has: A.locator('b:text-is("Last Card")') }).click(); await A.waitForTimeout(500);
+  check(await A.locator('.sheet .lbl:text-is("Stacking")').count() === 1, 'stacking choice in the deal sheet');
+  await A.locator('.sheet .seg button:text-is("On")').click(); await A.waitForTimeout(200); await shot(A, '11-stack-start');
+  await A.click('.btn.g-go:has-text("Deal")'); await A.waitForSelector('.lc-page'); await A.waitForTimeout(900);
+  check((await A.textContent('.g-foot')).includes('Stacking is on'), 'the table says stacking is on');
+  for (const p of [B, C]) {
+    await back(p); await p.waitForSelector('.g-tile:not(.over):has-text("Last Card")', { timeout: 20000 });
+    await p.locator('.g-tile:not(.over):has-text("Last Card")').first().click(); await p.waitForSelector('.lc-page'); await p.waitForTimeout(700);
+  }
+  let sawOwe = 0, sawTake = false, sawStacked = false, won2 = null;
+  for (let m = 0; m < 200; m++) {
+    let up = null;
+    for (const k of Object.keys(pages)) { if (await pages[k].locator('.d-status.mine').count()) { up = k; break; } }
+    if (!up) { if (await A.locator('.d-status:has-text("won")').count()) { won2 = await status(A); break; } await A.waitForTimeout(800); continue; }
+    const p = pages[up];
+    if (await p.locator('.lc-owe').count()) {
+      if (!sawOwe++) await shot(p, `12-${up}-stacked-on-me`);
+      const st = await status(p); if (!st.startsWith('Stack or take')) check(false, 'status says stack or take: ' + st);
+    }
+    await turn(p, up, shots); await p.waitForTimeout(900);
+    const txt = await p.locator('.lc-page').textContent();
+    if (/took the stack/.test(txt)) sawTake = true;
+    if (/is stacked on/.test(txt)) sawStacked = true;
+    if (await p.locator('.d-status:has-text("won")').count()) { won2 = await status(p); break; }
+  }
+  console.log(`  (stacks waited on someone ${sawOwe} times; ${won2 || 'no winner'})`);
+  check(sawOwe > 0 && sawStacked, 'a Draw card waited as a stack instead of hitting straight away');
+  check(sawTake, 'someone took a stack');
+  check(!!won2, 'the stacking game finished');
+
   step('two people, then one leaves');
   await back(A); await A.click('.g-play-tile'); await A.waitForSelector('.g-opt'); await A.waitForTimeout(450);
   await A.locator('.g-opt').filter({ has: A.locator('b:text-is("Last Card")') }).click(); await A.waitForTimeout(500);

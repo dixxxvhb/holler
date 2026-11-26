@@ -526,3 +526,6 @@ button.g-pip-lab { border: 0; cursor: pointer; }
 .lc-log { list-style: none; margin: 6px 0 0; padding: 10px 0 0; border-top: 1px solid var(--seam); display: flex; flex-direction: column; gap: 6px; }
 .lc-log li { font-size: 13.5px; color: var(--chalk-2); line-height: 1.35; }
 .lc-log time { color: var(--chalk-3); font: 500 11.5px/1 var(--mono); margin-left: 4px; }
+.lc-pile { position: relative; }
+.lc-owe { position: absolute; top: -12px; right: -18px; z-index: 2; font: 400 18px/1 var(--display); padding: 7px 10px; border-radius: var(--r-pill);
+  background: var(--chalk); color: var(--on-color); box-shadow: 0 4px 10px rgba(0, 0, 0, .4); transform: rotate(8deg); animation: d-pop var(--t-base) var(--ease-out); }

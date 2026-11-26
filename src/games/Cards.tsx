@@ -16,6 +16,8 @@ const ORDER = 'rygbx', VALUES = '0123456789srdwf';
 
 export const cardName = (c: string) => c[0] === 'x' ? VALUE_NAME[c[1]] : `${COLOR_NAME[c[0]]} ${VALUE_NAME[c[1]] || c[1]}`;
 export const fits = (c: string, top: string, color: string) => c[0] === 'x' || c[0] === color || (top[0] !== 'x' && c[1] === top[1]);
+/** With a stack waiting on you, only another draw card goes on it: +2 on a +2, a +4 on either. */
+export const stacks = (c: string, top: string) => c === 'xf' || (c[1] === 'd' && top[1] === 'd');
 const sortHand = (h: string[]) => [...h].sort((a, b) => ORDER.indexOf(a[0]) - ORDER.indexOf(b[0]) || VALUES.indexOf(a[1]) - VALUES.indexOf(b[1]));
 
 // ---------------------------------------------------------------- one card
@@ -50,6 +52,7 @@ export function CardStart({ open, onClose, chat, me, onStarted }: {
   const others = useMemo(() => chat.members.filter(m => m.id !== me.id), [chat.members, me.id]);
   const [pick, setPick] = useState<string[]>([]);
   const [meFirst, setMeFirst] = useState(true);
+  const [stack, setStack] = useState(() => { try { return localStorage.getItem('holler.lastcard.stack') === '1'; } catch { return false; } });
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (open) setPick(others.slice(0, 5).map(o => o.id)); }, [open, others]);
   const toggle = (id: string) => setPick(p => (p.includes(id) ? p.filter(x => x !== id) : p.length >= 5 ? p : [...p, id]));
@@ -58,7 +61,8 @@ export function CardStart({ open, onClose, chat, me, onStarted }: {
     try {
       const rest = shuffle(pick);
       const order = meFirst ? [me.id, ...rest] : shuffle([me.id, ...rest]);
-      const g = await api.cardStart(chat.id, order);
+      const g = await api.cardStart(chat.id, order, { stack });
+      try { localStorage.setItem('holler.lastcard.stack', stack ? '1' : '0'); } catch { /* private mode */ }
       liveSend(chat.id, 'chat', { game: g.id });
       onStarted(g);
     } catch (e) { toast((e as Error).message); }
@@ -79,6 +83,14 @@ export function CardStart({ open, onClose, chat, me, onStarted }: {
         <button className={meFirst ? 'on' : ''} onClick={() => setMeFirst(true)}>Me</button>
         <button className={!meFirst ? 'on' : ''} onClick={() => setMeFirst(false)}>Random</button>
       </div>
+      <span className="lbl">Stacking</span>
+      <div className="seg g-seg">
+        <button className={!stack ? 'on' : ''} onClick={() => setStack(false)}>Off</button>
+        <button className={stack ? 'on' : ''} onClick={() => setStack(true)}>On</button>
+      </div>
+      <p className="g-meta">{stack
+        ? 'Hit with a Draw Two or Draw Four? Stack another one on it and pass the pile along, or take the lot. +2 goes on +2, +4 goes on either.'
+        : 'Draw Twos and Draw Fours hit the next person straight away.'}</p>
       <button className="btn g-go wide" disabled={busy || pick.length < 1} onClick={() => void start()}>Deal</button>
     </Sheet>
   );
@@ -89,12 +101,15 @@ export function describe(ev: CardEvent, name: (id: string) => string): string {
   const who = name(ev.who);
   if (ev.kind === 'draw') return `${who} drew a card`;
   if (ev.kind === 'keep') return `${who} drew and kept it`;
+  if (ev.kind === 'take') return `${who} took the stack, ${ev.n} cards`;
   if (ev.kind === 'idle') return `${who} went 2 days without a turn, so drew one and got passed`;
   if (ev.kind === 'left') return `${who} left the game`;
   let s = `${who} played ${ev.card ? cardName(ev.card) : 'a card'}`;
   if (ev.card?.[0] === 'x' && ev.color) s += ` and picked ${COLOR_NAME[ev.color]}`;
-  if (ev.skip) s += `. ${name(ev.skip)} is skipped`;
-  if (ev.hit) s += `. ${name(ev.hit)} draws ${ev.n ?? ''} and is skipped`;
+  const you = (id: string) => name(id) === 'You';
+  if (ev.skip) s += you(ev.skip) ? '. You are skipped' : `. ${name(ev.skip)} is skipped`;
+  if (ev.stack) s += `. +${ev.n} is stacked on ${you(ev.stack) ? 'you' : name(ev.stack)}`;
+  if (ev.hit) s += you(ev.hit) ? `. You draw ${ev.n ?? ''} and are skipped` : `. ${name(ev.hit)} draws ${ev.n ?? ''} and is skipped`;
   if (ev.called) s += '. Last card!';
   if (ev.forgot) s += `. Forgot to call Last card, so drew ${ev.forgot}`;
   return s;
@@ -126,28 +141,29 @@ export function CardPage({ game, chat, me, onClose, onChanged, onRematch }: {
     setBusy(false);
   };
   const move = (m: CardMove, after?: (g: Game) => void) => void act(() => api.cardMove(game.id, game.version, m), after);
-  const canPlay = (c: string) => myTurn && !busy && (game.drawn ? c === game.drawn : fits(c, top, color));
+  const owe = game.owe || 0;
+  const canPlay = (c: string) => myTurn && !busy && (owe > 0 ? stacks(c, top) : game.drawn ? c === game.drawn : fits(c, top, color));
   const play = (c: string) => {
-    if (!canPlay(c)) { if (myTurn) toast(game.drawn ? 'After a draw you can only play the card you drew.' : `That doesn't go on ${cardName(top)}${top[0] === 'x' ? ` (${COLOR_NAME[color]})` : ''}.`); return; }
+    if (!canPlay(c)) { if (myTurn) toast(owe > 0 ? `${owe} cards are stacked on you. Stack a ${top[1] === 'd' ? 'Draw Two or Draw Four' : 'Draw Four'}, or tap the deck to take them.` : game.drawn ? 'After a draw you can only play the card you drew.' : `That doesn't go on ${cardName(top)}${top[0] === 'x' ? ` (${COLOR_NAME[color]})` : ''}.`); return; }
     if (c[0] === 'x') { setWild(c); return; }
     move({ play: c, last: call || undefined });
   };
-  const draw = () => move({ draw: true }, g => { if (g.turnPerson !== me.id) toast('No match. Your turn passed.'); });
+  const draw = () => move({ draw: true }, g => { if (owe > 0) toast(`You took ${owe}.`); else if (g.turnPerson !== me.id) toast('No match. Your turn passed.'); });
   const rematch = async () => {
     setBusy(true);
     try {
-      const g = await api.cardStart(chat.id, [...game.order.slice(1), game.order[0]]);
+      const g = await api.cardStart(chat.id, [...game.order.slice(1), game.order[0]], { stack: !!game.stack });
       liveSend(chat.id, 'chat', { game: g.id }); onRematch(g);
     } catch (e) { toast((e as Error).message); }
     setBusy(false);
   };
 
   const counts = game.counts || {};
-  const anyFit = hand.some(c => fits(c, top, color));
+  const anyFit = hand.some(c => (owe > 0 ? stacks(c, top) : fits(c, top, color)));
   const status = !playing
     ? game.result === 'idle' ? 'Ended. Nobody went for a week.'
       : game.winner === me.id ? 'You won' : game.winner ? `${first(person(game.winner))} won` : 'Game over'
-    : myTurn ? (game.drawn ? 'Play it or keep it' : 'Your turn') : `${first(person(game.turnPerson || ''))}'s turn`;
+    : myTurn ? (owe > 0 ? `Stack or take ${owe}` : game.drawn ? 'Play it or keep it' : 'Your turn') : `${first(person(game.turnPerson || ''))}'s turn`;
   const log = [...(game.log || [])].reverse();
 
   return (
@@ -172,10 +188,11 @@ export function CardPage({ game, chat, me, onClose, onChanged, onRematch }: {
         <button className={`lc-deck ${myTurn && !game.drawn && !busy ? 'go' : ''}`} disabled={!myTurn || !!game.drawn || busy} onClick={draw}
           aria-label={`Draw a card. ${game.deckLeft ?? 0} left in the deck`}>
           <span className="lc-back" /><span className="lc-back" /><span className="lc-back" />
-          <em>{myTurn && !game.drawn ? 'Draw' : `${game.deckLeft ?? 0} left`}</em>
+          <em>{myTurn && owe > 0 ? `Take ${owe}` : myTurn && !game.drawn ? 'Draw' : `${game.deckLeft ?? 0} left`}</em>
         </button>
         <div className="lc-pile">
           <PlayCard key={`${top}-${game.moves}`} code={top} big wildColor={top[0] === 'x' ? color : undefined} />
+          {playing && owe > 0 && <span className="lc-owe">+{owe} stacked</span>}
           <span className={`lc-now c-${color}`}>{COLOR_NAME[color]}</span>
         </div>
       </div>
@@ -198,7 +215,7 @@ export function CardPage({ game, chat, me, onClose, onChanged, onRematch }: {
             <button className="btn g-go" disabled={busy} onClick={() => play(game.drawn!)}>Play {cardName(game.drawn)}</button>
           </div>
         )}
-        {myTurn && !game.drawn && !anyFit && <p className="g-meta lc-hint">Nothing fits. Tap the deck to draw.</p>}
+        {myTurn && !game.drawn && !anyFit && <p className="g-meta lc-hint">{owe > 0 ? `Nothing to stack. Tap the deck to take ${owe}.` : 'Nothing fits. Tap the deck to draw.'}</p>}
       </>)}
 
       {!playing && game.hands && (
@@ -225,7 +242,7 @@ export function CardPage({ game, chat, me, onClose, onChanged, onRematch }: {
         </ol>
       )}
       <p className="g-foot">{playing
-        ? 'Down to one card? Call Last card before you play, or you draw two. Anyone who waits 2 days draws one and gets passed. A week with no turns ends it.'
+        ? `${game.stack ? 'Stacking is on: +2 goes on +2, +4 goes on either, or take the lot. ' : ''}Down to one card? Call Last card before you play, or you draw two. Anyone who waits 2 days draws one and gets passed. A week with no turns ends it.`
         : `Finished ${game.endedAt ? ago(game.endedAt) : ''}.`}</p>
       {playing && inGame && (
         <button className="link-btn g-endgame" disabled={busy} onClick={() => { if (!sure) { setSure(true); setTimeout(() => setSure(false), 4000); return; } void act(() => api.cardLeave(game.id)); }}>

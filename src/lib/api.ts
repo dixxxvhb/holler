@@ -42,6 +42,8 @@ export type Game = {
   // Last Card (your own hand only; everyone's shows once it's over)
   top?: string; color?: string; dir?: number; log?: CardEvent[]; counts?: Record<string, number>; hand?: string[] | null;
   drawn?: string | null; deckLeft?: number; hands?: Record<string, string[]> | null;
+  /** stacking is on for this game; owe = cards waiting on whoever is up */
+  stack?: boolean; owe?: number;
   // Seven Letters and Trivia
   began?: boolean; beganAt?: string | null; played?: string[]; rack?: string | null; qids?: string[] | null;
   myPlay?: QuickPlay | null; plays?: Record<string, QuickPlay> | null;
@@ -54,8 +56,8 @@ export type LaughWatch = { done?: boolean; cracked?: number | null; at?: string;
 export type LaughAct = { who: string; at: string; clip: Polo | null; mine: LaughWatch | null; results: Record<string, LaughWatch> | null };
 export const laughActs = (g: Game) => (g.acts || []) as unknown as LaughAct[];
 export type GameKind = 'passiton' | 'poker' | 'charades' | 'ttt' | 'checkers' | 'words' | 'trivia' | 'spot' | 'laugh' | 'lastcard';
-export type CardEvent = { who: string; kind: 'play' | 'draw' | 'keep' | 'idle' | 'left'; at: string; card?: string; color?: string;
-  skip?: string; hit?: string; n?: number; forgot?: number; called?: boolean };
+export type CardEvent = { who: string; kind: 'play' | 'draw' | 'keep' | 'take' | 'idle' | 'left'; at: string; card?: string; color?: string;
+  skip?: string; stack?: string; hit?: string; n?: number; forgot?: number; called?: boolean };
 export type CardMove = { play: string; color?: string; last?: boolean } | { draw: true } | { pass: true };
 export type QuickPlay = { at: string; words?: string[]; answers?: { pick: number; ms: number }[] };
 export type CharadesGuess = { tries: number; ok: boolean; done: boolean; t: number | null; text?: string; at: string };
@@ -113,7 +115,7 @@ export const api = {
     rpc<Game>('holler_game_move', { p_game: id, p_version: version, p_move: move }),
   gameLaughed: (id: string, actor: string, cracked: number | null) =>
     rpc<Game>('holler_game_laughed', { p_game: id, p_actor: actor, p_cracked: cracked }),
-  cardStart: (chat: string, order: string[]) => rpc<Game>('holler_card_start', { p_chat: chat, p_order: order }),
+  cardStart: (chat: string, order: string[], opts: { stack?: boolean } = {}) => rpc<Game>('holler_card_start', { p_chat: chat, p_order: order, p_opts: opts }),
   cardMove: (id: string, version: number, move: CardMove) => rpc<Game>('holler_card_move', { p_game: id, p_version: version, p_move: move }),
   cardLeave: (id: string) => rpc<Game>('holler_card_leave', { p_game: id }),
   gameResign: (id: string) => rpc<Game>('holler_game_resign', { p_game: id }),
