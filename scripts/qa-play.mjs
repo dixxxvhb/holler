@@ -33,7 +33,7 @@ try {
   await shot(A, '01-strip-play-tile');
 
   step('A records with a card');
-  await A.click('.g-play-tile'); await A.waitForSelector('.g-opt'); await shot(A, '02-play-sheet');
+  await A.click('.g-play-tile'); await A.waitForSelector('.g-opt'); await A.waitForTimeout(450); await shot(A, '02-play-sheet');
   await A.click('.g-opt:has-text("Give me a card")');
   await A.waitForSelector('.g-cardtools'); await A.waitForTimeout(600); await shot(A, '03-card-on');
   await A.click('.g-cardtools .chip:has-text("Guess")'); await A.waitForTimeout(300);
@@ -42,7 +42,7 @@ try {
 
   step('B answers the card');
   await B.waitForSelector('.new-pill', { timeout: 20000 }); await B.click('.new-pill', { force: true });
-  await B.waitForSelector('.g-cardans'); await shot(B, '05-B-answer-card');
+  await B.waitForSelector('.g-cardans'); await B.waitForTimeout(450); await shot(B, '05-B-answer-card');
   await B.click('.g-cardans'); await B.waitForTimeout(800);
   check(await B.locator('.rail-btn:has-text("Card")').count() === 1, 'answering puts the same card on');
   await send(B); await B.waitForTimeout(7000);
@@ -68,7 +68,7 @@ try {
 
   step('Pass It On: A starts and acts');
   await A.click('.g-play-tile'); await A.click('.g-opt:has-text("Pass It On")');
-  await A.waitForSelector('.g-secret'); await A.click('.g-seg button:has-text("5 sec")'); await shot(A, '12-start-sheet');
+  await A.waitForSelector('.g-secret'); await A.click('.g-seg button:has-text("5 sec")'); await A.waitForTimeout(450); await shot(A, '12-start-sheet');
   await A.click('.btn.g-go:has-text("Start")'); await A.waitForSelector('.g-banner'); await shot(A, '13-A-turn');
   check(await A.locator('.g-secret-mini').count() === 1, 'starter sees the phrase over the camera');
   await A.click('.rec'); await A.waitForTimeout(2500); await shot(A, '14-A-acting');
@@ -87,9 +87,9 @@ try {
     const role = k === 0 ? 'copy' : 'guess';
     step(`${n} takes a turn (${role})`);
     await shot(p, `16-${n}-your-turn`);
-    await p.click('.g-tile.turn'); await p.waitForSelector('.g-page'); await shot(p, `17-${n}-game-page`);
+    await p.click('.g-tile.turn'); await p.waitForSelector('.g-page'); await p.waitForTimeout(450); await shot(p, `17-${n}-game-page`);
     check(await p.locator('.g-lock').count() >= 1, `${n}: earlier clips are locked`);
-    await p.click('.g-page .btn.g-go'); await p.waitForSelector('.g-look-card'); await shot(p, `18-${n}-one-look`);
+    await p.click('.g-page .btn.g-go'); await p.waitForSelector('.g-look-card'); await p.waitForTimeout(450); await shot(p, `18-${n}-one-look`);
     await p.click('.g-bigplay'); await p.waitForTimeout(1200); await shot(p, `18b-${n}-looking`);
     await p.waitForSelector('.g-banner', { timeout: 30000 }); await shot(p, `18c-${n}-copy-banner`);
     await p.click('.rec'); await p.waitForTimeout(6500);

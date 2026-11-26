@@ -189,7 +189,7 @@ export class Studio {
     const t = this.text;
     if (t && t.text.trim()) {
       const scale = W / 540; const y = t.y * H;
-      const font = t.style === 'type' ? `600 ${30 * scale}px ui-monospace, Menlo, monospace` : `800 ${t.style === 'bold' ? 52 * scale : 34 * scale}px "Bricolage Grotesque", system-ui, sans-serif`;
+      const font = t.style === 'type' ? `700 ${30 * scale}px "Chivo Mono", ui-monospace, Menlo, monospace` : t.style === 'bold' ? `400 ${52 * scale}px "Tilt Warp", "Arial Black", system-ui, sans-serif` : `700 ${34 * scale}px Figtree, system-ui, sans-serif`;
       c.font = font; c.textAlign = 'center'; c.textBaseline = 'middle';
       const lines = wrap(c, t.text.trim(), W * 0.84);
       const lh = (t.style === 'bold' ? 58 : 42) * scale;
@@ -210,20 +210,19 @@ export class Studio {
     const k = this.card;
     if (k) {
       // phones crop the sides of the 9:16 frame and the side rail covers the right, so keep the card left of centre
-      const s = W / 540, x = 0.12 * W, y = 150 * s, w = 0.64 * W, pad = 20 * s;
+      const s = W / 540, x = 0.12 * W, y = 190 * s, w = 0.64 * W, pad = 20 * s;
       c.save(); c.translate(x + w / 2, y); c.rotate(-0.03); c.translate(-(x + w / 2), -y);
       c.textAlign = 'left'; c.textBaseline = 'alphabetic';
-      c.font = `800 ${32 * s}px "Bricolage Grotesque", system-ui, sans-serif`;
+      c.font = `400 ${32 * s}px "Tilt Warp", "Arial Black", system-ui, sans-serif`;
       const lines = wrap(c, k.text, w - pad * 2).slice(0, 6);
       const lh = 35 * s, h = pad + 22 * s + 14 * s + lines.length * lh + 34 * s + pad * 0.6;
-      c.shadowColor = 'rgba(0,0,0,.45)'; c.shadowBlur = 30 * s; c.shadowOffsetY = 10 * s;
-      c.fillStyle = '#fbf3ec'; roundRect(c, x, y, w, h, 34 * s); c.fill();
-      c.shadowBlur = 0; c.shadowOffsetY = 0;
-      c.fillStyle = '#ff6a3d'; c.font = `800 ${17 * s}px "DM Sans", system-ui, sans-serif`;
+      c.fillStyle = '#f7f6fb'; roundRect(c, x, y, w, h, 18 * s); c.fill();
+      c.lineWidth = 3 * s; c.strokeStyle = '#15121c'; c.stroke();
+      c.fillStyle = 'rgba(21,18,28,.72)'; c.font = `700 ${17 * s}px Figtree, system-ui, sans-serif`;
       c.fillText(k.label.toUpperCase().split('').join(String.fromCharCode(8202)), x + pad, y + pad + 16 * s);
-      c.fillStyle = '#160c08'; c.font = `800 ${32 * s}px "Bricolage Grotesque", system-ui, sans-serif`;
+      c.fillStyle = '#15121c'; c.font = `400 ${32 * s}px "Tilt Warp", "Arial Black", system-ui, sans-serif`;
       lines.forEach((ln, i) => c.fillText(ln, x + pad, y + pad + 22 * s + 14 * s + (i + 0.8) * lh));
-      c.fillStyle = 'rgba(22,12,8,.6)'; c.font = `500 ${18 * s}px "DM Sans", system-ui, sans-serif`;
+      c.fillStyle = 'rgba(21,18,28,.62)'; c.font = `500 ${18 * s}px Figtree, system-ui, sans-serif`;
       c.fillText(k.sub, x + pad, y + h - pad * 0.9);
       c.restore();
     }

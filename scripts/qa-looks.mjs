@@ -4,7 +4,7 @@
 import { chromium } from 'playwright';
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const Y4M = process.argv[3];
-const b = await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required', '--enable-unsafe-swiftshader', ...(Y4M ? [`--use-file-for-fake-video-capture=${Y4M}`] : [])] });
+const b = await chromium.launch({ channel: process.env.PW_CHANNEL || undefined, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required', '--enable-unsafe-swiftshader', ...(Y4M ? [`--use-file-for-fake-video-capture=${Y4M}`] : [])] });
 const p = await (await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, permissions: ['camera', 'microphone'] })).newPage();
 const errs = [], warns = [];
 p.on('pageerror', e => errs.push(e.message));

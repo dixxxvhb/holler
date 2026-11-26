@@ -1,190 +1,242 @@
-/* Holler Play. Kept apart from styles.css (the look session owns that). Uses Holler's variables, so a new
-   token layer carries over. Pass It On has one ink of its own: --game. No gold, no emojis. */
-:root { --game: #8f7dff; --card-face: #fbf3ec; --card-ink: #160c08; }
+/* Holler Play, in blocks. Kept apart from styles.css but built only from its tokens.
+   Three rules carry it:
+   1. A card is the one chalk block. Chalk over the picture means "this is in your video"; ink over the picture means "only you see this".
+   2. Pass It On has no ink of its own (a color here always means a place or a person). It takes the room's color,
+      and its own mark is the sealed hatch: grey diagonal lines on ink, on anything nobody may look at yet.
+   3. Anything somebody sent (a card stack, a game, a clip, a face) keeps the tile shape with its one sharp corner. Controls do not.
+   No gold, no emojis, no blur, no drop shadows. */
+:root {
+  --card-face: var(--chalk);
+  --card-ink: var(--on-color);
+  --sealed: repeating-linear-gradient(45deg, rgba(247, 246, 251, .22) 0 4px, transparent 4px 9px);
+}
 
 /* ---------- sheets ---------- */
-.g-sub { font-size: 14px; color: var(--ink2); line-height: 1.45; margin: 4px 0 14px; }
-.g-opt { width: 100%; display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 20px; background: var(--bg2);
-  border: 1.5px solid var(--line); margin-bottom: 10px; text-align: left; transition: transform .12s; }
+.g-sub { font-size: 14px; color: var(--chalk-2); line-height: 1.45; margin: 14px 0 16px; }
+/* the Play sheet is a small stack of blocks, like home: full width, touching, big type */
+.g-opt { width: calc(100% + 40px); margin: 0 -20px; display: flex; gap: 14px; align-items: center; min-height: 108px; padding: 16px 20px; border-radius: var(--r-block);
+  background: var(--card-face); color: var(--on-color); text-align: left; transition: transform var(--t-press) var(--ease-out); }
+.g-opt + .g-opt { margin-top: var(--seam-w); }
 .g-opt:active { transform: scale(.985); }
-.g-opt.game { border-color: color-mix(in srgb, var(--game) 45%, transparent); }
-.g-opt-ic { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; flex: none; color: var(--card-ink); }
-.g-opt-ic.card { background: var(--card-face); }
-.g-opt-ic.pass { background: var(--game); }
-.g-opt-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.g-opt-txt b { font-family: var(--display); font-size: 17px; }
-.g-opt-txt span { font-size: 13px; color: var(--ink2); line-height: 1.35; }
-.g-opt-n { font-size: 12px; font-weight: 800; color: var(--ink3); flex: none; }
-.g-later { font-size: 13px; color: var(--ink3); margin: 6px 4px 0; }
-.g-warn { font-size: 13px; color: #ff9aa5; margin: 8px 0 0; }
+.g-opt.game { background: linear-gradient(90deg, var(--room) 0 74%, transparent 74%), var(--pat), var(--room); }
+.g-opt-ic, .g-opt-ic.card { width: 52px; height: 52px; border-radius: var(--r-ctl); display: grid; place-items: center; flex: none; background: var(--on-color); color: var(--chalk); }
+.g-opt-ic.pass { color: var(--room); }
+.g-opt-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.g-opt-txt b { font: 400 24px/1.02 var(--display); }
+.g-opt-txt span { font-size: 14px; font-weight: 500; color: var(--on-color-2); line-height: 1.35; }
+.g-opt-n { flex: none; align-self: flex-start; font: 700 12px/1 var(--mono); padding: 5px 7px; border-radius: 6px; background: var(--on-color); color: var(--chalk); }
+.g-later { font-size: 13px; color: var(--chalk-3); margin: 14px 0 0; }
+.g-warn { font-size: 14px; font-weight: 700; color: var(--danger); margin: 10px 0 0; }
 
-.g-secret { border-radius: 20px; padding: 14px 16px; background: color-mix(in srgb, var(--game) 18%, var(--bg2));
-  border: 1.5px dashed color-mix(in srgb, var(--game) 70%, transparent); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.g-secret small { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--game); }
-.g-secret p { font-family: var(--display); font-weight: 800; font-size: 24px; line-height: 1.1; margin: 0; }
+/* the secret phrase: an ink block with the sealed edge. The same block rides over the camera while you act. */
+.g-secret { margin: 0 -20px; padding: 16px 20px 16px 36px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  background: var(--sealed) left / 16px 100% no-repeat, var(--on-color); color: var(--chalk);
+  --deck: var(--on-color); --deck-ink: var(--chalk); --deck-ink-2: var(--chalk-2); --deck-fill: rgba(247, 246, 251, .14); }
+.g-secret small { font-size: 12.5px; font-weight: 700; color: var(--chalk-2); }
+.g-secret p { font: 400 26px/1.08 var(--display); margin: 0; }
 .g-order { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
 .g-step { display: flex; align-items: center; gap: 6px; }
-.g-step-in { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 54px; }
-.g-step-in em { font-style: normal; font-size: 11px; font-weight: 700; color: var(--ink2); }
-.g-arrow { color: var(--ink3); font-size: 20px; margin-top: -18px; }
-.g-order-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.g-step-in { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 56px; }
+.g-step-in em { font-style: normal; font-size: 12.5px; font-weight: 700; color: var(--chalk-2); }
+.g-arrow { color: var(--chalk-3); font-size: 20px; margin-top: -20px; }
+.g-order-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px;
+  --deck: var(--surface); --deck-ink: var(--chalk); --deck-ink-2: var(--chalk-2); --deck-fill: var(--surface-2); }
 .g-seg button { flex: 1; }
-.g-seg button.on { background: var(--game); color: var(--card-ink); }
-.btn.g-go { background: var(--game); color: var(--card-ink); margin-top: 16px; }
-.g-row-btns { display: flex; gap: 10px; margin-top: 14px; }
-.g-row-btns .btn { flex: 1; }
+.btn.g-go { background: var(--accent); color: var(--on-color); }
+.sheet > .btn.g-go { margin-top: 20px; }
+.g-row-btns { display: flex; gap: 10px; margin-top: 16px; }
+.g-row-btns .btn { flex: 1; margin-top: 0; }
 
 /* ---------- strip tiles ---------- */
-.tile.g-play-tile { background: none; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 70%, transparent); color: var(--accent);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-weight: 800; font-size: 12px; }
-.tile.g-tile { width: 84px; background: color-mix(in srgb, var(--game) 26%, #120d0b); box-shadow: 0 0 0 2.5px var(--game);
-  display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; padding: 6px; text-align: left; }
-.tile.g-tile b { font-family: var(--display); font-size: 12px; line-height: 1.05; color: #fff; }
-.tile.g-tile em { font-style: normal; font-size: 10px; font-weight: 800; color: var(--game); line-height: 1.15; }
-.tile.g-tile.turn em { background: var(--game); color: var(--card-ink); border-radius: 6px; padding: 2px 5px; }
-.tile.g-tile.over { box-shadow: 0 0 0 2px color-mix(in srgb, var(--game) 55%, transparent); }
-.g-tile-who { display: flex; gap: 2px; flex-wrap: wrap; }
+/* Play is a control, not a holler: a quiet tinted slot with four round corners. It is not a .tile, so every script and rule that means "a holler" skips it. */
+.g-play-tile { flex: none; width: 66px; height: 92px; border-radius: var(--r-tile); background: var(--deck-fill, var(--on-color-fill)); color: var(--deck-ink, var(--on-color));
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font: 700 12.5px/1 var(--body); transition: transform var(--t-press) var(--ease-out); }
+.g-play-tile:active { transform: scale(.96); }
+/* a game is an ink tile, sealed along the top while it is being played */
+.tile.g-tile { width: 88px; aspect-ratio: auto; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; padding: 15px 7px 7px; text-align: left;
+  background: var(--sealed) top / 100% 7px no-repeat, var(--on-color); color: var(--chalk); box-shadow: 0 0 0 2px var(--on-color); }
+.tile.g-tile b { font: 400 13px/1 var(--display); color: var(--chalk); white-space: nowrap; }
+.tile.g-tile em { font: 700 var(--fs-micro)/1.15 var(--body); font-style: normal; color: var(--chalk-2); }
+.tile.g-tile.turn { box-shadow: 0 0 0 3px var(--chalk), 0 0 0 5px var(--on-color); }   /* your turn wears the same white frame as an unwatched holler */
+.tile.g-tile.turn em { background: var(--chalk); color: var(--on-color); border-radius: 5px; padding: 3px 5px; }
+.tile.g-tile.over { background: var(--on-color); padding-top: 9px; }                    /* the seal is off: watch the reveal */
+.tile.g-tile.over em { color: var(--room); }
+.g-tile-who { display: flex; gap: 3px; flex-wrap: wrap; }
 .g-tav { position: relative; display: inline-flex; border-radius: 50%; }
-.g-tav.wait { opacity: .45; }
-.g-tav.up { box-shadow: 0 0 0 2px #000, 0 0 0 3.5px var(--game); }
-.tile.g-stack { background: var(--card-face); color: var(--card-ink); display: flex; flex-direction: column; justify-content: space-between;
-  align-items: flex-start; padding: 6px; text-align: left; }
-.tile.g-stack b { font-family: var(--display); font-size: 10.5px; line-height: 1.12; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; }
+.g-tav.wait { opacity: .4; }
+.g-tav.up { box-shadow: 0 0 0 2px var(--on-color), 0 0 0 3.5px var(--chalk); }
+/* answers to one card stack into one chalk tile, with the next card showing behind it */
+.tile.g-stack { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; padding: 7px 6px; text-align: left;
+  background: var(--card-face); color: var(--card-ink); --ring: var(--card-face);
+  box-shadow: 0 0 0 2px var(--on-color), 4px -4px 0 0 var(--card-face), 4px -4px 0 2px var(--on-color); }
+.tile.g-stack.new { box-shadow: inset 0 0 0 2px var(--on-color), 0 0 0 3px var(--chalk), 0 0 0 5px var(--on-color); }
+.tile.g-stack b { font: 400 10.5px/1.12 var(--display); overflow-wrap: anywhere; max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; }
 .g-stack-faces { display: flex; }
 .g-stack-faces .av + .av { margin-left: -5px; }
-.g-stack-faces .av { box-shadow: 0 0 0 1.5px var(--card-face); }
-.g-tile-pip { position: absolute; right: 4px; top: 4px; width: 22px; height: 30px; border-radius: 6px; overflow: hidden; box-shadow: 0 0 0 1.5px #000; z-index: 1; }
+/* a reaction carries the holler it reacts to as a tiny tile in the top left (seen-by owns the top right) */
+.g-tile-pip { position: absolute; left: 4px; top: 4px; width: 22px; height: 30px; border-radius: 6px 6px 6px 2px; overflow: hidden; box-shadow: 0 0 0 2px var(--on-color); z-index: 1; }
 .g-tile-pip img { width: 100%; height: 100%; object-fit: cover; }
+.tile:has(.g-tile-pip) .tile-star { left: 31px; }
 
 /* ---------- card tools + turn banner over the camera ---------- */
 .g-cardtools .chips { padding: 0; }
-.g-banner { position: absolute; top: calc(var(--safe-t) + 70px); left: 12px; right: 12px; z-index: 6; display: flex; align-items: center; gap: 12px;
-  padding: 12px 14px; border-radius: 20px; background: rgba(18, 13, 11, .66); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  border: 1.5px solid color-mix(in srgb, var(--game) 55%, transparent); color: #fff; pointer-events: none; }
-.g-banner svg { color: var(--game); flex: none; }
-.g-banner span { display: flex; flex-direction: column; gap: 2px; }
-.g-banner b { font-family: var(--display); font-size: 16px; }
-.g-banner em { font-style: normal; font-size: 13px; color: rgba(255,255,255,.78); }
-.g-secret-mini { position: absolute; top: calc(var(--safe-t) + 146px); left: 12px; right: 78px; z-index: 6; border-radius: 18px; padding: 10px 14px;
-  background: var(--game); color: var(--card-ink); pointer-events: none; }
-.g-secret-mini small { font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }
-.g-secret-mini p { margin: 2px 0 0; font-family: var(--display); font-weight: 800; font-size: 20px; line-height: 1.1; }
-
-/* during a turn the side rail moves below the turn banner (and the phrase, for the one acting) */
-.chat.g-in-turn .rail { top: calc(var(--safe-t) + 146px); max-height: calc(100% - var(--safe-t) - 146px - var(--bottom-h, 220px) - 6px); }
-.chat.g-acting .rail { top: calc(var(--safe-t) + 236px); max-height: calc(100% - var(--safe-t) - 236px - var(--bottom-h, 220px) - 6px); }
+/* the banner sits beside the rail, level with its top, so the tools never move during a turn */
+.g-banner { position: absolute; top: calc(var(--safe-t) + var(--band-h) + 8px); left: 8px; right: 74px; z-index: var(--z-banner); display: flex; align-items: center; gap: 12px;
+  min-height: 64px; padding: 10px 14px; border-radius: 20px; background: var(--puck); color: var(--chalk); pointer-events: none; }
+.g-banner svg { color: var(--room); flex: none; }
+.g-banner span { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.g-banner b { font: 400 18px/1.05 var(--display); }
+.g-banner em { font-style: normal; font-size: 13px; font-weight: 700; line-height: 1.3; color: var(--chalk-2); }
+.g-secret-mini { position: absolute; top: calc(var(--safe-t) + var(--band-h) + 8px + 64px + var(--seam-w)); left: 8px; right: 74px; z-index: var(--z-banner);
+  padding: 10px 14px 12px 30px; border-radius: 6px 6px 20px 20px; background: var(--sealed) left / 16px 100% no-repeat, var(--on-color); color: var(--chalk); pointer-events: none; }
+.g-secret-mini small { font-size: 12.5px; font-weight: 700; color: var(--chalk-2); }
+.g-secret-mini p { margin: 3px 0 0; font: 400 22px/1.08 var(--display); }
+/* acting: banner and phrase are two blocks with one seam between them, so the banner holds one height */
+.chat.g-acting .g-banner { height: 64px; border-radius: 20px 20px 6px 6px; background: var(--on-color); }
+.chat.g-acting .g-banner :is(b, em) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* someone else recording or watching during your turn is said at the foot of the picture instead of on top of the banner */
+.chat.g-in-turn .rec-banner { top: auto; bottom: calc(var(--bottom-h) + 12px); }
 
 /* ---------- full-screen game views ---------- */
-.g-page, .g-look, .g-reveal { position: fixed; inset: 0; z-index: 46; animation: fade .18s; }
-.g-page { background: var(--bg); color: var(--ink); overflow-y: auto; display: flex; flex-direction: column; gap: 14px;
-  padding: calc(var(--safe-t) + 14px) max(18px, calc((100vw - 620px) / 2)) calc(var(--safe-b) + 28px); }
-.g-head { display: flex; align-items: center; gap: 10px; }
-.g-head h2 { font-size: 28px; }
-.g-back { background: var(--panel2); }
-.g-meta { margin: -4px 0 0; font-size: 14px; color: var(--ink2); }
-.g-track { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.g-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 18px; background: var(--bg2); border: 1.5px solid var(--line); }
-.g-row.up { border-color: var(--game); background: color-mix(in srgb, var(--game) 12%, var(--bg2)); }
-.g-row.up .g-row-txt span { color: var(--game); font-weight: 700; }
+.g-page, .g-look, .g-reveal { position: fixed; inset: 0; z-index: 46; animation: fade var(--t-fast); }
+/* the game page: ink strip, a band of the room, then the chain as plain rows. Whoever is up is a block of the room's color. */
+.g-page { background: var(--ground); color: var(--chalk); overflow-y: auto; display: flex; flex-direction: column; gap: 14px;
+  padding: 0 max(16px, calc((100vw - 620px) / 2 + 16px)) calc(var(--safe-b) + 28px); --ring: transparent; }
+.g-head { flex: none; display: flex; align-items: center; gap: 4px; height: calc(var(--safe-t) + 60px); margin: 0 -16px 2px; padding: var(--safe-t) 16px 0 6px; color: var(--on-color);
+  background: linear-gradient(var(--on-color) 0 0) top / 100% var(--safe-t) no-repeat, linear-gradient(90deg, var(--room) 0 58%, transparent 58%), var(--pat), var(--room); }
+.g-head h2 { font-size: var(--fs-1); line-height: 1; }
+.g-back { background: none; }
+.g-meta { margin: 0; font-size: 14px; color: var(--chalk-2); }
+.g-track { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; }
+.g-row { display: flex; align-items: center; gap: 12px; min-height: 66px; padding: 8px 0; border-bottom: 1px solid var(--seam); }
+.g-row.up { margin: 0 -16px; padding: 8px 16px; border-bottom: 0; background: var(--room); color: var(--on-color); --ring: var(--on-color); }
+.g-row.up .g-row-txt span { color: var(--on-color-2); font-weight: 700; }
 .g-row.skip { opacity: .6; }
 .g-row-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.g-row-txt b { font-size: 15px; }
-.g-row-txt span { font-size: 13px; color: var(--ink3); }
-.g-lock { width: 40px; height: 52px; border-radius: 10px; display: grid; place-items: center; color: var(--game); flex: none;
-  background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--game) 22%, transparent) 0 6px, color-mix(in srgb, var(--game) 8%, transparent) 6px 12px); }
-.g-foot { font-size: 13px; color: var(--ink3); line-height: 1.45; margin: 4px 2px 0; }
+.g-row-txt b { font-size: 16px; font-weight: 700; }
+.g-row-txt span { font-size: 13px; color: var(--chalk-3); }
+.g-lock { width: 36px; height: 50px; border-radius: 10px 10px 10px 3px; display: grid; place-items: center; flex: none; color: var(--chalk); background: var(--sealed), var(--surface); }
+.g-foot { font-size: 13px; color: var(--chalk-3); line-height: 1.45; margin: 2px 0 0; }
 .g-endgame { align-self: center; }
 
-.g-look { background: #000; color: #fff; }
+/* one look: the room's wall, with the chain across the top like the bars of the player */
+.g-look { background: #000; color: var(--chalk); }
 .g-look-vid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
 .g-look-vid.on { opacity: 1; }
-.g-look-tag { position: absolute; top: calc(var(--safe-t) + 18px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px;
-  padding: 6px 14px 6px 6px; border-radius: 999px; background: rgba(0,0,0,.6); font-weight: 700; font-size: 14px; white-space: nowrap; }
-.g-look-card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
-  text-align: center; padding: 0 32px; background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--game) 28%, #120d0b), #000 75%); }
-.g-look-card b { font-family: var(--display); font-size: 24px; }
-.g-look-card > span { font-size: 15px; color: rgba(255,255,255,.8); line-height: 1.45; max-width: 34ch; }
-.g-bigplay { width: 96px; height: 96px; border-radius: 50%; background: var(--game); color: var(--card-ink); display: grid; place-items: center;
-  box-shadow: 0 0 0 10px color-mix(in srgb, var(--game) 25%, transparent); }
-.g-chain { display: flex; gap: 5px; }
-.g-chain i { width: 30px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.25); }
-.g-chain i.d { background: var(--game); }
-.g-chain i.c { background: #fff; }
+.g-look-tag { position: absolute; top: calc(var(--safe-t) + 14px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px;
+  min-height: 36px; padding: 0 14px 0 6px; border-radius: var(--r-pill); background: var(--puck); font-weight: 700; font-size: 14px; white-space: nowrap; --ring: transparent; }
+.g-look-card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; text-align: left;
+  padding: calc(var(--safe-t) + 12px) max(20px, calc((100vw - 480px) / 2)) calc(var(--safe-b) + 14px); color: var(--on-color); overflow: hidden; isolation: isolate;
+  background: linear-gradient(var(--on-color) 0 0) top / 100% var(--safe-t) no-repeat, var(--pat), var(--room); }
+.g-chain { align-self: stretch; display: flex; gap: 4px; }
+.g-chain i { flex: 1; height: 6px; border-radius: 3px; background: var(--on-color-fill); }
+.g-chain i.d { background: var(--on-color); }
+.g-chain i.c { background: var(--chalk); box-shadow: 0 0 0 2px var(--on-color); }
+.g-bigplay { width: 112px; height: 112px; margin: auto; border-radius: 50%; background: var(--on-color); color: var(--chalk); display: grid; place-items: center; flex: none;
+  box-shadow: 0 0 0 8px var(--room); transition: transform var(--t-press) var(--ease-out); }
+.g-bigplay:active { transform: scale(.96); }
+.g-look-card b { position: relative; font: 400 30px/1.04 var(--display); }
+.g-look-card b::before { content: ''; position: absolute; z-index: -1; left: -100vw; right: -100vw; top: -22px; height: 100vh; background: var(--room); }   /* the flat block under the words starts where the words do */
+.g-look-card > span { font-size: 15px; font-weight: 700; color: var(--on-color-2); line-height: 1.45; max-width: 36ch; }
+.g-look-card > .err { color: var(--on-color); background: var(--on-color-fill); padding: 8px 12px; border-radius: var(--r-field); }
+.g-look-card .link-btn { color: var(--on-color-2); padding: 12px 0; }
 
-/* ---------- reveal ---------- */
-.g-reveal { background: #000; color: #fff; }
+/* ---------- reveal: a player for the whole chain ---------- */
+.g-reveal { background: #000; color: var(--chalk); --ring: var(--chalk); }
+.g-reveal::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: calc(var(--safe-t) + 120px); background: linear-gradient(rgba(8, 7, 12, .78), rgba(8, 7, 12, 0)); z-index: 2; pointer-events: none; }
 .g-rv-vid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 @media (min-aspect-ratio: 3/4) { .g-rv-vid { object-fit: contain; } }
 .g-rv-bars { position: absolute; top: calc(var(--safe-t) + 8px); left: 10px; right: 10px; display: flex; gap: 3px; z-index: 3; }
-.g-rv-bars i { flex: 1; height: 3px; border-radius: 2px; background: rgba(255,255,255,.3); overflow: hidden; }
-.g-rv-bars b { display: block; height: 100%; background: #fff; }
-.g-rv-top { position: absolute; top: calc(var(--safe-t) + 18px); left: 12px; right: 12px; display: flex; align-items: center; gap: 10px; z-index: 3; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
-.g-rv-ic { width: 36px; height: 36px; border-radius: 50%; background: var(--game); color: var(--card-ink); display: grid; place-items: center; }
-.g-rv-who { flex: 1; display: flex; flex-direction: column; }
-.g-rv-who b { font-family: var(--display); font-size: 17px; }
-.g-rv-who span { font-size: 13px; color: rgba(255,255,255,.75); }
-.g-rv-label { position: absolute; top: calc(var(--safe-t) + 70px); left: 12px; z-index: 3; display: flex; align-items: center; gap: 8px;
-  padding: 6px 12px 6px 6px; border-radius: 999px; background: rgba(18,13,11,.62); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); font-weight: 800; font-size: 14px; }
-.g-rv-label em { font-style: normal; color: var(--game); }
+.g-rv-bars i { flex: 1; height: 4px; border-radius: 2px; background: rgba(247, 246, 251, .34); overflow: hidden; }
+.g-rv-bars b { display: block; height: 100%; background: var(--room); }
+.g-rv-top { position: absolute; top: calc(var(--safe-t) + 22px); left: 12px; right: 8px; display: flex; align-items: center; gap: 10px; z-index: 3; }
+.g-rv-ic { width: 38px; height: 38px; border-radius: 10px; background: var(--room); color: var(--on-color); display: grid; place-items: center; flex: none; }   /* square: it belongs to the room, not to a person */
+.g-rv-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.g-rv-who b { font: 400 20px/1.15 var(--display); }
+.g-rv-who span { font-size: 13px; font-weight: 700; color: var(--chalk-2); }
+.g-rv-label { position: absolute; top: calc(var(--safe-t) + 76px); left: 12px; z-index: 3; display: flex; align-items: center; gap: 8px;
+  min-height: 36px; padding: 0 14px 0 5px; border-radius: var(--r-pill); background: var(--puck); font-weight: 700; font-size: 14px; white-space: nowrap; --ring: transparent; }
+.g-rv-label em { font-style: normal; color: var(--room); }
 .g-rv-tap { z-index: 4; }
-.g-rv-skip { position: absolute; right: 16px; bottom: calc(var(--safe-b) + 22px); z-index: 3; padding: 10px 18px; border-radius: 999px; background: rgba(255,255,255,.14); font-weight: 800; font-size: 14px; color: #fff; }
-.g-rv-x { position: absolute; top: calc(var(--safe-t) + 14px); right: 12px; z-index: 5; }
-.g-end { position: absolute; inset: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: center; gap: 12px;
-  padding: calc(var(--safe-t) + 70px) max(22px, calc((100vw - 520px) / 2)) calc(var(--safe-b) + 24px);
-  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--game) 40%, #120d0b), #0b0705 75%); }
-.g-pair { display: flex; flex-direction: column; gap: 10px; }
-.g-box { border-radius: 20px; padding: 14px 16px; background: rgba(0,0,0,.3); }
-.g-box small { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.6); display: flex; align-items: center; gap: 6px; }
-.g-box p { margin: 6px 0 0; font-family: var(--display); font-weight: 800; font-size: 25px; line-height: 1.1; }
-.g-box.truth { background: var(--game); color: var(--card-ink); }
-.g-box.truth small { color: rgba(22,12,8,.65); }
-.g-faces { display: flex; gap: 8px; }
-.g-fr { position: relative; flex: 1; max-width: 25%; aspect-ratio: 3/4; border-radius: 14px; overflow: hidden; background: rgba(255,255,255,.08); }
+.g-rv-skip { position: absolute; right: 12px; bottom: calc(var(--safe-b) + 18px); z-index: 3; min-height: 48px; padding: 0 22px; border-radius: var(--r-pill);
+  background: var(--chalk); color: var(--on-color); box-shadow: 0 0 0 3px var(--on-color); font-weight: 700; font-size: 15px; transition: transform var(--t-press) var(--ease-out); }
+.g-rv-skip:active { transform: scale(.96); }
+.g-rv-x { position: absolute; top: calc(var(--safe-t) + 22px); right: 8px; z-index: 5; }
+/* the answer: the room's wall, then the guess and the truth as two blocks with one seam */
+.g-end { position: absolute; inset: 0; z-index: 3; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: var(--ground);
+  padding: 0 max(16px, calc((100vw - 520px) / 2 + 16px)) calc(var(--safe-b) + 20px); }
+.g-pair { flex: 1 0 auto; display: flex; flex-direction: column; justify-content: flex-end; margin: 0 -16px 6px; padding-top: calc(var(--safe-t) + 96px);
+  background: linear-gradient(var(--on-color) 0 0) top / 100% var(--safe-t) no-repeat, var(--pat), var(--room); }
+.g-box { padding: 14px 20px 18px; border-top: var(--seam-w) solid var(--ground); background: var(--surface); color: var(--chalk); --ring: transparent; }
+.g-box small { font-size: 13px; font-weight: 700; color: var(--chalk-2); display: flex; align-items: center; gap: 6px; }
+.g-box p { margin: 6px 0 0; font: 400 28px/1.06 var(--display); }
+.g-box.truth { background: var(--room); color: var(--on-color); }
+.g-box.truth small { color: var(--on-color-2); }
+.g-box.truth p { font-size: 34px; }
+.g-faces { display: flex; gap: 10px; }
+.g-fr { position: relative; flex: 1; max-width: 25%; aspect-ratio: 3 / 4; border-radius: var(--r-tile) var(--r-tile) var(--r-tile) var(--r-tail); overflow: hidden; background: var(--surface-2); --ring: var(--on-color); }
 .g-fr img { width: 100%; height: 100%; object-fit: cover; }
-.g-fr-av { position: absolute; left: 5px; bottom: 5px; }
-.g-sendface { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 18px; background: rgba(0,0,0,.3); font-size: 14px; font-weight: 600; }
-.g-sendface .g-row-btns { margin-top: 6px; }
-.g-fine { font-size: 12.5px; color: rgba(255,255,255,.62); text-align: center; line-height: 1.4; margin: 2px 0 0; }
+.g-fr-av { position: absolute; left: 4px; bottom: 4px; display: flex; }
+.g-faces:empty { display: none; }
+.g-pair + .g-sendface, .g-pair + .g-faces:empty + .g-sendface { margin-top: -18px; }   /* touches the truth block: one seam, no gap */
+.g-sendface { display: flex; flex-direction: column; gap: 4px; margin: 0 -16px 6px; padding: 14px 16px 16px; border-top: var(--seam-w) solid var(--ground); background: var(--surface); font-size: 15px; font-weight: 700; }
+.g-sendface .g-row-btns { margin-top: 8px; }
+.g-fine { font-size: 13px; color: var(--chalk-3); text-align: center; line-height: 1.4; margin: 2px 0 0; }
 
 /* ---------- Film my reaction ---------- */
-.g-film { position: absolute; top: calc(var(--safe-t) + 66px); left: 50%; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 8px;
-  padding: 6px 14px 6px 8px; border-radius: 999px; font-weight: 700; font-size: 13px; white-space: nowrap; color: #fff;
-  background: rgba(18,13,11,.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
-.g-sw { width: 34px; height: 20px; border-radius: 10px; background: rgba(255,255,255,.22); position: relative; transition: background .2s; }
-.g-sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s; }
-.g-film.on .g-sw { background: var(--accent); }
-.g-film.on .g-sw::after { transform: translateX(14px); }
-.g-face { position: absolute; right: 12px; top: calc(var(--safe-t) + 112px); width: 104px; height: 140px; border-radius: 18px; overflow: hidden; z-index: 4;
-  background: #111; box-shadow: 0 0 0 2.5px var(--rec), 0 10px 30px rgba(0,0,0,.5); pointer-events: none; }
+.g-film { position: absolute; top: calc(var(--safe-t) + 72px); right: 8px; z-index: 4; display: flex; align-items: center; gap: 8px;
+  min-height: 40px; padding: 0 14px 0 8px; border-radius: var(--r-pill); font-weight: 700; font-size: 13px; white-space: nowrap; color: var(--chalk); background: var(--puck); }
+/* it sits under Close, where your face appears once it is filming; over a card that corner is blank. With a small holler already there, or in the reveal, it goes left. */
+.player:has(video.g-pip) .g-film { right: auto; left: 12px; }
+.g-reveal .g-film { right: auto; left: 12px; top: calc(var(--safe-t) + 120px); }
+.g-sw { width: 38px; height: 24px; border-radius: 12px; background: rgba(247, 246, 251, .22); position: relative; flex: none; transition: background var(--t-fast); }
+.g-sw::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--chalk-2); transition: transform var(--t-fast) var(--ease-out), background var(--t-fast); }
+.g-film.on .g-sw { background: var(--room); }
+.g-film.on .g-sw::after { transform: translateX(14px); background: var(--on-color); }
+/* your live face while filming: a small tile of yours (tail bottom right) in a record-red frame, narrow enough to stay off a card in their video */
+.g-face { position: absolute; right: 10px; top: calc(var(--safe-t) + 78px); width: 78px; height: 104px; border-radius: var(--r-tile) var(--r-tile) var(--r-tail) var(--r-tile); overflow: hidden; z-index: 4;
+  background: var(--on-color); box-shadow: 0 0 0 3px var(--rec), 0 0 0 5px var(--on-color); pointer-events: none; }
 .g-face-vid { width: 100%; height: 100%; object-fit: cover; }
 .g-face-vid.mirror { transform: scaleX(-1); }
-.g-face-lab { position: absolute; left: 6px; bottom: 6px; display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; padding: 2px 8px 2px 6px;
-  border-radius: 999px; background: rgba(0,0,0,.6); color: #fff; }
+.g-face-lab { position: absolute; left: 4px; bottom: 4px; display: flex; align-items: center; gap: 4px; font: 700 10.5px/1 var(--body); padding: 3px 6px 3px 5px;
+  border-radius: 5px; background: var(--on-color); color: var(--chalk); }
 .g-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--rec); animation: blink 1s infinite; }
-.g-after { position: absolute; left: 14px; right: 14px; top: 42%; z-index: 4; display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;
-  padding: 12px 14px; border-radius: 20px; background: rgba(18,13,11,.72); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); font-weight: 700; font-size: 14px; color: #fff; }
-.g-after .btn { min-height: 40px; }
-/* a reaction plays your face big and their holler small (tap to swap) */
-.g-pip { position: absolute; right: 12px; top: calc(var(--safe-t) + 70px); width: 104px; height: 140px; border-radius: 18px; object-fit: cover; z-index: 2;
-  box-shadow: 0 0 0 2px rgba(255,255,255,.75), 0 10px 30px rgba(0,0,0,.5); background: #111; }
+.g-after { position: absolute; left: 12px; right: 12px; top: 42%; z-index: 4; display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 14px; border-radius: 20px; background: var(--puck); font-weight: 700; font-size: 14px; color: var(--chalk); }
+.g-after .btn { min-height: 44px; }
+/* a reaction plays your face big and their holler small (tap to swap). The small one is a strip tile, lifted onto the picture. */
+video.g-pip { position: absolute; inset: auto; right: 12px; top: calc(var(--safe-t) + 78px); width: 104px; height: 140px; object-fit: cover; z-index: 2;
+  border-radius: var(--r-tile) var(--r-tile) var(--r-tile) var(--r-tail); box-shadow: 0 0 0 3px var(--chalk), 0 0 0 5px var(--on-color); background: var(--on-color); }
 .p-video.g-orig-big { z-index: 0; }
-.g-pip-lab { position: absolute; right: 18px; top: calc(var(--safe-t) + 184px); z-index: 3; display: inline-flex; align-items: center; gap: 4px;
-  font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: rgba(0,0,0,.6); color: #fff; }
-.g-gone { position: absolute; right: 12px; top: calc(var(--safe-t) + 70px); z-index: 3; font-size: 12px; padding: 4px 10px; border-radius: 999px; background: rgba(0,0,0,.6); color: rgba(255,255,255,.8); }
+.g-pip-lab { position: absolute; right: 16px; top: calc(var(--safe-t) + 192px); z-index: 3; display: inline-flex; align-items: center; gap: 4px;
+  font: 700 11px/1 var(--body); padding: 4px 7px 4px 5px; border-radius: 5px; background: var(--on-color); color: var(--chalk); }
+.g-gone { position: absolute; right: 12px; top: calc(var(--safe-t) + 78px); z-index: 3; font-size: 13px; font-weight: 700; min-height: 32px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: var(--r-pill); background: var(--puck); color: var(--chalk-2); }
+/* looking at your reaction before it goes: the same bar as any review, a block of the room */
 .g-review { position: absolute; inset: 0; z-index: 50; background: #000; }
-.g-review-bar { position: absolute; left: 0; right: 0; bottom: 0; padding: 60px 16px calc(var(--safe-b) + 22px); background: linear-gradient(transparent, rgba(0,0,0,.85) 40%);
-  display: flex; flex-direction: column; gap: 6px; }
-.g-review-bar p { margin: 6px 0 0; font-size: 13px; color: rgba(255,255,255,.72); text-align: center; }
+.g-review video.g-pip { top: calc(var(--safe-t) + 16px); }
+.g-review-bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px calc(var(--safe-b) + 14px); background: var(--room); color: var(--on-color); }
+.g-review-bar .g-row-btns { margin: 0; }
+.g-review-bar .btn { background: none; color: var(--on-color); box-shadow: inset 0 0 0 2.5px var(--on-color); }
+.g-review-bar .btn.primary { background: var(--on-color); color: var(--chalk); box-shadow: none; }
+.g-review-bar p { margin: 0; font-size: 13px; font-weight: 700; color: var(--on-color-2); text-align: center; }
 
 /* ---------- cards in the player ---------- */
 .pill-btn.g-cardans { background: var(--card-face); color: var(--card-ink); }
-.g-answer { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 16px 26px; border-radius: 24px; background: var(--card-face); color: var(--card-ink); box-shadow: 0 14px 40px rgba(0,0,0,.45); animation: drop .25s ease-out; }
-.g-answer small { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
-.g-answer b { font-family: var(--display); font-size: 56px; line-height: 1; }
-.g-answer span { font-size: 13px; color: rgba(22,12,8,.6); }
+/* the back of the card: chalk, ink frame, the number as a big count */
+.g-answer { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); z-index: 4; display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 14px 22px 16px; border-radius: var(--r-tile); background: var(--card-face); color: var(--card-ink); box-shadow: 0 0 0 3px var(--on-color); animation: fade var(--t-base); }
+.g-answer small { font-size: 13px; font-weight: 700; color: var(--on-color-2); }
+.g-answer b { font: 400 64px/1 var(--display); }
+.g-answer span { font-size: 13px; font-weight: 500; color: var(--on-color-2); }
 
 @media (min-width: 700px) {
-  .g-banner, .g-secret-mini { left: calc(50% - min(50vw, 28.1vh) + 12px); right: auto; width: calc(min(100vw, 56.25vh) - 24px); }
-  .g-secret-mini { width: calc(min(100vw, 56.25vh) - 90px); }
+  .g-banner, .g-secret-mini { left: calc(50% - min(50vw, 28.1vh) + 8px); right: auto; width: calc(min(100vw, 56.25vh) - 82px); }
+  /* on a wide screen the player keeps its chrome in a phone-width column; Play's pieces stay in it too */
+  .g-rv-label, .g-reveal .g-film, .player:has(video.g-pip) .g-film { left: max(12px, calc(50% - 258px)); }
+  .g-film { right: max(8px, calc(50% - 262px)); }
+  .g-reveal .g-film, .player:has(video.g-pip) .g-film { right: auto; }
+  .g-rv-bars, .g-rv-top { left: max(10px, calc(50% - 260px)); right: max(8px, calc(50% - 260px)); }
+  .g-face, video.g-pip, .g-rv-x, .g-rv-skip, .g-gone { right: max(10px, calc(50% - 260px)); }
+  .g-pip-lab { right: max(16px, calc(50% - 254px)); }
+  .g-after { left: max(12px, calc(50% - 258px)); right: max(12px, calc(50% - 258px)); }
 }

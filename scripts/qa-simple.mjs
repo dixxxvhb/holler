@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 const BASE = process.argv[2] || 'http://localhost:5188/';
-const b = await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
+const b = await chromium.launch({ channel: process.env.PW_CHANNEL || undefined, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
 const p = await (await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, permissions: ['camera', 'microphone'] })).newPage();
 const errs = []; p.on('pageerror', e => errs.push(e.message));
 await p.goto(BASE); await p.fill('#nm', 'Avery QA'); await p.click("text=Let's go");

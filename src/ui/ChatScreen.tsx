@@ -536,11 +536,11 @@ export function ChatScreen({ chatId }: { chatId: string }) {
 
         {!panel && (
           <div className="strip" ref={stripRef}>
-            {!turn && <button className="tile g-play-tile" onClick={() => setPlayOpen(true)}><Icon name="cards" size={22} /><span>Play</span></button>}
+            {!turn && <button className="g-play-tile" onClick={() => setPlayOpen(true)}><Icon name="cards" size={22} /><span>Play</span></button>}
             {games.filter(g => !g.hidden).map(g => {
               const mine = g.status === 'playing' && g.turnPerson === me.id;
               return (
-                <button key={g.id} className={`tile g-tile ${mine ? 'turn' : ''} ${g.status !== 'playing' ? 'over' : ''}`} onClick={() => (g.status === 'playing' ? setGameId(g.id) : setReveal(g))}>
+                <button key={g.id} className={`tile g-tile ${mine ? 'turn' : ''} ${g.status !== 'playing' ? 'over' : ''} ${g.createdBy === me.id ? 'mine' : ''}`} onClick={() => (g.status === 'playing' ? setGameId(g.id) : setReveal(g))}>
                   <b>Pass It On</b>
                   <span className="g-tile-who">{g.order.map((id, k) => {
                     const p = chat!.members.find(m => m.id === id) || (id === me.id ? me : undefined);
@@ -559,7 +559,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
                 if (stack[0].id !== p.id) return null;
                 const unseen = stack.some(x => x.author !== me.id && !x.views.some(v => v.who === me.id));
                 return (
-                  <button key={p.id} className={`tile g-stack ${unseen ? 'new' : ''}`} onClick={() => openPlayer(stack, 0)}>
+                  <button key={p.id} className={`tile g-stack ${unseen ? 'new' : ''} ${p.author === me.id ? 'mine' : ''}`} onClick={() => openPlayer(stack, 0)}>
                     <b>{String(p.effects?.card || 'Card')}</b>
                     <span className="g-stack-faces">{stack.slice(0, 4).map(x => <Avatar key={x.id} p={chat!.members.find(m => m.id === x.author)} size={15} />)}</span>
                   </button>
