@@ -600,7 +600,7 @@ begin
   assert not (r->>'ok')::boolean and r->>'word' is null and (r->>'tries')::int = 1, 'wrong guess, word stays hidden';
   r := public.holler_game_guess(tb, gid, ida, 'is it jurassic park?', 4.2);
   assert (r->>'ok')::boolean and r->>'word' = 'Jurassic Park', 'right guess shows the word';
-  assert (r->'game'->'acts'->0->'results'->idb::text->>'t')::real = 4.2, 'guess time kept';
+  assert abs((r->'game'->'acts'->0->'results'->idb::text->>'t')::numeric - 4.2) < 0.01, 'guess time kept';
   perform public.holler_game_guess(tc, gid, ida, 'king kong', 2);
   perform public.holler_game_guess(tc, gid, ida, 'godzilla', 5);
   r := public.holler_game_guess(tc, gid, ida, 'dino movie', 9);
