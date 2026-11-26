@@ -37,8 +37,11 @@ export type Game = {
   // Charades Relay
   acted?: string[]; acts?: CharadesAct[];
   // Tic-Tac-Toe and Checkers
-  board?: string; moves?: number; last?: { cell?: number; path?: number[]; captured?: number } | null; quiet?: number;
-  winner?: string | null; result?: 'win' | 'draw' | 'resign' | 'idle' | null;
+  board?: string; moves?: number; last?: ({ cell?: number; path?: number[]; captured?: number } & Partial<CardEvent>) | null; quiet?: number;
+  winner?: string | null; result?: 'win' | 'draw' | 'resign' | 'idle' | 'left' | null;
+  // Last Card (your own hand only; everyone's shows once it's over)
+  top?: string; color?: string; dir?: number; log?: CardEvent[]; counts?: Record<string, number>; hand?: string[] | null;
+  drawn?: string | null; deckLeft?: number; hands?: Record<string, string[]> | null;
   // Seven Letters and Trivia
   began?: boolean; beganAt?: string | null; played?: string[]; rack?: string | null; qids?: string[] | null;
   myPlay?: QuickPlay | null; plays?: Record<string, QuickPlay> | null;
@@ -50,7 +53,10 @@ export type SpotTake = { who: string; at: string; qids: string[]; picks: { pick:
 export type LaughWatch = { done?: boolean; cracked?: number | null; at?: string; clip?: Polo | null };
 export type LaughAct = { who: string; at: string; clip: Polo | null; mine: LaughWatch | null; results: Record<string, LaughWatch> | null };
 export const laughActs = (g: Game) => (g.acts || []) as unknown as LaughAct[];
-export type GameKind = 'passiton' | 'poker' | 'charades' | 'ttt' | 'checkers' | 'words' | 'trivia' | 'spot' | 'laugh';
+export type GameKind = 'passiton' | 'poker' | 'charades' | 'ttt' | 'checkers' | 'words' | 'trivia' | 'spot' | 'laugh' | 'lastcard';
+export type CardEvent = { who: string; kind: 'play' | 'draw' | 'keep' | 'idle' | 'left'; at: string; card?: string; color?: string;
+  skip?: string; hit?: string; n?: number; forgot?: number; called?: boolean };
+export type CardMove = { play: string; color?: string; last?: boolean } | { draw: true } | { pass: true };
 export type QuickPlay = { at: string; words?: string[]; answers?: { pick: number; ms: number }[] };
 export type CharadesGuess = { tries: number; ok: boolean; done: boolean; t: number | null; text?: string; at: string };
 export type CharadesAct = { who: string; at: string; clip: Polo | null; word: string | null; mine: CharadesGuess | null; results: Record<string, CharadesGuess> };
@@ -97,7 +103,7 @@ export const api = {
   pushSub: (sub: object, on: boolean) => rpc<void>('holler_push_sub', { p_sub: sub, p_on: on }),
   gameStart: (chat: string, order: string[], turnSec: number, phrase: string, deckId: string) =>
     rpc<Game>('holler_game_start', { p_chat: chat, p_kind: 'passiton', p_order: order, p_turn_sec: turnSec, p_phrase: phrase, p_deck_id: deckId }),
-  gameStart2: (chat: string, kind: Exclude<GameKind, 'passiton'>, order: string[], opts: object) =>
+  gameStart2: (chat: string, kind: Exclude<GameKind, 'passiton' | 'lastcard'>, order: string[], opts: object) =>
     rpc<Game>('holler_game_start2', { p_chat: chat, p_kind: kind, p_order: order, p_opts: opts }),
   gameVote: (id: string, pick: string) => rpc<Game>('holler_game_vote', { p_game: id, p_pick: pick }),
   gameGuess: (id: string, actor: string, text: string, t: number) =>
@@ -107,6 +113,9 @@ export const api = {
     rpc<Game>('holler_game_move', { p_game: id, p_version: version, p_move: move }),
   gameLaughed: (id: string, actor: string, cracked: number | null) =>
     rpc<Game>('holler_game_laughed', { p_game: id, p_actor: actor, p_cracked: cracked }),
+  cardStart: (chat: string, order: string[]) => rpc<Game>('holler_card_start', { p_chat: chat, p_order: order }),
+  cardMove: (id: string, version: number, move: CardMove) => rpc<Game>('holler_card_move', { p_game: id, p_version: version, p_move: move }),
+  cardLeave: (id: string) => rpc<Game>('holler_card_leave', { p_game: id }),
   gameResign: (id: string) => rpc<Game>('holler_game_resign', { p_game: id }),
   gameBegin: (id: string) => rpc<Game>('holler_game_begin', { p_game: id }),
   gamePlay: (id: string, play: { words: string[] } | { answers: { pick: number; ms: number }[] }) =>

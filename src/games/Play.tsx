@@ -18,7 +18,7 @@ export function roleOf(g: Game): Role { return g.idx === 0 ? 'act' : g.idx >= g.
 
 // ---------------------------------------------------------------- the Play sheet
 export function PlaySheet({ open, onClose, people, onCard, onPassItOn, onRound }: {
-  open: boolean; onClose: () => void; people: number; onCard: () => void; onPassItOn: () => void; onRound: (k: 'poker' | 'charades' | 'ttt' | 'checkers' | 'words' | 'trivia' | 'spot' | 'laugh') => void;
+  open: boolean; onClose: () => void; people: number; onCard: () => void; onPassItOn: () => void; onRound: (k: 'poker' | 'charades' | 'ttt' | 'checkers' | 'words' | 'trivia' | 'spot' | 'laugh' | 'lastcard') => void;
 }) {
   return (
     <Sheet open={open} onClose={onClose} title="Play">
@@ -63,7 +63,12 @@ export function PlaySheet({ open, onClose, people, onCard, onPassItOn, onRound }
         <span className="g-opt-txt"><b>Trivia</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Ten questions, fifteen seconds each. Same questions for everyone. Faster scores more.'}</span></span>
         <span className="g-opt-n">2 to 5</span>
       </button>
-      <span className="lbl g-play-lbl">Board games</span>
+      <span className="lbl g-play-lbl">Board and card games</span>
+      <button className="g-opt game" onClick={() => onRound('lastcard')} disabled={people < 2}>
+        <span className="g-opt-ic pass"><Icon name="cards" size={24} /></span>
+        <span className="g-opt-txt"><b>Last Card</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Match by color or number, hit them with Skips and Draw Twos, and get rid of every card first.'}</span></span>
+        <span className="g-opt-n">2 to 6</span>
+      </button>
       <button className="g-opt game" onClick={() => onRound('checkers')} disabled={people < 2}>
         <span className="g-opt-ic pass"><Icon name="board" size={24} /></span>
         <span className="g-opt-txt"><b>Checkers</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Classic checkers, one move at a time. Jumps are a must.'}</span></span>

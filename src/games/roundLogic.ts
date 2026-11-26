@@ -7,13 +7,15 @@ import { DECKS as WORD_DECKS } from './content/charades';
 import { freshFirst } from './content/shuffle';
 
 export const GAME_NAME: Record<Game['kind'], string> = {
-  passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades Relay', ttt: 'Tic-Tac-Toe', checkers: 'Checkers', words: 'Seven Letters', trivia: 'Trivia', spot: 'On The Spot', laugh: "Don't Laugh",
+  passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades Relay', ttt: 'Tic-Tac-Toe', checkers: 'Checkers', words: 'Seven Letters', trivia: 'Trivia', spot: 'On The Spot', laugh: "Don't Laugh", lastcard: 'Last Card',
 };
 /** Strip tiles are narrow. */
 export const TILE_NAME: Record<Game['kind'], string> = {
-  passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades', ttt: 'Tic-Tac-Toe', checkers: 'Checkers', words: '7 Letters', trivia: 'Trivia', spot: 'On The Spot', laugh: "Don't Laugh",
+  passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades', ttt: 'Tic-Tac-Toe', checkers: 'Checkers', words: '7 Letters', trivia: 'Trivia', spot: 'On The Spot', laugh: "Don't Laugh", lastcard: 'Last Card',
 };
 export const isDuel = (g: Game) => g.kind === 'ttt' || g.kind === 'checkers';
+/** Games where one person is up at a time (turnPerson). */
+export const isTurns = (g: Game) => isDuel(g) || g.kind === 'lastcard';
 export const isQuick = (g: Game) => g.kind === 'words' || g.kind === 'trivia';
 export const isFace = (g: Game) => g.kind === 'spot' || g.kind === 'laugh';
 
@@ -80,9 +82,9 @@ export function charadesScores(g: Game): Record<string, number> {
 // ---------------------------------------------------------------- shared
 export const first = (p?: Person | null) => (p?.name || 'Someone').split(' ')[0];
 export const personIn = (chat: ChatFull, me: Person) => (id: string) => (id === me.id ? me : chat.members.find(m => m.id === id));
-export const owes = (g: Game, me: string) => g.status === 'playing' && (isDuel(g) ? g.turnPerson === me : (g.todo || []).includes(me));
+export const owes = (g: Game, me: string) => g.status === 'playing' && (isTurns(g) ? g.turnPerson === me : (g.todo || []).includes(me));
 /** Has this person done their part for now (for the little faces on a tile)? */
-export const doneFor = (g: Game, id: string) => g.status !== 'playing' || (isDuel(g) ? g.turnPerson !== id
+export const doneFor = (g: Game, id: string) => g.status !== 'playing' || (isTurns(g) ? g.turnPerson !== id
   : isQuick(g) || g.kind === 'spot' ? (g.played || []).includes(id)
   : g.kind === 'laugh' ? !(g.todo || []).includes(id)
   : g.kind === 'poker' ? (g.phase === 'vote' || (g.recorded || []).includes(id)) : (g.acted || []).includes(id));
@@ -90,7 +92,7 @@ export const doneFor = (g: Game, id: string) => g.status !== 'playing' || (isDue
 /** The line under a round game's tile in the strip. */
 export function tileLine(g: Game, me: Person, chat: ChatFull): string {
   const n = g.order.length;
-  if (isDuel(g)) {
+  if (isTurns(g)) {
     if (g.status !== 'playing') return g.result === 'draw' ? 'A draw' : g.result === 'idle' ? 'Ended' : g.winner === me.id ? 'You won' : g.winner ? `${first(chat.members.find(m => m.id === g.winner))} won` : 'Over';
     return g.turnPerson === me.id ? 'Your move' : `${first(chat.members.find(m => m.id === g.turnPerson))}'s move`;
   }
