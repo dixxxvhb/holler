@@ -87,6 +87,7 @@ export class Studio {
   private recKind: 'video' | 'audio' = 'video';
   onLevel?: (v: number) => void;
   private analyser: AnalyserNode | null = null;
+  private swapping = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -98,14 +99,9 @@ export class Studio {
   async open(opts: { facing?: 'user' | 'environment'; hd?: boolean } = {}) {
     if (opts.facing) this.facing = opts.facing;
     if (opts.hd !== undefined) this.hd = opts.hd;
-    this.stopTracks();
     const { w, h } = this.size;
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: this.facing, width: { ideal: this.hd ? 1280 : 960 }, height: { ideal: this.hd ? 720 : 540 }, frameRate: { ideal: 30 } },
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    });
-    this.stream = stream;
-    this.video.srcObject = stream;
+    await acquire(this.facing, this.hd);
+    this.attach();
     await this.video.play().catch(() => { /* iOS needs a gesture sometimes; frames still flow */ });
     this.canvas.width = w; this.canvas.height = h;
     this.overlay.width = w; this.overlay.height = h; this.ovDirty = true;
@@ -115,8 +111,35 @@ export class Studio {
     loop();
   }
 
-  async flip() { await this.open({ facing: this.facing === 'user' ? 'environment' : 'user' }); }
-  async setHD(hd: boolean) { if (hd !== this.hd) await this.open({ hd }); }
+  private attach() {
+    this.stream = new MediaStream([shared.cam!, shared.mic!].filter(Boolean) as MediaStreamTrack[]);
+    this.video.srcObject = new MediaStream([shared.cam!]);
+  }
+
+  /** Can the camera switch while recording? Not in Simple camera (the recorder holds the camera track itself). */
+  get canFlipLive() { return !this.recording || (this.recKind === 'video' && this.glOk); }
+
+  /** Swap front/back. Works mid-recording: the recorder records the canvas, so only the picture source
+   *  changes; the mic is never touched. The canvas holds its last frame until the new camera is up. */
+  async flip() {
+    if (!this.canFlipLive) return false;
+    const next = this.facing === 'user' ? 'environment' : 'user';
+    this.swapping = true;
+    try {
+      await acquire(next, this.hd, true);
+      this.facing = next;
+      this.attach();
+      await this.video.play().catch(() => {});
+      await waitFrames(this.video);
+      return true;
+    } catch (e) {
+      console.warn('flip failed', e);
+      await acquire(this.facing, this.hd, true).catch(() => {});
+      this.attach(); void this.video.play().catch(() => {});
+      return false;
+    } finally { this.swapping = false; }
+  }
+  async setHD(hd: boolean) { if (hd !== this.hd && !this.recording) { this.hd = hd; await this.open({ hd }); } }
 
   private initGL() {
     const gl = this.canvas.getContext('webgl', { preserveDrawingBuffer: true, premultipliedAlpha: false, antialias: false });
@@ -185,7 +208,7 @@ export class Studio {
 
   private draw() {
     const v = this.video; const gl = this.gl;
-    if (!v.videoWidth) return;
+    if (!v.videoWidth || this.swapping) return;
     const { width: W, height: H } = this.canvas;
     if (this.ovDirty) { this.drawOverlay(); }
     if (gl && this.glOk) {
@@ -334,8 +357,50 @@ export class Studio {
     this.audio?.stop(); this.audio?.ctx.close().catch(() => {}); this.audio = null; this.analyser = null;
   }
 
-  private stopTracks() { this.stream?.getTracks().forEach(t => t.stop()); this.stream = null; }
-  close() { cancelAnimationFrame(this.raf); this.cancel(); this.stopTracks(); this.video.srcObject = null; }
+  /** Leave the camera. Tracks are paused, not stopped, so coming back never asks for permission again. */
+  close() { cancelAnimationFrame(this.raf); this.cancel(); this.video.srcObject = null; this.stream = null; pauseMedia(); }
+}
+
+// ---- one camera + mic for the whole app session ----
+// iPhones ask for camera and mic again whenever a page stops its tracks and asks anew. So the app asks
+// once, keeps the tracks for as long as the page lives, and only switches them off (enabled = false,
+// which turns the camera light off) when no chat is open. Flipping swaps the camera track only.
+const shared: { cam: MediaStreamTrack | null; mic: MediaStreamTrack | null; facing: string; hd: boolean } = { cam: null, mic: null, facing: '', hd: false };
+const live = (t: MediaStreamTrack | null): boolean => !!t && t.readyState === 'live';
+const camConstraints = (facing: string, hd: boolean): MediaTrackConstraints =>
+  ({ facingMode: facing, width: { ideal: hd ? 1280 : 960 }, height: { ideal: hd ? 720 : 540 }, frameRate: { ideal: 30 } });
+const micConstraints: MediaTrackConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+
+async function acquire(facing: string, hd: boolean, forceCam = false) {
+  const camOk = live(shared.cam) && shared.facing === facing && shared.hd === hd && !forceCam;
+  if (camOk && live(shared.mic)) { shared.cam!.enabled = true; shared.mic!.enabled = true; return; }
+  if (live(shared.mic)) {
+    // mic is still held, so this page is still capturing: a camera-only ask doesn't prompt again.
+    // Phones can only run one camera at a time, so stop the old one first.
+    shared.mic!.enabled = true;
+    if (!camOk) {
+      shared.cam?.stop(); shared.cam = null;
+      const s = await navigator.mediaDevices.getUserMedia({ video: camConstraints(facing, hd) });
+      shared.cam = s.getVideoTracks()[0];
+    }
+    shared.cam!.enabled = true; shared.facing = facing; shared.hd = hd;
+    return;
+  }
+  shared.cam?.stop(); shared.mic?.stop(); shared.cam = shared.mic = null;
+  const s = await navigator.mediaDevices.getUserMedia({ video: camConstraints(facing, hd), audio: micConstraints });
+  shared.cam = s.getVideoTracks()[0]; shared.mic = s.getAudioTracks()[0]; shared.facing = facing; shared.hd = hd;
+}
+
+/** Camera light off, permission kept. */
+export function pauseMedia() { if (shared.cam) shared.cam.enabled = false; if (shared.mic) shared.mic.enabled = false; }
+
+function waitFrames(v: HTMLVideoElement) {
+  return new Promise<void>(res => {
+    const t = setTimeout(res, 1500);
+    const r = v as HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number };
+    if (r.requestVideoFrameCallback) r.requestVideoFrameCallback(() => { clearTimeout(t); res(); });
+    else { const tick = () => { if (v.videoWidth && v.readyState >= 2) { clearTimeout(t); setTimeout(res, 120); } else requestAnimationFrame(tick); }; tick(); }
+  });
 }
 
 function wrap(c: CanvasRenderingContext2D, text: string, max: number) {

@@ -62,7 +62,8 @@ self.addEventListener('notificationclick', (e) => {
     const mine = all.find((c) => c.url.startsWith(base));
     if (mine) {
       try { await mine.focus(); } catch {}
-      try { await mine.navigate(base + hash); } catch { mine.postMessage({ type: 'holler-open', hash }); }
+      // switch chats inside the running app: a reload would make iPhones ask for the camera again
+      mine.postMessage({ type: 'holler-open', hash });
       return;
     }
     await self.clients.openWindow(base + hash);

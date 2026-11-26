@@ -1,3 +1,4 @@
+import { routeInMemory } from './lib/device';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { api, getToken, setToken, type Home } from './lib/api';
 import { onLive, setMe, syncChats } from './lib/live';
@@ -24,12 +25,21 @@ export default function App() {
   const routeRef = useRef(route); routeRef.current = route;
 
   useEffect(() => { const f = () => setRoute(parse()); window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
-  const go = useCallback((h: string) => { location.hash = h; }, []);
+  const go = useCallback((h: string) => {
+    if (routeInMemory) setRoute(h.replace(/^#?\/?/, '').split('/').filter(Boolean));
+    else location.hash = h;
+  }, []);
+  // a tapped notification asks the open app to switch chats (no reload, so no new camera prompt)
+  useEffect(() => {
+    const f = (e: MessageEvent) => { if (e.data?.type === 'holler-open') go(String(e.data.hash || '/').replace(/^#/, '')); };
+    navigator.serviceWorker?.addEventListener('message', f);
+    return () => navigator.serviceWorker?.removeEventListener('message', f);
+  }, [go]);
 
   // a link from another device: #/link/<token>
   useEffect(() => {
     if (route[0] === 'link' && route[1]) {
-      setToken(route[1]); setSignedIn(true); history.replaceState(null, '', location.pathname + '#/'); setRoute([]);
+      setToken(route[1]); setSignedIn(true); if (!routeInMemory) history.replaceState(null, '', location.pathname + '#/'); setRoute([]);
       toast('This device is linked');
     }
   }, [route]);

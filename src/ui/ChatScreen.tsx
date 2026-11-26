@@ -9,7 +9,7 @@ import { Captioner, isIOS, speechSupported, type Seg } from '../lib/speech';
 import { recStart, recStop } from '../lib/sound';
 import { Avatar, Sheet, THEMES, chatTitle, clock, toast } from './bits';
 import { Icon } from './icons';
-import { isSimple, setSimple } from '../lib/device';
+import { isSimple, setSimple, routeInMemory } from '../lib/device';
 import { Player } from './Player';
 import { ChatInfo } from './ChatInfo';
 
@@ -61,7 +61,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
 
   useEffect(() => { void load(); }, [load]);
   // the invite sheet opens once after making a chat; drop it from the address so a reload doesn't reopen it
-  useEffect(() => { if (route[2] === 'invite') history.replaceState(null, '', `${location.pathname}#/c/${chatId}`); }, [route, chatId]);
+  useEffect(() => { if (route[2] === 'invite' && !routeInMemory) history.replaceState(null, '', `${location.pathname}#/c/${chatId}`); }, [route, chatId]);
   useEffect(() => onLive(e => { if (e.chat === chatId) void load(); }), [chatId, load]);
   useEffect(() => onReconnect(id => { if (id === chatId) void load(); }), [chatId, load]);
   // backstop in case a live ping is missed
@@ -179,6 +179,20 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     setRecording(false); setCaption(''); toast('Discarded');
   };
 
+  // ---- flip (also mid-recording, and by double-tapping the picture) ----
+  const flipping = useRef(false);
+  const flip = async () => {
+    const s = studio.current; if (!s || flipping.current || camState !== 'on') return;
+    if (!s.canFlipLive) { toast('Simple camera can flip before you record, not during.'); return; }
+    flipping.current = true;
+    const ok = await s.flip();
+    flipping.current = false;
+    if (!s.glOk) s.video.className = `raw-video ${s.facing === 'user' ? 'mirror' : ''}`;
+    if (!ok) toast('Could not switch cameras');
+    bump(x => x + 1);
+  };
+  const lastTap = useRef(0);
+
   // ---- draw ----
   const drawing = useRef(false);
   const ptOf = (e: React.PointerEvent) => {
@@ -192,6 +206,11 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   };
   const onDown = (e: React.PointerEvent) => {
     const s = studio.current; if (!s) return;
+    if (!panel && !audioOnly) {
+      const now = Date.now();
+      if (now - lastTap.current < 320) { lastTap.current = 0; void flip(); return; }
+      lastTap.current = now;
+    }
     if (panel === 'draw') { drawing.current = true; (e.target as Element).setPointerCapture(e.pointerId); s.live = { color: ink, width: inkW, pts: [ptOf(e)] } as Stroke; s.markDirty(); }
     else if (panel === 'text' && text) { drawing.current = true; (e.target as Element).setPointerCapture(e.pointerId); setTextY(ptOf(e)[1]); }
   };
@@ -270,9 +289,14 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         <div key={o.id} className="rec-banner"><Avatar p={o} size={26} /> <b>{o.name.split(' ')[0]}</b> is recording<span className="dots"><i /><i /><i /></span></div>
       ))}
 
+      {recording && !audioOnly && studio.current?.canFlipLive && (
+        <aside className="rail">
+          <button className="rail-btn" onClick={() => void flip()} aria-label="Flip camera"><Icon name="flip" /><span>Flip</span></button>
+        </aside>
+      )}
       {!recording && (
         <aside className="rail">
-          <button className="rail-btn" onClick={() => void studio.current?.flip()} aria-label="Flip camera"><Icon name="flip" /><span>Flip</span></button>
+          <button className="rail-btn" onClick={() => void flip()} aria-label="Flip camera"><Icon name="flip" /><span>Flip</span></button>
           {!isSimple() && <>
           <button className={`rail-btn ${panel === 'looks' ? 'on' : ''} ${look !== 'none' ? 'set' : ''}`} onClick={() => toggle('looks')}><Icon name="wand" /><span>Looks</span></button>
           <button className={`rail-btn ${panel === 'voice' ? 'on' : ''} ${voice !== 'none' ? 'set' : ''}`} onClick={() => toggle('voice')}><Icon name="mic" /><span>Voice</span></button>
