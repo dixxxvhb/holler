@@ -51,6 +51,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const [audioOnly, setAudioOnly] = useState(false);
   const aOnly = audioOnly || cam === 'voice';
   const [recording, setRecording] = useState(false);
+  const recordingRef = useRef(false); recordingRef.current = recording; // for calls from timers that hold an old render
   const [elapsed, setElapsed] = useState(0);
   const [level, setLevel] = useState(0);
   const [ink, setInk] = useState(INK[2]);
@@ -340,7 +341,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     if (e.button !== 0 || settling.current) return;
     // the 'done' tap that lands just after a take sent itself shouldn't start a new holler
     if (Date.now() - endedAt.current < 1200) return;
-    if (studio.current?.recording) { void finish(); return; }
+    if (studio.current?.hasTake) { void finish(); return; }
     // the screen says recording but the camera isn't: put the screen right instead of starting over
     if (recording) { clearInterval(tickRef.current); setRecording(false); setPaused(false); setCaption(''); return; }
     if (countRef.current || (timer && !aOnly)) { startCountdown(); return; }
@@ -385,7 +386,12 @@ export function ChatScreen({ chatId }: { chatId: string }) {
 
   const finish = async () => {
     clearInterval(tickRef.current);
-    const s = studio.current; if (!s?.recording || settling.current) return;
+    const s = studio.current; if (!s || settling.current) return;
+    if (!s.hasTake) {
+      // the screen says recording but there is no take at all: put the screen right instead of sitting stuck
+      if (recordingRef.current) { recStop(); setPaused(false); setRecording(false); setLevel(0); setCaption(''); toast('That take stopped before it could send. Please go again.'); }
+      return;
+    }
     settling.current = true;
     let rec: Recording | null = null;
     try { rec = await s.stop(); } finally { settling.current = false; endedAt.current = Date.now(); }
@@ -481,6 +487,9 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const onDown = (e: React.PointerEvent) => {
     const s = studio.current; if (!s) return;
     s.wake();
+    // a tap on a button over the picture (On The Spot's answers, a game banner) is not a tap on the picture:
+    // two quick answer taps used to count as a double tap and flip the camera mid-take
+    if ((e.target as Element).closest?.('button, .spot-answers')) return;
     if (!panel && !aOnly) {
       const now = Date.now();
       if (now - lastTap.current < 320) { lastTap.current = 0; void flip(); return; }

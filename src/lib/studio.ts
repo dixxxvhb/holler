@@ -51,6 +51,7 @@ export class Studio {
   private t0 = 0;
   private audio: { ctx: AudioContext; stop: () => void } | null = null;
   private thumbP: Promise<Blob | null> | null = null;
+  private stopping = false;
   private recKind: 'video' | 'audio' = 'video';
   onLevel?: (v: number) => void;
   private analyser: AnalyserNode | null = null;
@@ -356,13 +357,18 @@ export class Studio {
   }
 
   get recording() { return !!this.rec && this.rec.state !== 'inactive'; }
+  /** A take exists, even one the phone stopped on its own (a camera swap or a hiccup can end an iPhone
+   *  recorder mid-take); what it caught can still be sent. */
+  get hasTake() { return !!this.rec; }
+  /** When the phone stopped the take by itself, so the length is what was really caught. */
+  private endedAt = 0;
   get paused() { return !!this.rec && this.rec.state === 'paused'; }
   private pausedMs = 0;
   private pausedAt = 0;
   /** Seconds recorded so far, not counting time spent paused. */
   elapsed() {
     if (!this.rec) return 0;
-    const now = this.pausedAt || performance.now();
+    const now = this.endedAt || this.pausedAt || performance.now();
     return (now - this.t0 - this.pausedMs) / 1000;
   }
   pause() {
@@ -413,8 +419,11 @@ export class Studio {
     // each recorder keeps its own pieces, so one take can never pick up (or wipe) another's
     const chunks: Blob[] = []; this.chunks = chunks; (rec as unknown as { _chunks: Blob[] })._chunks = chunks;
     rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+    // the phone ending the take by itself (error, a track that died): note when, so the length is right
+    const ended = () => { if (this.rec === rec && !this.endedAt && !this.stopping) this.endedAt = performance.now(); };
+    rec.addEventListener('stop', ended); rec.addEventListener('error', ended);
     rec.start(1000);
-    this.rec = rec; this.t0 = performance.now(); this.pausedMs = 0; this.pausedAt = 0;
+    this.rec = rec; this.t0 = performance.now(); this.pausedMs = 0; this.pausedAt = 0; this.endedAt = 0;
     (rec as unknown as { _ext: string })._ext = ext;
     this.thumbP = kind === 'video' ? new Promise(res => setTimeout(() => this.snapshot().then(res), 450)) : Promise.resolve(null);
   }
@@ -472,19 +481,25 @@ export class Studio {
   async stop(): Promise<Recording | null> {
     const rec = this.rec; if (!rec) return null;
     const duration = this.elapsed();
-    if (rec.state === 'paused') { try { rec.resume(); } catch { /* */ } }
-    const done = new Promise<void>(r => { rec.onstop = () => r(); });
-    rec.stop();
-    await done;
+    this.stopping = true;
+    // never hang here: a recorder the phone already stopped fires no second 'stop', and an iPhone
+    // recorder has been seen to never answer at all, which left the screen stuck on recording
+    if (rec.state !== 'inactive') {
+      if (rec.state === 'paused') { try { rec.resume(); } catch { /* */ } }
+      const done = new Promise<void>(r => { rec.addEventListener('stop', () => r(), { once: true }); setTimeout(r, 3000); });
+      try { rec.stop(); } catch { /* already stopped */ }
+      await done;
+    }
+    this.stopping = false;
     if (this.rec === rec) {
-      this.rec = null; this.analyser = null; this.dropCapTrack();
+      this.rec = null; this.endedAt = 0; this.analyser = null; this.dropCapTrack();
       this.audio?.stop(); this.audio?.ctx.close().catch(() => {}); this.audio = null;
     }
     const chunks = (rec as unknown as { _chunks?: Blob[] })._chunks || this.chunks;
     const mime = (rec.mimeType || chunks[0]?.type || (this.recKind === 'video' ? 'video/mp4' : 'audio/mp4')).split(';')[0];
     const blob = new Blob(chunks, { type: mime });
     const ext = mime.includes('webm') ? 'webm' : this.recKind === 'audio' ? 'm4a' : 'mp4';
-    const thumb = await this.thumbP;
+    const thumb = await Promise.race([this.thumbP, new Promise<null>(r => setTimeout(() => r(null), 1500))]);
     const { w, h } = this.size;
     return { blob, mime, ext, duration, w, h, thumb, kind: this.recKind,
       effects: { look: this.look, voice: this.voice, looks: [...this.looksUsed], voices: [...this.voicesUsed], text: this.text?.text || null, card: this.card ? this.card.text : undefined, scribbles: this.strokes.length > 0, hd: this.hd } };
@@ -496,7 +511,7 @@ export class Studio {
 
   cancel() {
     this.dropCapTrack();
-    if (this.rec) { this.rec.ondataavailable = null; try { this.rec.stop(); } catch { /* */ } this.rec = null; }
+    if (this.rec) { this.rec.ondataavailable = null; this.stopping = true; try { this.rec.stop(); } catch { /* */ } this.stopping = false; this.rec = null; this.endedAt = 0; }
     this.audio?.stop(); this.audio?.ctx.close().catch(() => {}); this.audio = null; this.analyser = null;
   }
 
