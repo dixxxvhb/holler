@@ -173,6 +173,97 @@ export function upload(path: string, blob: Blob, onProgress?: (f: number) => voi
   })();
 }
 
+// ---- resumable upload (tus) for long hollers ----
+// An iPhone freezes a web app's network the moment it leaves the screen, so one big POST of a
+// several-minute video dies whenever the sender locks the phone or switches apps, and every retry
+// started from zero. Here the file goes up in 6 MB pieces (storage requires exactly 6 MB); the
+// server remembers how far it got, so a retry, a reload or the next launch picks up where it left off.
+export const TUS_CHUNK = 6 * 1024 * 1024;
+const TUS_URL = `${SB_URL}/storage/v1/upload/resumable`;
+const tusHeaders = () => ({ apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Tus-Resumable': '1.0.0' });
+const b64 = (s: string) => btoa(unescape(encodeURIComponent(s)));
+
+type XhrOut = { status: number; text: string; header: (h: string) => string | null };
+function xhrCall(method: string, url: string, headers: Record<string, string>, body: Blob | null, signal?: AbortSignal, onProgress?: (loaded: number) => void): Promise<XhrOut> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(Object.assign(new Error('cancelled'), { fatal: true })); return; }
+    const xhr = new XMLHttpRequest();
+    const onAbort = () => { xhr.abort(); reject(Object.assign(new Error('cancelled'), { fatal: true })); };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    // the app came back on screen: a piece frozen while the phone slept may never answer, so start it over
+    const onWake = () => { xhr.abort(); reject(new Error('network')); };
+    window.addEventListener('holler-wake', onWake, { once: true });
+    const done = () => { signal?.removeEventListener('abort', onAbort); window.removeEventListener('holler-wake', onWake); };
+    xhr.open(method, url);
+    for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
+    xhr.timeout = 180_000; // a 6 MB piece on a slow line; a stalled one (phone was asleep) gets retried
+    if (onProgress) xhr.upload.onprogress = e => onProgress(e.loaded);
+    xhr.onload = () => { done(); resolve({ status: xhr.status, text: xhr.responseText, header: h => xhr.getResponseHeader(h) }); };
+    xhr.onerror = () => { done(); reject(new Error('network')); };
+    xhr.ontimeout = () => { done(); reject(new Error('network')); };
+    xhr.send(body);
+  });
+}
+
+function refused(status: number, text: string) {
+  const big = status === 413 || /too large|exceeded|maximum size/i.test(text);
+  const fatal = big || (status >= 400 && status < 500 && status !== 408 && status !== 409 && status !== 423 && status !== 429);
+  const msg = big ? 'That video is too big to send' : fatal ? 'The upload was refused. Try recording it again.' : `Upload failed (${status})`;
+  return Object.assign(new Error(msg), { fatal, detail: text });
+}
+
+/** Upload in resumable pieces. `known` is a tus URL saved from an earlier try; `onUrl` hands back a new one to save. */
+export function uploadResumable(path: string, blob: Blob, opts: { known?: string | null; onUrl?: (u: string | null) => void; onProgress?: (f: number) => void; signal?: AbortSignal }): Promise<void> {
+  const { signal, onProgress, onUrl } = opts;
+  let url = opts.known || null;
+  const size = blob.size;
+  const attempt = async () => {
+    let offset = 0;
+    if (url) {
+      const h = await xhrCall('HEAD', url, tusHeaders(), null, signal);
+      if (h.status === 200 || h.status === 204) offset = Number(h.header('Upload-Offset') || 0);
+      else if (h.status === 404 || h.status === 410 || h.status === 403) { url = null; onUrl?.(null); }
+      else throw refused(h.status, h.text);
+    }
+    if (!url) {
+      const meta = `bucketName ${b64('holler')},objectName ${b64(path)},contentType ${b64(blob.type || 'application/octet-stream')},cacheControl ${b64('31536000')}`;
+      const c = await xhrCall('POST', TUS_URL, { ...tusHeaders(), 'Upload-Length': String(size), 'Upload-Metadata': meta }, null, signal);
+      if (c.status === 409 || /already exists|Duplicate/i.test(c.text)) { onProgress?.(1); return; } // landed on an earlier try
+      if (c.status !== 201 || !c.header('Location')) throw refused(c.status, c.text);
+      url = c.header('Location')!; onUrl?.(url);
+    }
+    onProgress?.(offset / size);
+    while (offset < size) {
+      const end = Math.min(offset + TUS_CHUNK, size);
+      const from = offset;
+      const r = await xhrCall('PATCH', url!, { ...tusHeaders(), 'Content-Type': 'application/offset+octet-stream', 'Upload-Offset': String(offset) },
+        blob.slice(offset, end), signal, loaded => onProgress?.((from + loaded) / size));
+      if (r.status === 409) { // the server has a different offset (a piece landed but the answer was lost): ask again
+        throw Object.assign(new Error('resync'), { resync: true });
+      }
+      if (r.status === 404 || r.status === 410) { url = null; onUrl?.(null); throw new Error('expired'); }
+      if (r.status !== 204 && r.status !== 200) throw refused(r.status, r.text);
+      offset = Number(r.header('Upload-Offset') || end);
+      onProgress?.(offset / size);
+    }
+  };
+  return (async () => {
+    let wait = 1000;
+    for (let i = 0; ; i++) {
+      try { return await attempt(); }
+      catch (e) {
+        if ((e as { fatal?: boolean }).fatal || i >= 12 || signal?.aborted) throw e;
+        if ((e as { resync?: boolean }).resync) continue;
+        if (document.visibilityState === 'hidden') { // no point hammering while the phone is asleep: wait to be back
+          await new Promise<void>(r => { const f = () => { if (document.visibilityState === 'visible') { document.removeEventListener('visibilitychange', f); r(); } }; document.addEventListener('visibilitychange', f); });
+          i = 0; wait = 1000; continue;
+        }
+        await new Promise(r => setTimeout(r, wait)); wait = Math.min(wait * 2, 15000);
+      }
+    }
+  })();
+}
+
 // ---- media cache: whole files in Cache Storage so rewatching costs no data ----
 const CACHE = 'holler-media-v1';
 const urlMemo = new Map<string, Promise<string>>();

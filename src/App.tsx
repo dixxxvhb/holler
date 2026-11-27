@@ -2,7 +2,7 @@ import { routeInMemory } from './lib/device';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { api, getToken, setToken, type Home } from './lib/api';
 import { onLive, setMe, syncChats } from './lib/live';
-import { busy, resumeOutbox } from './lib/outbox';
+import { bigSending, busy, onOutbox, resumeOutbox } from './lib/outbox';
 import { Asker, Toaster, toast, chatTitle } from './ui/bits';
 import { Onboard } from './ui/Onboard';
 import { HomeScreen } from './ui/HomeScreen';
@@ -24,6 +24,8 @@ export default function App() {
   const [loadErr, setLoadErr] = useState('');
   const routeRef = useRef(route); routeRef.current = route;
   const [offline, setOffline] = useState(() => typeof navigator !== 'undefined' && navigator.onLine === false);
+  const [sendingBig, setSendingBig] = useState(false);
+  useEffect(() => onOutbox(() => setSendingBig(bigSending())), []);
   useEffect(() => {
     const f = () => setOffline(navigator.onLine === false);
     window.addEventListener('online', f); window.addEventListener('offline', f);
@@ -140,6 +142,7 @@ export default function App() {
     <AppCtx.Provider value={ctx}>
       {screen}
       {offline && <div className="net-off" role="status">No connection. Holler will catch up when you're back.</div>}
+      {!offline && sendingBig && <div className="net-off sending" role="status">Keep Holler open till it sends</div>}
       <Toaster />
       <Asker />
     </AppCtx.Provider>

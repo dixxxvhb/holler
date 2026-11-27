@@ -230,6 +230,8 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; letter-sp
 /* no connection: one quiet line under the header, gone the moment the phone is back */
 .net-off { position: fixed; left: 50%; top: calc(var(--safe-t) + var(--band-h) + 14px); transform: translateX(-50%); z-index: var(--z-toast); display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px 0 12px; border-radius: var(--r-pill); background: var(--on-color); color: var(--chalk); box-shadow: 0 0 0 2px var(--seam-2); font-size: 13px; font-weight: 700; white-space: nowrap; pointer-events: none; animation: rise var(--t-base) var(--ease-out) both; }
 .net-off::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); flex: none; }
+.net-off.sending::before { background: var(--chalk); animation: sendblink 1.2s ease-in-out infinite; }
+@keyframes sendblink { 50% { opacity: .3; } }
 
 /* ---- sheets: a block that slides up, with a band of the place's color on top ---- */
 .sheet-wrap { position: fixed; inset: 0; background: rgba(8, 7, 12, .62); z-index: var(--z-sheet); display: flex; align-items: flex-end; justify-content: center; animation: fade var(--t-fast); }

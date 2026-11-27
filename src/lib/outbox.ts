@@ -1,13 +1,13 @@
 // Sending: optimistic local polo -> reserve a path -> upload thumb + media with progress -> finish.
 // A short undo window before the polo is marked ready. Failed sends stay visible with Retry.
-import { api, upload, seedCache, sb, type Polo } from './api';
+import { api, upload, uploadResumable, TUS_CHUNK, seedCache, sb, type Polo } from './api';
 import { send as liveSend } from './live';
 import type { Recording } from './studio';
 
 export type Outgoing = {
   key: string; chat: string; me: string; rec: Recording; transcript: string | null;
   polo: Polo; progress: number; error?: string; cancelled?: boolean; done?: boolean; serverId?: string;
-  running?: boolean; abort?: AbortController;
+  running?: boolean; abort?: AbortController; tus?: string | null; reservedAt?: number;
 };
 
 const items = new Map<string, Outgoing>();
@@ -21,7 +21,7 @@ export const UNDO_MS = 3500;
 
 // ---- unsent hollers live in IndexedDB until the server has them, so closing the app or losing
 // signal mid-send never loses a recording. Resumed on the next launch.
-type Saved = { key: string; chat: string; me: string; rec: Recording; transcript: string | null; serverId?: string; path?: string | null; thumb?: string | null; at: number };
+type Saved = { key: string; chat: string; me: string; rec: Recording; transcript: string | null; serverId?: string; path?: string | null; thumb?: string | null; tus?: string | null; at: number };
 let dbp: Promise<IDBDatabase> | null = null;
 function db() {
   if (!dbp) dbp = new Promise((res, rej) => {
@@ -40,7 +40,7 @@ async function store(fn: (s: IDBObjectStore) => IDBRequest | void): Promise<unkn
     });
   } catch { return undefined; }
 }
-const persist = (o: Outgoing, me: string) => store(s => { s.put({ key: o.key, chat: o.chat, me, rec: o.rec, transcript: o.transcript, serverId: o.serverId, path: o.polo.path, thumb: o.polo.thumb, at: Date.now() } satisfies Saved); });
+const persist = (o: Outgoing, me: string) => store(s => { s.put({ key: o.key, chat: o.chat, me, rec: o.rec, transcript: o.transcript, serverId: o.serverId, path: o.polo.path, thumb: o.polo.thumb, tus: o.tus ?? null, at: o.reservedAt ?? Date.now() } satisfies Saved); });
 const forget = (key: string) => store(s => { s.delete(key); });
 
 let resumed = false;
@@ -51,7 +51,8 @@ export async function resumeOutbox(me: string, onSent?: (p: Polo) => void) {
     if (sv.me !== me || items.has(sv.key)) continue;
     const stale = Date.now() - sv.at > 100 * 60 * 1000; // path reservations last 2 hours
     const o = make(sv.key, sv.chat, me, sv.rec, sv.transcript);
-    if (!stale && sv.serverId) { o.serverId = sv.serverId; o.polo.path = sv.path ?? null; o.polo.thumb = sv.thumb ?? null; }
+    if (!stale && sv.serverId) { o.serverId = sv.serverId; o.polo.path = sv.path ?? null; o.polo.thumb = sv.thumb ?? null; o.tus = sv.tus ?? null; o.reservedAt = sv.at; }
+    else if (sv.serverId) void api.deletePolo(sv.serverId).catch(() => { /* a fresh spot gets reserved below; the old one is just let go */ });
     items.set(o.key, o);
     void run(o, onSent);
   }
@@ -91,7 +92,7 @@ function release(o: Outgoing, ms: number) {
 async function run(o: Outgoing, onSent?: (p: Polo) => void) {
   if (o.running || o.done || o.cancelled) return; // the online event and a Retry tap can land together
   o.running = true; o.abort = new AbortController();
-  o.error = undefined; emit();
+  o.error = undefined; emit(); void awake(true);
   const stoppedAt = Date.now();
   const signal = o.abort.signal;
   try {
@@ -99,7 +100,7 @@ async function run(o: Outgoing, onSent?: (p: Polo) => void) {
     if (o.serverId) reserved = { ...o.polo, id: o.serverId } as Polo;
     else {
       reserved = await api.startPolo(o.chat, o.rec.kind, o.rec.ext, o.rec.mime, null);
-      o.serverId = reserved.id; o.polo.path = reserved.path; o.polo.thumb = reserved.thumb;
+      o.serverId = reserved.id; o.polo.path = reserved.path; o.polo.thumb = reserved.thumb; o.tus = null; o.reservedAt = Date.now();
       void persist(o, o.me);
     }
     if (o.cancelled) return cleanup(o);
@@ -109,7 +110,10 @@ async function run(o: Outgoing, onSent?: (p: Polo) => void) {
       await upload(o.polo.thumb, o.rec.thumb, f => { o.progress = (f * o.rec.thumb!.size) / total; o.polo.pending!.progress = o.progress; emit(); }, signal);
       thumbDone = o.rec.thumb.size;
     }
-    await upload(o.polo.path!, o.rec.blob, f => { o.progress = (thumbDone + f * o.rec.blob.size) / total; o.polo.pending!.progress = o.progress; emit(); }, signal);
+    const onMedia = (f: number) => { o.progress = (thumbDone + f * o.rec.blob.size) / total; o.polo.pending!.progress = o.progress; emit(); };
+    if (o.rec.blob.size > TUS_CHUNK) {
+      await uploadResumable(o.polo.path!, o.rec.blob, { known: o.tus, onUrl: u => { o.tus = u; void persist(o, o.me); }, onProgress: onMedia, signal });
+    } else await upload(o.polo.path!, o.rec.blob, onMedia, signal);
     if (o.cancelled) return cleanup(o); // undone while the file was landing: take the file back down
     void seedCache(o.polo.path!, o.rec.blob);
     const wait = UNDO_MS - (Date.now() - stoppedAt);
@@ -125,8 +129,26 @@ async function run(o: Outgoing, onSent?: (p: Polo) => void) {
     if (o.cancelled) { void cleanup(o); return; }
     o.error = e instanceof Error ? e.message : 'Could not send';
     emit();
-  } finally { o.running = false; }
+  } finally { o.running = false; void awake(false); }
 }
+
+// keep the screen on while a holler is going up: a locked iPhone stops the upload
+type Lock = { release: () => Promise<void> };
+let lock: Lock | null = null;
+let asking: Promise<void> | null = null;
+async function awake(on: boolean) {
+  try {
+    if (asking) await asking;
+    const anyRunning = [...items.values()].some(x => x.running);
+    if (on && !lock && anyRunning && 'wakeLock' in navigator) {
+      asking = (navigator as Navigator & { wakeLock: { request: (t: 'screen') => Promise<Lock> } }).wakeLock.request('screen').then(l => { lock = l; }).finally(() => { asking = null; });
+      await asking;
+    } else if (!on && !anyRunning && lock) { const l = lock; lock = null; await l.release(); }
+  } catch { /* not allowed right now; the upload still resumes later */ }
+}
+
+/** A long holler is going up right now (worth asking the sender to keep Holler open). */
+export const bigSending = () => [...items.values()].some(o => o.running && !o.done && !o.cancelled && !o.error && o.rec.blob.size > TUS_CHUNK);
 
 async function cleanup(o: Outgoing) {
   const first = !o.cancelled;
@@ -139,7 +161,18 @@ async function cleanup(o: Outgoing) {
   }
 }
 
-if (typeof window !== 'undefined') window.addEventListener('online', () => { for (const o of items.values()) if (o.error && !o.done && !o.cancelled) void run(o); });
+if (typeof window !== 'undefined') {
+  const kick = () => { for (const o of items.values()) if (o.error && !o.done && !o.cancelled) void run(o); };
+  window.addEventListener('online', kick);
+  // back on screen after the phone slept or the sender switched apps: pick unfinished sends back up,
+  // and the screen lock is let go when hidden, so ask for it again
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    lock = null;
+    if ([...items.values()].some(x => x.running)) { void awake(true); window.dispatchEvent(new Event('holler-wake')); }
+    kick();
+  });
+}
 
 export function undo(key: string) { const o = items.get(key); if (o && !o.done) void cleanup(o); }
 export function retry(key: string) { const o = items.get(key); if (o) void run(o); }
