@@ -537,3 +537,13 @@ Same look, better manners. What changed, and the hooks a builder needs:
 - Blur budget is zero again (`.spot-opt` had picked one up).
 
 `scripts/layout.mjs` now also shoots `2cdays` (a strip across several days, faked response) and `10bask` (a question over the info sheet).
+
+## 16. The games are their own download (2026-11-26, late)
+
+The first download is home, the room, recording and the player: 581 KB (175 KB zipped), down from 957 KB. Everything in Play, with its cards, facts, words and questions, is `src/games/all.ts` (351 KB), fetched a moment after a room opens. The QR drawer loads when a code is shown.
+
+- Reach the games only through `useGames()` / `loadGames()` in `src/games/load.ts`. In `ChatScreen` every game screen is `G.Something` and renders once `G` is there.
+- Nothing in the first download may import `games/all`, a game screen, or anything under `games/content/` except `cardDecks.ts` (deck names and the card type). `roundLogic.ts` is in the first download, so it holds no decks: those are in `roundDecks.ts`.
+- Check after a build: `grep -c pearlfish dist/assets/index-*.js` must print 0 (that word is in the Poker Face facts).
+- Seven Letters and Trivia: once a game is over the page shows the scores only; the roster above them is for a game still being played.
+

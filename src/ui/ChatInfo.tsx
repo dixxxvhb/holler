@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import QRCode from 'qrcode';
 import { useApp } from '../App';
 import { api, type ChatFull } from '../lib/api';
 import { presenceOf, send as liveSend } from '../lib/live';
@@ -15,7 +14,7 @@ export function ChatInfo({ open, onClose, chat, onChanged }: { open: boolean; on
   const [qr, setQr] = useState('');
   const link = inviteLink(chat.code);
   useEffect(() => { setName(chat.name); }, [chat.name]);
-  useEffect(() => { if (open) QRCode.toDataURL(link, { margin: 1, width: 360, color: { dark: '#15121c', light: '#ffffff' } }).then(setQr).catch(() => {}); }, [open, link]);
+  useEffect(() => { if (open) void import('qrcode').then(Q => Q.toDataURL(link, { margin: 1, width: 360, color: { dark: '#15121c', light: '#ffffff' } })).then(setQr).catch(() => {}); }, [open, link]);
 
   const share = async () => {
     const text = `Come holler with me. Tap to join: ${link}`;

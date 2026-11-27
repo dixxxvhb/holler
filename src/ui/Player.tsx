@@ -3,7 +3,8 @@ import { api, mediaUrl, type ChatFull, type Person, type Polo } from '../lib/api
 import { send as liveSend } from '../lib/live';
 import { removeMine, sendRecording } from '../lib/outbox';
 import type { Recording, Studio } from '../lib/studio';
-import { cardById } from '../games/content/cards';
+import type { Card } from '../games/content/cardDecks';
+import { loadGames } from '../games/load';
 import { LiveFace, SyncedVideo, filmOn, readSync, setFilm, type SyncPoint } from '../games/reaction';
 import '../games/games.css';
 import { parseTranscript } from '../lib/speech';
@@ -96,7 +97,13 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
   useEffect(() => () => { if (studio?.recording) studio.cancel(); }, [studio]);
   // ---- cards ----
   const cardId = typeof polo?.effects?.cardId === 'string' ? (polo.effects.cardId as string) : null;
-  const card = cardId ? cardById(cardId) : undefined;
+  const [card, setCard] = useState<Card | undefined>();
+  useEffect(() => {
+    setCard(undefined); if (!cardId) return;
+    let gone = false;
+    void loadGames().then(g => { if (!gone) setCard(g.cardById(cardId)); }).catch(() => {});   // the cards are in the games download
+    return () => { gone = true; };
+  }, [cardId]);
   const [answer, setAnswer] = useState(false);
   useEffect(() => setAnswer(false), [polo?.id]);
   const members = chat?.members || [];

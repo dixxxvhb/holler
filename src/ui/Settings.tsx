@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import QRCode from 'qrcode';
 import { useApp } from '../App';
 import { api, cacheBytes, clearCache, rid, upload, type Prefs } from '../lib/api';
 import { LOOKS } from '../lib/studio';
@@ -59,7 +58,7 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
     try {
       const [tok, code] = await Promise.all([api.linkDevice(), api.linkCode()]);
       const url = `${location.origin}${location.pathname}#/link/${tok}`;
-      setLink({ url, code, qr: await QRCode.toDataURL(url, { margin: 1, width: 360, color: { dark: '#15121c', light: '#ffffff' } }) });
+      setLink({ url, code, qr: await (await import('qrcode')).toDataURL(url, { margin: 1, width: 360, color: { dark: '#15121c', light: '#ffffff' } }) });
     } catch (e) { toast((e as Error).message || 'Could not make a link'); }
   };
 

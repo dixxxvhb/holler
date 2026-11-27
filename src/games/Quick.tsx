@@ -141,7 +141,8 @@ export function QuickPage({ game, chat, me, onClose, onChanged }: {
         <button className="btn g-go wide" onClick={() => setGoing(true)}>Back to my go</button>
       )}
 
-      <ol className="g-track">
+      {/* once it is over the scores below say who played and what they got; listing everyone twice was noise */}
+      {!(seeResults && !playing && board.length > 0) && <ol className="g-track">
         {game.order.map(id => (
           <li key={id} className={`g-row ${playing && id === me.id && mine ? 'up' : ''}`}>
             <Avatar p={person(id)} size={38} />
@@ -150,7 +151,7 @@ export function QuickPage({ game, chat, me, onClose, onChanged }: {
             {played(id) && !seeResults && <span className="g-lock" aria-label="Hidden until you play"><Icon name="lock" size={18} /></span>}
           </li>
         ))}
-      </ol>
+      </ol>}
       {playing && inGame && !mine && <p className="g-meta">Your go is in. {waiting.length ? 'The rest unlock as people play.' : ''}</p>}
 
       {seeResults && board.length > 0 && (

@@ -7,9 +7,10 @@ import { Avatar, Sheet, ago, toast } from '../ui/bits';
 import { Icon } from '../ui/icons';
 import { shuffle } from './content/shuffle';
 import {
-  CHARADES_DECKS, GAME_NAME, POKER_DECKS, charadesScores, first, guessPoints, markUsed, owes, personIn, pokerCards, pokerScores,
+  GAME_NAME, POKER_DECKS, charadesScores, first, guessPoints, markUsed, owes, personIn, pokerScores,
   standings, usedIn, type PokerDeck,
 } from './roundLogic';
+import { CHARADES_DECKS, pokerCards } from './roundDecks';
 import './games.css';
 
 const hours6 = (iso: string | null) => !!iso && Date.now() - new Date(iso).getTime() < 6 * 3600e3;

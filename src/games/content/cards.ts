@@ -5,14 +5,8 @@ import { PROMPTS, ABOUT } from './say';
 import { QUESTIONS } from './guess';
 import { freshFirst } from './shuffle';
 
-export type Deck = 'say' | 'guess' | 'act';
-export type Card = { deck: Deck; id: string; text: string; sub: string; answer?: { n: number; source: string; year: number; note?: string } };
-
-export const DECKS: { id: Deck; label: string }[] = [
-  { id: 'say', label: 'Say' },
-  { id: 'guess', label: 'Guess' },
-  { id: 'act', label: 'Act' },
-];
+import { DECKS, type Card, type Deck } from './cardDecks';
+export { DECKS, type Card, type Deck } from './cardDecks';
 
 const hash = (s: string) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) | 0; return (h >>> 0).toString(36); };
 

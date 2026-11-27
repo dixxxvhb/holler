@@ -1,10 +1,7 @@
-// Poker Face and Charades Relay: decks, scoring and the little bits of text the screens share.
+// Poker Face and Charades Relay: scoring and the little bits of text the screens share.
+// Nothing here may import a deck of words or questions: this file is in the first download. Decks live in roundDecks.ts.
 // The rules (who has the truth, whose move it is, whether a guess is right) live in supabase/games2.sql.
 import type { ChatFull, Game, Person } from '../lib/api';
-import { FACTS } from './content/facts';
-import { WORDS } from './content/words';
-import { DECKS as WORD_DECKS } from './content/charades';
-import { freshFirst } from './content/shuffle';
 
 export const GAME_NAME: Record<Game['kind'], string> = {
   passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades Relay', ttt: 'Tic-Tac-Toe', checkers: 'Checkers', words: 'Seven Letters', trivia: 'Trivia', spot: 'On The Spot', laugh: "Don't Laugh", lastcard: 'Last Card',
@@ -18,6 +15,10 @@ export const isDuel = (g: Game) => g.kind === 'ttt' || g.kind === 'checkers';
 export const isTurns = (g: Game) => isDuel(g) || g.kind === 'lastcard';
 export const isQuick = (g: Game) => g.kind === 'words' || g.kind === 'trivia';
 export const isFace = (g: Game) => g.kind === 'spot' || g.kind === 'laugh';
+
+/** Pass It On: the first person acts, the last one guesses, everyone between copies. */
+export type Role = 'act' | 'copy' | 'guess';
+export function roleOf(g: Game): Role { return g.idx === 0 ? 'act' : g.idx >= g.order.length - 1 ? 'guess' : 'copy'; }
 
 const local = (k: string, d: string) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
 const keep = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
@@ -33,13 +34,6 @@ export const POKER_DECKS: { id: PokerDeck; label: string; note: string }[] = [
 ];
 export type PokerCard = { id: string; deck: PokerDeck; question: string; answer: string };
 
-export function pokerCards(deck: PokerDeck, used: string[]): PokerCard[] {
-  const all: PokerCard[] = deck === 'facts'
-    ? FACTS.map(f => ({ id: `facts:${f.id}`, deck, question: f.q, answer: f.truth }))
-    : WORDS.map(w => ({ id: `words:${w.id}`, deck, question: `What does "${w.word}" mean? (${w.pos})`, answer: w.truth }));
-  return freshFirst(all, c => c.id, used);
-}
-
 /** Find the truth: +2. Each person who believes your made-up answer: +1. The truth teller gets +1 for each person who believed them. */
 export function pokerScores(g: Game): Record<string, number> {
   const s: Record<string, number> = Object.fromEntries(g.order.map(id => [id, 0]));
@@ -52,12 +46,6 @@ export function pokerScores(g: Game): Record<string, number> {
 }
 
 // ---------------------------------------------------------------- Charades Relay words
-export const CHARADES_DECKS = Object.entries(WORD_DECKS).map(([id, d]) => ({ id, label: d.label }));
-export function charadesWords(deck: string, used: string[]): string[] {
-  const words = (WORD_DECKS[deck] || WORD_DECKS.mixed).words;
-  return freshFirst(words, w => w.toLowerCase(), used);
-}
-
 /** Points for one right guess: sooner in the clip scores more. */
 export function guessPoints(t: number | null, dur: number): number {
   if (t == null) return 0;

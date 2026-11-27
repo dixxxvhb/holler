@@ -13,8 +13,8 @@ const first = (p?: Person | null) => (p?.name || 'Someone').split(' ')[0];
 const local = (k: string, d: string) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
 const keep = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
 
-export type Role = 'act' | 'copy' | 'guess';
-export function roleOf(g: Game): Role { return g.idx === 0 ? 'act' : g.idx >= g.order.length - 1 ? 'guess' : 'copy'; }
+import { roleOf } from './roundLogic';
+export { roleOf, type Role } from './roundLogic';
 
 // ---------------------------------------------------------------- the Play sheet
 export function PlaySheet({ open, onClose, people, onCard, onPassItOn, onRound }: {
