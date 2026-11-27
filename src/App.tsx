@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api, getToken, setToken, type Home } from './lib/api';
 import { onLive, setMe, syncChats } from './lib/live';
 import { busy, resumeOutbox } from './lib/outbox';
-import { Toaster, toast, chatTitle } from './ui/bits';
+import { Asker, Toaster, toast, chatTitle } from './ui/bits';
 import { Onboard } from './ui/Onboard';
 import { HomeScreen } from './ui/HomeScreen';
 import { ChatScreen } from './ui/ChatScreen';
@@ -23,6 +23,12 @@ export default function App() {
   const [signedIn, setSignedIn] = useState(!!getToken());
   const [loadErr, setLoadErr] = useState('');
   const routeRef = useRef(route); routeRef.current = route;
+  const [offline, setOffline] = useState(() => typeof navigator !== 'undefined' && navigator.onLine === false);
+  useEffect(() => {
+    const f = () => setOffline(navigator.onLine === false);
+    window.addEventListener('online', f); window.addEventListener('offline', f);
+    return () => { window.removeEventListener('online', f); window.removeEventListener('offline', f); };
+  }, []);
 
   useEffect(() => { const f = () => setRoute(parse()); window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
   const go = useCallback((h: string) => {
@@ -106,7 +112,8 @@ export default function App() {
   // catch up when the app comes back to the front
   useEffect(() => {
     const f = () => { if (!document.hidden) void refresh(); };
-    document.addEventListener('visibilitychange', f); return () => document.removeEventListener('visibilitychange', f);
+    document.addEventListener('visibilitychange', f); window.addEventListener('online', f);
+    return () => { document.removeEventListener('visibilitychange', f); window.removeEventListener('online', f); };
   }, [refresh]);
 
   useEffect(() => {
@@ -132,7 +139,9 @@ export default function App() {
   return (
     <AppCtx.Provider value={ctx}>
       {screen}
+      {offline && <div className="net-off" role="status">No connection. Holler will catch up when you're back.</div>}
       <Toaster />
+      <Asker />
     </AppCtx.Provider>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { publicUrl, type Person } from '../lib/api';
 import type { Status } from '../lib/live';
 import { Icon } from './icons';
@@ -24,21 +24,84 @@ export function AvatarStack({ people, size = 34, max = 4 }: { people: Person[]; 
   );
 }
 
+const SHEET_OUT = 200;
+const openSheets: object[] = [];   // bottom to top, so Escape only reaches the one on top
+/** A block that slides up. It leaves the way it came (so what was in it stays put while it goes), the band stays at the top
+ *  while the rest scrolls, and you can pull it down by the band. */
 export function Sheet({ open, onClose, children, title, className, room, you }: { open: boolean; onClose: () => void; children: ReactNode; title?: string; className?: string; room?: string; you?: string }) {
+  const [shown, setShown] = useState(open);
+  const closeRef = useRef(onClose); closeRef.current = onClose;   // parents pass a new function every render; the sheet keeps its place in the stack
+  const el = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ y: number; dy: number } | null>(null);
+  // what the sheet last showed while open: a parent usually empties these the moment it closes
+  const last = useRef({ children, title, className, room, you });
+  if (open) last.current = { children, title, className, room, you };
+  useEffect(() => {
+    if (open) { setShown(true); if (el.current) { el.current.style.transform = ''; el.current.style.transition = ''; } return; }
+    const t = setTimeout(() => setShown(false), SHEET_OUT);
+    return () => clearTimeout(t);
+  }, [open]);
   useEffect(() => {
     if (!open) return;
-    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
-  }, [open, onClose]);
-  if (!open) return null;
+    const me = {}; openSheets.push(me);
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && openSheets[openSheets.length - 1] === me) { e.stopImmediatePropagation(); closeRef.current(); } };
+    window.addEventListener('keydown', k);
+    return () => { window.removeEventListener('keydown', k); const i = openSheets.indexOf(me); if (i >= 0) openSheets.splice(i, 1); };
+  }, [open]);
+  if (!open && !shown) return null;
+  const v = last.current;
+  const closing = !open;
+  const down = (e: React.PointerEvent) => {
+    if ((e.target as Element).closest('button, input, textarea, select, a')) return;
+    drag.current = { y: e.clientY, dy: 0 };
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+  };
+  const move = (e: React.PointerEvent) => {
+    const d = drag.current, s = el.current; if (!d || !s) return;
+    d.dy = Math.max(0, e.clientY - d.y);
+    s.style.transition = 'none'; s.style.transform = d.dy ? `translateY(${d.dy}px)` : '';
+  };
+  const up = () => {
+    const d = drag.current, s = el.current; drag.current = null; if (!d || !s) return;
+    if (d.dy > 90) { onClose(); return; }   // it carries on down from where the finger left it
+    s.style.transition = ''; s.style.transform = '';
+  };
   return (
-    <div className="sheet-wrap" onClick={onClose}>
-      <div className={`sheet ${className || ''}`} data-room={room} data-you={you ? '' : undefined} style={you ? { ['--room' as string]: you } : undefined} onClick={e => e.stopPropagation()} role="dialog" aria-label={title}>
+    <div className={`sheet-wrap ${closing ? 'closing' : ''}`} onClick={onClose}>
+      <div ref={el} className={`sheet ${v.className || ''}`} data-room={v.room} data-you={v.you ? '' : undefined} style={v.you ? { ['--room' as string]: v.you } : undefined} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={v.title}>
         <div className="grab" />
-        {title && <div className="sheet-head"><h2>{title}</h2><button className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}
-        {children}
+        {v.title && <div className="sheet-head" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}><h2>{v.title}</h2><button className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}
+        {v.children}
       </div>
     </div>
+  );
+}
+
+/** One question in a small sheet, in place of the browser's own pop-up. `await ask({...})` is true for yes. */
+type AskT = { title: string; body?: string; yes: string; no?: string; danger?: boolean };
+let pushAsk: (a: AskT, done: (v: boolean) => void) => void = (a, done) => done(window.confirm(a.title));
+export function ask(a: AskT) { return new Promise<boolean>(r => pushAsk(a, r)); }
+export function Asker() {
+  const [q, setQ] = useState<{ a: AskT; done: (v: boolean) => void } | null>(null);
+  useEffect(() => { pushAsk = (a, done) => setQ(cur => { cur?.done(false); return { a, done }; }); }, []);
+  const end = (v: boolean) => { q?.done(v); setQ(null); };
+  return (
+    <Sheet open={!!q} onClose={() => end(false)} title={q?.a.title} className="ask" you="#f7f6fb">
+      {q?.a.body && <p className="ask-body">{q.a.body}</p>}
+      <button className={`btn wide ${q?.a.danger ? 'danger' : 'primary'}`} autoFocus onClick={() => end(true)}>{q?.a.yes}</button>
+      <button className="btn wide" onClick={() => end(false)}>{q?.a.no || 'Cancel'}</button>
+    </Sheet>
+  );
+}
+
+/** A labelled switch row. */
+export function Toggle({ label, hint, on, set, disabled }: { label: string; hint?: string; on: boolean; set: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <label className={`toggle ${disabled ? 'is-off' : ''}`}>
+      <span><b>{label}</b>{hint && <em>{hint}</em>}</span>
+      <input type="checkbox" checked={on && !disabled} disabled={disabled} onChange={e => set(e.target.checked)} />
+      <i />
+    </label>
   );
 }
 
@@ -46,18 +109,22 @@ type ToastT = { id: number; text: string; action?: { label: string; run: () => v
 let pushToast: (t: Omit<ToastT, 'id'>) => void = () => {};
 export function toast(text: string, action?: ToastT['action'], ms = 3200) { pushToast({ text, action, ms }); }
 export function Toaster() {
-  const [list, setList] = useState<ToastT[]>([]);
+  const [list, setList] = useState<(ToastT & { out?: boolean })[]>([]);
   useEffect(() => {
+    const drop = (id: number) => {
+      setList(l => l.map(x => (x.id === id ? { ...x, out: true } : x)));
+      setTimeout(() => setList(l => l.filter(x => x.id !== id)), 180);
+    };
     pushToast = t => {
       const id = Date.now() + Math.random();
       setList(l => [...l.slice(-2), { ...t, id }]);
-      setTimeout(() => setList(l => l.filter(x => x.id !== id)), t.ms);
+      setTimeout(() => drop(id), t.ms);
     };
   }, []);
   return (
-    <div className="toasts">
+    <div className="toasts" role="status" aria-live="polite">
       {list.map(t => (
-        <div key={t.id} className="toast">
+        <div key={t.id} className={`toast ${t.out ? 'out' : ''}`}>
           <span>{t.text}</span>
           {t.action && <button onClick={() => { t.action!.run(); setList(l => l.filter(x => x.id !== t.id)); }}>{t.action.label}</button>}
         </div>
@@ -84,6 +151,16 @@ export function when(iso: string) {
   if (diff === 1) return `Yesterday ${time}`;
   if (diff < 6) return `${d.toLocaleDateString(undefined, { weekday: 'short' })} ${time}`;
   return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${time}`;
+}
+/** "Today", "Yesterday", "Mon", "Nov 3": the day a holler belongs to */
+export function dayLabel(iso: string) {
+  const d = new Date(iso); const now = new Date();
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 86400000);
+  if (diff <= 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  if (diff < 6) return d.toLocaleDateString(undefined, { weekday: 'short' });
+  return d.toLocaleDateString(undefined, d.getFullYear() === now.getFullYear() ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: '2-digit' });
 }
 export function clock(sec: number) {
   const s = Math.max(0, Math.floor(sec)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;

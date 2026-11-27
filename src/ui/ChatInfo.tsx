@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { useApp } from '../App';
 import { api, type ChatFull } from '../lib/api';
-import { send as liveSend } from '../lib/live';
-import { Avatar, Sheet, THEMES, ago, chatTitle, toast } from './bits';
+import { presenceOf, send as liveSend } from '../lib/live';
+import { Avatar, Sheet, THEMES, Toggle, ago, ask, chatTitle, toast } from './bits';
 import { Icon } from './icons';
 
 export const inviteLink = (code: string) => `${location.origin}${location.pathname}#/join/${code}`;
@@ -36,19 +36,21 @@ export function ChatInfo({ open, onClose, chat, onChanged }: { open: boolean; on
     catch (e) { toast((e as Error).message); }
   };
   const leave = async () => {
-    if (!confirm('Leave this chat? You will need the code to get back in.')) return;
+    if (!(await ask({ title: 'Leave this chat?', body: 'You will need the code to get back in.', yes: 'Leave chat', danger: true }))) return;
     try { await api.leave(chat.id); } catch (e) { toast((e as Error).message); return; }
     liveSend(chat.id, 'chat'); onClose(); go('/');
   };
   const n = chat.polos.length;
+  const pres = presenceOf(chat.id);
+  const copyCode = async () => { try { await navigator.clipboard.writeText(chat.code); toast('Code copied'); } catch { /* no clipboard here: the code is on screen */ } };
 
   return (
-    <Sheet open={open} onClose={onClose} title={chatTitle(chat, me.id)}>
+    <Sheet open={open} onClose={onClose} title={chatTitle(chat, me.id)} room={chat.theme || 'ember'}>
       <div className="invite">
         {qr && <img className="qr" src={qr} alt="Invite QR code" />}
         <div className="invite-side">
           <div className="lbl">Invite code</div>
-          <div className="code-big">{chat.code}</div>
+          <button type="button" className="code-big" onClick={() => void copyCode()} aria-label={`Invite code ${chat.code.split('').join(' ')}. Tap to copy.`}>{chat.code}</button>
           <button className="btn primary" onClick={() => void share()}><Icon name="share" size={18} /> Send invite</button>
           <p className="fine">Anyone with the link or code can join. Up to 12 people.</p>
         </div>
@@ -57,7 +59,7 @@ export function ChatInfo({ open, onClose, chat, onChanged }: { open: boolean; on
       <div className="lbl">People ({chat.members.length})</div>
       <ul className="people">
         {chat.members.map(m => (
-          <li key={m.id}><Avatar p={m} size={36} /><span className="pname">{m.id === me.id ? `${m.name} (you)` : m.name}</span><em>{m.id === me.id ? '' : `active ${ago(m.lastSeen)}`}</em></li>
+          <li key={m.id}><Avatar p={m} size={36} /><span className="pname">{m.id === me.id ? `${m.name} (you)` : m.name}</span><em className={pres[m.id] && m.id !== me.id ? 'now' : ''}>{m.id === me.id ? '' : pres[m.id] === 'recording' ? 'recording now' : pres[m.id] === 'watching' ? 'watching now' : pres[m.id] ? 'here now' : `active ${ago(m.lastSeen)}`}</em></li>
         ))}
       </ul>
 
@@ -69,11 +71,9 @@ export function ChatInfo({ open, onClose, chat, onChanged }: { open: boolean; on
         {Object.entries(THEMES).map(([k, v]) => <button key={k} className={`sw ${chat.theme === k ? 'on' : ''}`} data-room={k} onClick={() => void setTheme(k)} aria-label={v.label} aria-pressed={chat.theme === k} />)}
       </div>
 
-      <div className="row gap wrap" style={{ marginTop: 18 }}>
-        <button className="btn" onClick={() => void mute()}><Icon name={chat.muted ? 'bell' : 'bellOff'} size={18} /> {chat.muted ? 'Unmute' : 'Mute'}</button>
-        <button className="btn danger" onClick={() => void leave()}>Leave chat</button>
-      </div>
+      <Toggle label="Mute this chat" hint="No pings or sounds from here." on={chat.muted} set={() => void mute()} />
       <p className="fine">{n} {n === 1 ? 'holler' : 'hollers'} here, kept forever until someone deletes their own.</p>
+      <button className="btn danger leave" onClick={() => void leave()}>Leave chat</button>
     </Sheet>
   );
 }

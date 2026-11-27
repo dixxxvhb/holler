@@ -120,9 +120,10 @@ export function HomeScreen() {
             const from = lastBy && lastBy.id !== me.id && c.last ? `new from ${lastBy.name.split(' ')[0]} · ${ago(c.last.at)}` : `new ${c.unread === 1 ? 'holler' : 'hollers'}`;
             return (
               <li key={c.id} className={c.unread ? 'is-unread' : recording ? 'is-live' : ''}>
-                <button className={`chat-card ${c.unread ? 'unread' : ''} ${recording ? 'live' : ''}`} data-room={c.theme || 'ember'} onClick={() => go(`/c/${c.id}`)}>
+                <button className={`chat-card ${c.unread ? 'unread' : ''} ${recording ? 'live' : ''}`} data-room={c.theme || 'ember'} onClick={e => go(c.unread && (e.target as Element).closest('.cc-thumb') && !(e.target as Element).closest('.badge') ? `/c/${c.id}/watch` : `/c/${c.id}`)}>
                   <div className="cc-thumb">
                     {c.last?.thumb ? <img src={publicUrl(c.last.thumb)} alt="" loading="lazy" /> : c.last?.kind === 'text' ? <span className="cc-text" style={{ background: tone(lastBy?.color), color: 'var(--on-color)' }}>{c.last.body}</span> : c.last?.kind === 'audio' ? <Icon name="wave" size={28} /> : <Icon name="camera" size={26} />}
+                    {c.unread > 0 && <span className="cc-play" aria-hidden="true"><Icon name="play" size={20} fill="currentColor" /></span>}
                     {c.unread > 0 && <span className="badge">{c.unread}</span>}
                   </div>
                   <div className="cc-body">

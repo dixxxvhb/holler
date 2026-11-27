@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../App';
 import { api, publicUrl, type ChatFull, type Game, type Person, type Polo } from '../lib/api';
 import { onLive, onPresence, onReconnect, presenceOf, send as liveSend, setStatus } from '../lib/live';
@@ -8,7 +8,7 @@ import { KINDS, LOOKS, lookOf, type LookId, type LookKind } from '../lib/looks';
 import { VOICES, type VoiceId } from '../lib/voice';
 import { Captioner, isIOS, speechSupported, type Seg } from '../lib/speech';
 import { pop, recStart, recStop } from '../lib/sound';
-import { Avatar, Sheet, ago, chatTitle, clock, toast, tone } from './bits';
+import { Avatar, Sheet, ago, ask, chatTitle, clock, dayLabel, toast, tone } from './bits';
 import { Icon } from './icons';
 import { isSimple, setSimple, routeInMemory } from '../lib/device';
 import { Player } from './Player';
@@ -36,6 +36,9 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const me = home!.me;
   const prefs = me.prefs || {};
   const [chat, setChat] = useState<ChatFull | null>(null);
+  // what home already knows paints the room at once: its own color, name and faces (no flash of the wrong color while it loads)
+  const seed = home!.chats.find(c => c.id === chatId) || null;
+  const shell = chat || seed;
   const [err, setErr] = useState('');
   const [, bump] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -128,7 +131,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
 
   useEffect(() => { void load(); }, [load]);
   // the invite sheet opens once after making a chat; drop it from the address so a reload doesn't reopen it
-  useEffect(() => { if (route[2] === 'invite' && !routeInMemory) history.replaceState(null, '', `${location.pathname}#/c/${chatId}`); }, [route, chatId]);
+  useEffect(() => { if ((route[2] === 'invite' || route[2] === 'watch') && !routeInMemory) history.replaceState(null, '', `${location.pathname}#/c/${chatId}`); }, [route, chatId]);
   useEffect(() => onLive(e => { if (e.chat === chatId) void load(); }), [chatId, load]);
   useEffect(() => onReconnect(id => { if (id === chatId) void load(); }), [chatId, load]);
   // backstop in case a live ping is missed
@@ -205,7 +208,17 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   useEffect(() => { const el = stripRef.current; if (el) el.scrollLeft = el.scrollWidth; }, [polos.length, pend.length]);
 
   const unread = polos.filter(p => p.author !== me.id && !p.views.some(v => v.who === me.id));
-  const others = chat ? chat.members.filter(m => m.id !== me.id) : [];
+  const { dayStarts, manyDays } = useMemo(() => {
+    const starts = new Set<string>(); const stacked = new Set<string>(); let lastDay = '';
+    for (const p of polos) {
+      const cid = typeof p.effects?.cardId === 'string' ? (p.effects.cardId as string) : null;
+      if (cid && polos.filter(x => x.effects?.cardId === cid).length > 1) { if (stacked.has(cid)) continue; stacked.add(cid); }
+      const d = new Date(p.at).toDateString();
+      if (d !== lastDay) { starts.add(p.id); lastDay = d; }
+    }
+    return { dayStarts: starts, manyDays: starts.size > 1 };
+  }, [polos]);
+  const others = shell ? shell.members.filter(m => m.id !== me.id) : [];
   const pres = presenceOf(chatId);
   const maxSec = turn ? (turn.kind === 'poker' ? 45 : turn.kind === 'spot' ? 40 : turn.turnSec) : hd ? MAX_SEC.hd : MAX_SEC.sd;
   const fixedTurn = !!turn && turn.kind !== 'poker' && turn.kind !== 'spot';   // Pass It On and Charades turns send themselves at the turn length
@@ -456,6 +469,18 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     setStatus(chatId, 'watching');
   };
   const closePlayer = () => { setPlayer(null); setStatus(chatId, 'here'); void load(); void refresh(); };
+  // came in by tapping the picture on home: go straight to the first one not watched yet
+  const autoWatch = useRef(route[2] === 'watch');
+  useEffect(() => {
+    if (!autoWatch.current || !chat) return;
+    autoWatch.current = false;
+    if (unread.length) openPlayer(polos, polos.indexOf(unread[0]));
+  }, [chat]); // eslint-disable-line react-hooks/exhaustive-deps
+  const leave = async () => {
+    if (recording && !(await ask({ title: 'Still recording', body: 'Leave and throw this one away?', yes: 'Throw it away', no: 'Keep recording', danger: true }))) return;
+    if (studio.current?.recording) cancelRec();
+    go('/');
+  };
 
   const toggle = (p: Panel) => setPanel(cur => (cur === p ? null : p));
 
@@ -464,7 +489,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   );
 
   return (
-    <div className={`chat ${panel ? 'panel-open' : ''} ${recording ? 'is-rec' : ''} ${turn ? ((turn.kind === 'passiton' ? roleOf(turn) === 'act' : turn.kind === 'charades' || turn.kind === 'laugh') ? 'g-in-turn g-acting' : 'g-in-turn') : ''}`} ref={chatRef} data-room={chat?.theme || 'ember'}>
+    <div className={`chat ${panel ? 'panel-open' : ''} ${recording ? 'is-rec' : ''} ${turn ? ((turn.kind === 'passiton' ? roleOf(turn) === 'act' : turn.kind === 'charades' || turn.kind === 'laugh') ? 'g-in-turn g-acting' : 'g-in-turn') : ''}`} ref={chatRef} data-room={shell?.theme || 'ember'}>
       <div className="preview" ref={previewRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => onUp()}>
         <canvas ref={canvasRef} className={`cam ${audioOnly ? 'dim' : ''}`} />
         {camState === 'denied' && (
@@ -493,12 +518,12 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       <header className="chat-top">
         {turn
           ? <button className="icon-btn glass" onClick={() => { if (recording) cancelRec(); setTurn(null); }} aria-label="Leave this turn for now"><Icon name="close" /></button>
-          : <button className="icon-btn glass" onClick={() => { if (recording && !confirm('You are still recording. Leave and throw this one away?')) return; if (recording) cancelRec(); go('/'); }} aria-label="Back"><Icon name="back" /></button>}
+          : <button className="icon-btn glass" onClick={() => void leave()} aria-label="Back"><Icon name="back" /></button>}
         <button className="chat-title glass" onClick={() => setInfo(true)}>
-          <span className="t">{chat ? chatTitle(chat, me.id) : ' '}</span>
+          <span className="t">{shell ? chatTitle(shell, me.id) : ' '}</span>
           <span className="who">
             {others.map(o => <Avatar key={o.id} p={o} size={28} status={pres[o.id]} />)}
-            {others.length === 0 && <span className="fine">Tap to invite people</span>}
+            {chat && others.length === 0 && <span className="fine">Tap to invite people</span>}
           </span>
         </button>
         <button className="icon-btn glass" onClick={() => setInfo(true)} aria-label="Chat info"><Icon name="info" /></button>
@@ -608,7 +633,6 @@ export function ChatScreen({ chatId }: { chatId: string }) {
 
         {!panel && (
           <div className="strip" ref={stripRef}>
-            {!turn && <button className="g-play-tile" onClick={() => setPlayOpen(true)}><Icon name="cards" size={22} /><span>Play</span></button>}
             {games.filter(g => !g.hidden).map(g => {
               if (g.kind !== 'passiton') {
                 const mine = owes(g, me.id);
@@ -637,25 +661,30 @@ export function ChatScreen({ chatId }: { chatId: string }) {
                 </button>
               );
             })}
-            {polos.length === 0 && pend.length === 0 && games.length === 0 && <div className="strip-empty">{others.length ? 'No hollers yet. Say hi.' : 'Invite your people, then say hi.'}</div>}
+            {!chat && pend.length === 0 && [0, 1, 2, 3].map(i => <span key={i} className="tile-sk" aria-hidden="true" />)}
+            {chat && polos.length === 0 && pend.length === 0 && games.length === 0 && <div className="strip-empty">{others.length ? 'No hollers yet. Say hi.' : 'Invite your people, then say hi.'}</div>}
             {polos.map((p, i) => {
+              const day = manyDays && dayStarts.has(p.id) ? <span className="strip-day" aria-hidden="true"><i>{dayLabel(p.at)}</i></span> : null;
               const cid = typeof p.effects?.cardId === 'string' ? p.effects.cardId as string : null;
               const stack = cid ? polos.filter(x => x.effects?.cardId === cid) : [];
               if (cid && stack.length > 1) {
                 if (stack[0].id !== p.id) return null;
                 const unseen = stack.some(x => x.author !== me.id && !x.views.some(v => v.who === me.id));
                 return (
-                  <button key={p.id} className={`tile g-stack ${unseen ? 'new' : ''} ${p.author === me.id ? 'mine' : ''}`} onClick={() => openPlayer(stack, 0)}>
+                  <Fragment key={p.id}>{day}
+                  <button className={`tile g-stack ${unseen ? 'new' : ''} ${p.author === me.id ? 'mine' : ''}`} onClick={() => openPlayer(stack, 0)}>
                     <b>{String(p.effects?.card || 'Card')}</b>
                     <span className="g-stack-faces">{stack.slice(0, 4).map(x => <Avatar key={x.id} p={chat!.members.find(m => m.id === x.author)} size={15} />)}</span>
                   </button>
+                  </Fragment>
                 );
               }
               const author = chat!.members.find(m => m.id === p.author);
               const orig = p.reactTo ? polos.find(x => x.id === p.reactTo) : undefined;
               const seen = p.author === me.id || p.views.some(v => v.who === me.id);
               return (
-                <button key={p.id} className={`tile ${seen ? '' : 'new'} ${p.author === me.id ? 'mine' : ''}`} style={{ ['--c' as string]: tone(author?.color) }} onClick={() => openPlayer(polos, i)}
+                <Fragment key={p.id}>{day}
+                <button className={`tile ${seen ? '' : 'new'} ${p.author === me.id ? 'mine' : ''}`} style={{ ['--c' as string]: tone(author?.color) }} onClick={() => openPlayer(polos, i)}
                   aria-label={`${p.author === me.id ? 'Your' : `${author?.name.split(' ')[0] || 'Someone'}'s`} ${p.kind === 'text' ? 'note' : p.kind === 'audio' ? 'voice holler' : 'holler'}, ${ago(p.at)}${seen ? '' : ', new'}`}>
                   {orig?.thumb && <span className="g-tile-pip"><img src={publicUrl(orig.thumb)} alt="" loading="lazy" /></span>}
                   {p.kind === 'video' && p.thumb ? <img src={publicUrl(p.thumb)} alt="" loading="lazy" />
@@ -663,7 +692,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
                     : <span className="tile-audio"><Avatar p={author} size={34} /><Icon name="wave" size={16} /></span>}
                   <span className="tile-av"><Avatar p={author} size={20} /></span>
                   {p.duration ? <span className="tile-dur">{clock(p.duration)}</span> : null}
-                  {p.savedBy.includes(me.id) && <span className="tile-star"><Icon name="star" size={12} fill="currentColor" /></span>}
+                  {p.savedBy.includes(me.id) && <span className="tile-star"><Icon name="bookmark" size={12} fill="currentColor" /></span>}
                   {p.author === me.id && others.length > 0 && (() => {
                     const seenBy = others.filter(o => p.views.some(v => v.who === o.id));
                     return seenBy.length
@@ -671,6 +700,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
                       : <span className="tile-seen none" title="Not watched yet"><Icon name="check" size={12} stroke={3} /></span>;
                   })()}
                 </button>
+                </Fragment>
               );
             })}
             {pend.filter(o => !o.polo.effects?.game || o.error).map(o => (
@@ -689,9 +719,9 @@ export function ChatScreen({ chatId }: { chatId: string }) {
 
         <div className="rec-row">
           {recording ? (
-            <button className="side-btn" onClick={cancelRec} aria-label="Discard recording"><Icon name="trash" /></button>
+            <button className="side-btn" onClick={cancelRec} aria-label="Discard recording"><Icon name="trash" /><span className="sb-lb">Discard</span></button>
           ) : (
-            <button className="side-btn" onClick={() => setTyping(true)} aria-label="Send a text"><Icon name="keyboard" /></button>
+            <button className="side-btn" onClick={() => setTyping(true)} aria-label="Send a text"><Icon name="keyboard" /><span className="sb-lb">Note</span></button>
           )}
           <button className={`rec ${recording ? 'on' : ''} ${audioOnly ? 'audio' : ''} ${paused ? 'is-paused' : ''} ${countdown ? 'counting' : ''}`}
             onPointerDown={onRecDown} onPointerUp={() => void onRecUp()} onPointerCancel={() => { pressAt.current = 0; }} onContextMenu={e => e.preventDefault()}
@@ -703,7 +733,9 @@ export function ChatScreen({ chatId }: { chatId: string }) {
             </svg>
             <span className="rec-core" style={recording ? { transform: `scale(${paused ? 0.55 : 0.55 + level * 0.25})` } : undefined} />
           </button>
-          {recording ? <div className="timer">{clock(elapsed)}</div> : <div className="side-btn ghost" />}
+          {recording ? <div className="timer">{clock(elapsed)}</div>
+            : turn || !chat ? <div className="side-btn ghost" />
+            : <button className="side-btn g-play-tile" onClick={() => setPlayOpen(true)} aria-label="Play a game"><Icon name="cards" /><span className="sb-lb">Play</span></button>}
         </div>
         {recording && <div className="rec-hint">{fixedTurn && turn ? `Sends itself at ${turn.turnSec} seconds` : turn?.kind === 'spot' ? 'Tap your answers. It sends itself after the third.' : turn ? 'Tap to send your answer' : held ? 'Let go to send' : paused ? 'Paused. Tap Resume to keep going, or tap to send.' : 'Tap to send'}</div>}
         {turn && !recording && <div className="rec-hint">{turn.kind === 'poker' ? 'Tap record and give your answer' : turn.kind === 'spot' ? 'Tap record. Your first question shows right away.' : turn.kind === 'laugh' ? 'Tap record and make them laugh' : turn.kind === 'charades' || roleOf(turn) === 'act' ? 'Tap record and act it out' : roleOf(turn) === 'guess' ? 'Tap record and say your guess' : 'Tap record and copy it'}</div>}

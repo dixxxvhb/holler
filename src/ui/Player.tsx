@@ -8,7 +8,7 @@ import { LiveFace, SyncedVideo, filmOn, readSync, setFilm, type SyncPoint } from
 import '../games/games.css';
 import { parseTranscript } from '../lib/speech';
 import { pop } from '../lib/sound';
-import { Avatar, ago, clock, toast, tone, when } from './bits';
+import { Avatar, ago, ask, clock, toast, tone, when } from './bits';
 import { Icon, REACTIONS } from './icons';
 
 const SPEEDS = [1, 1.5, 2];
@@ -26,7 +26,14 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
   const [speed, setSpeed] = useState(me.prefs?.speed || 1);
   const [cc, setCc] = useState(me.prefs?.captions !== false);
   const [bursts, setBursts] = useState<{ id: number; kind: string; x: number; who?: Person }[]>([]);
-  const [menu, setMenu] = useState(false);
+  // the gestures are invisible, so say them once, the first time anyone watches anything
+  const [hint, setHint] = useState(() => { try { return !localStorage.getItem('holler.phint'); } catch { return false; } });
+  useEffect(() => {
+    if (!hint) return;
+    try { localStorage.setItem('holler.phint', '1'); } catch { /* private mode */ }
+    const t = setTimeout(() => setHint(false), 6000);
+    return () => clearTimeout(t);
+  }, [hint]);
   const [needTap, setNeedTap] = useState(false);
   const vid = useRef<HTMLVideoElement>(null); // one element for every video and voice holler (iOS lets a played element keep playing)
   const textTimer = useRef(0);
@@ -223,17 +230,18 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
     document.body.appendChild(a); a.click(); a.remove();
   };
   const del = async () => {
-    if (!confirm('Delete this holler for everyone?')) return;
+    const e = el(); const was = !!e && !e.paused; if (was) { e!.pause(); setPaused(true); }
+    if (!(await ask({ title: 'Delete this holler?', body: 'It goes away for everyone in the chat.', yes: 'Delete for everyone', danger: true }))) { if (was) { void e!.play(); setPaused(false); } return; }
     try { await removeMine(polo); } catch (e) { toast((e as Error).message || 'Could not delete that'); return; }
     const rest = items.filter(p => p.id !== polo.id);
     if (!rest.length) { onClose(); return; }
-    setItems(rest); setIdx(i => Math.min(i, rest.length - 1)); setMenu(false); onChanged?.();
+    setItems(rest); setIdx(i => Math.min(i, rest.length - 1)); onChanged?.();
   };
   const cycleSpeed = () => { const s = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]; setSpeed(s); void api.updateMe({ prefs: { speed: s } }); };
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
-      if (review) return;
+      if (review || document.querySelector('.sheet-wrap:not(.closing)')) return;   // a question is up: the keys are its
       if (e.key === 'Escape') close(); else if (e.key === 'ArrowRight') goNext(); else if (e.key === 'ArrowLeft') goPrev(); else if (e.key === ' ') { e.preventDefault(); togglePause(); }
     };
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
@@ -294,6 +302,7 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
         {needTap && <div className="paused tap"><Icon name="play" size={56} fill="currentColor" /><span>Tap to play</span></div>}
         {paused && !needTap && <div className="paused"><Icon name="play" size={48} fill="currentColor" /></div>}
         {cc && caption && <div className="p-cap"><span>{caption}</span></div>}
+        {hint && !needTap && <div className="p-hint"><span>Tap the sides to skip. Hold to pause. Swipe down to close.</span></div>}
         <div className="bursts">
           {bursts.map(b => {
             const r = REACTIONS.find(x => x.id === b.kind);
@@ -331,12 +340,11 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
         <div className="p-tools">
           {polo.kind !== 'text' && <button className="pill-btn" onClick={cycleSpeed} aria-label="Speed">{speed}x</button>}
           {segs.length > 0 && <button className={`pill-btn ${cc ? 'on' : ''}`} onClick={() => setCc(c => !c)} aria-label="Captions" aria-pressed={cc}><Icon name="cc" size={20} /><span className="lb">Captions</span></button>}
-          <button className={`pill-btn ${polo.savedBy.includes(me.id) ? 'on' : ''}`} onClick={() => void save()} aria-label={polo.savedBy.includes(me.id) ? 'Saved' : 'Save'}><Icon name="star" size={20} fill={polo.savedBy.includes(me.id) ? 'currentColor' : undefined} /><span className="lb">{polo.savedBy.includes(me.id) ? 'Saved' : 'Save'}</span></button>
+          <button className={`pill-btn ${polo.savedBy.includes(me.id) ? 'on' : ''}`} onClick={() => void save()} aria-label={polo.savedBy.includes(me.id) ? 'Saved' : 'Save'}><Icon name="bookmark" size={20} fill={polo.savedBy.includes(me.id) ? 'currentColor' : undefined} /><span className="lb">{polo.savedBy.includes(me.id) ? 'Saved' : 'Save'}</span></button>
           {polo.path && <button className="pill-btn" onClick={() => void download()} aria-label="Download"><Icon name="download" size={20} /></button>}
-          {polo.author === me.id && !standalone && <button className="pill-btn" onClick={() => setMenu(m => !m)} aria-label="Delete" aria-expanded={menu}><Icon name="trash" size={20} /></button>}
+          {polo.author === me.id && !standalone && <button className="pill-btn" onClick={() => void del()} aria-label="Delete"><Icon name="trash" size={20} /></button>}
           {cardId && onAnswerCard && !standalone && <button className="pill-btn g-cardans" onClick={() => { const id = cardId; void stopFilm(() => { onClose(); onAnswerCard(id); }); }} aria-label="Answer this card"><Icon name="cards" size={20} /><span className="lb">Answer this card</span></button>}
         </div>
-        {menu && <div className="p-menu"><button className="btn danger wide" onClick={() => void del()}>Delete for everyone</button></div>}
         <div className="reacts">
           {REACTIONS.map(r => <button key={r.id} onClick={() => void react(r.id)} aria-label={r.label}><Icon name={r.id} size={26} /></button>)}
         </div>

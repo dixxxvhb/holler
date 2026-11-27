@@ -21,7 +21,7 @@ export function Saved() {
         <button className="icon-btn" onClick={() => go('/')} aria-label="Back"><Icon name="back" /></button>
         <h1>Saved</h1><span />
       </header>
-      {list === null ? <div className="spinner static" /> : list.length === 0 ? (
+      {list === null ? <div className="grid" aria-busy="true">{[0, 1, 2, 3, 4, 5].map(i => <span key={i} className="g-tile sk" />)}</div> : list.length === 0 ? (
         <div className="empty"><h2>Nothing saved yet</h2><p className="muted">Tap Save while watching a holler to keep it here, even years from now.</p></div>
       ) : (
         <div className="grid">

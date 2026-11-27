@@ -48,10 +48,7 @@
 .g-row-btns .btn { flex: 1; margin-top: 0; }
 
 /* ---------- strip tiles ---------- */
-/* Play is a control, not a holler: a quiet tinted slot with four round corners. It is not a .tile, so every script and rule that means "a holler" skips it. */
-.g-play-tile { flex: none; width: 66px; height: 92px; border-radius: var(--r-tile); background: var(--deck-fill, var(--on-color-fill)); color: var(--deck-ink, var(--on-color));
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font: 700 12.5px/1 var(--body); transition: transform var(--t-press) var(--ease-out); }
-.g-play-tile:active { transform: scale(.96); }
+/* Play is a control, not a holler. It lives in the record row, across from Note, where it is always in reach (in the strip it scrolled out of sight). It is a .side-btn; the old class stays as its name. */
 /* a game is an ink tile, sealed along the top while it is being played */
 .tile.g-tile { width: 88px; aspect-ratio: auto; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; padding: 15px 7px 7px; text-align: left;
   background: var(--sealed) top / 100% 7px no-repeat, var(--on-color); color: var(--chalk); box-shadow: 0 0 0 2px var(--on-color); }
@@ -406,7 +403,7 @@ video.g-pip { position: absolute; inset: auto; right: 12px; top: calc(var(--safe
 /* ---------------------------------------------------------------- On The Spot */
 .spot-answers { position: absolute; left: 8px; right: 74px; bottom: calc(var(--bottom-h, 180px) + 10px); z-index: var(--z-banner); display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .spot-opt { min-height: 54px; border: 0; border-radius: 14px; background: rgba(15, 13, 21, .82); color: var(--chalk); font-size: 15px; font-weight: 700; line-height: 1.2;
-  text-align: left; padding: 8px 10px; display: flex; align-items: center; gap: 8px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  text-align: left; padding: 8px 10px; display: flex; align-items: center; gap: 8px; }
 .spot-opt i { font: 400 15px/1 var(--display); font-style: normal; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--room); color: var(--on-color); }
 .spot-opt:active { transform: scale(.97); }
 .spot-opt.on { background: var(--chalk); color: var(--on-color); }

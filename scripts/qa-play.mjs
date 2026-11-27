@@ -29,7 +29,7 @@ try {
     await p.goto(BASE + '#/join/' + code); await p.fill('#nm', nm); await p.click('text=Join the chat'); await p.waitForSelector('.chat-top', { timeout: 15000 });
   }
   await A.waitForTimeout(2500);
-  check(await A.locator('.g-play-tile').count() === 1, 'Play tile in the strip');
+  check(await A.locator('.g-play-tile').count() === 1, 'Play button beside the record button');
   await shot(A, '01-strip-play-tile');
 
   step('A records with a card');

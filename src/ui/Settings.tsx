@@ -6,7 +6,7 @@ import { LOOKS } from '../lib/studio';
 import { VOICES } from '../lib/voice';
 import { speechSupported, isIOS } from '../lib/speech';
 import { enablePush, pushState } from '../lib/push';
-import { Avatar, COLORS, Sheet, toast, tone } from './bits';
+import { Avatar, COLORS, Sheet, Toggle, ask, toast, tone } from './bits';
 import { Icon } from './icons';
 import { isSimple, setSimple } from '../lib/device';
 
@@ -59,7 +59,7 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
     try {
       const [tok, code] = await Promise.all([api.linkDevice(), api.linkCode()]);
       const url = `${location.origin}${location.pathname}#/link/${tok}`;
-      setLink({ url, code, qr: await QRCode.toDataURL(url, { margin: 1, width: 360 }) });
+      setLink({ url, code, qr: await QRCode.toDataURL(url, { margin: 1, width: 360, color: { dark: '#15121c', light: '#ffffff' } }) });
     } catch (e) { toast((e as Error).message || 'Could not make a link'); }
   };
 
@@ -88,7 +88,7 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
       <h3 className="sec">Recording</h3>
       <section className="card">
         <Toggle label="HD video" hint="Sharper, about 2.5x the size. Up to 2.5 minutes." on={!!prefs.hd} set={v => void set({ hd: v })} />
-        <Toggle label="Live captions" hint={speechSupported() && !isIOS() ? 'Writes down what you say so others can read along and search.' : 'Not available in this browser. Works in Chrome on Android and computers.'} on={prefs.captions !== false} set={v => void set({ captions: v })} />
+        <Toggle label="Live captions" hint={speechSupported() && !isIOS() ? 'Writes down what you say so others can read along and search.' : 'Not available in this browser. Works in Chrome on Android and computers.'} on={prefs.captions !== false} set={v => void set({ captions: v })} disabled={!speechSupported() || isIOS()} />
         <Toggle label="Look before sending" hint="See your holler and choose Send or Retake. Off means it sends the moment you stop, with a few seconds to undo." on={!!prefs.review} set={v => void set({ review: v })} />
         <Toggle label="Simple camera" hint="Turns off looks, drawing and text on video, on this device only. Use it if recordings come out black or choppy." on={simple} set={v => { setSimple(v); setSimpleS(v); }} />
         <Row label="Default look"><select className="field sel" value={prefs.look || 'none'} onChange={e => void set({ look: e.target.value })}>{LOOKS.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}</select></Row>
@@ -105,8 +105,8 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
 
       <h3 className="sec">Notifications</h3>
       <section className="card">
-        <p className="fine">{push === 'on' ? 'On for this device.' : push === 'ios-install' ? 'On iPhone: tap Share, then Add to Home Screen, open Holler from there, then turn this on.' : push === 'denied' ? 'Blocked in your browser settings for this site.' : push === 'unsupported' ? 'This browser cannot do notifications.' : 'Get a ping when someone hollers, even with the app closed.'}</p>
-        {push !== 'on' && push !== 'unsupported' && push !== 'ios-install' && (
+        <p className="fine">{push === 'on' ? 'On for this device.' : push === 'ios-install' ? 'On iPhone: tap Share, then Add to Home Screen, open Holler from there, then turn this on.' : push === 'denied' ? 'Blocked for Holler on this device. Allow notifications for it in your phone or browser settings, then come back here.' : push === 'unsupported' ? 'This browser cannot do notifications.' : 'Get a ping when someone hollers, even with the app closed.'}</p>
+        {push !== 'on' && push !== 'unsupported' && push !== 'ios-install' && push !== 'denied' && (
           <button className="btn primary" onClick={async () => { const r = await enablePush().catch(() => 'off'); setPush(r); toast(r === 'on' ? 'Notifications on' : r === 'denied' ? 'Blocked. Allow notifications for this site in your browser settings.' : 'Notifications not turned on'); }}><Icon name="bell" size={18} /> Turn on notifications</button>
         )}
       </section>
@@ -126,7 +126,7 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
       </section>
 
       <section className="card">
-        <button className="btn danger wide" onClick={() => { if (confirm('Sign out on this device? Make sure you have Holler on another device or you will start fresh.')) onSignOut(); }}>Sign out on this device</button>
+        <button className="btn danger wide" onClick={async () => { if (await ask({ title: 'Sign out on this device?', body: 'Make sure you have Holler on another device, or you will start fresh.', yes: 'Sign out', danger: true })) onSignOut(); }}>Sign out on this device</button>
       </section>
       <p className="fine center">Holler · made at home · no ads, no paywall</p>
 
@@ -145,15 +145,6 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
   );
 }
 
-function Toggle({ label, hint, on, set }: { label: string; hint?: string; on: boolean; set: (v: boolean) => void }) {
-  return (
-    <label className="toggle">
-      <span><b>{label}</b>{hint && <em>{hint}</em>}</span>
-      <input type="checkbox" checked={on} onChange={e => set(e.target.checked)} />
-      <i />
-    </label>
-  );
-}
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="srow"><b>{label}</b>{children}</div>;
 }

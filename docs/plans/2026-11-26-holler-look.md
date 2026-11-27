@@ -519,3 +519,21 @@ It needs one new read on the server (unwatched hollers across my chats, in order
 ---
 
 After it ships: add one line to `~/.claude/design-history-log.md` ("Holler look: color-block patchwork, Tilt Warp / Figtree / Chivo Mono, seven patterned rooms, band-picture-deck. Source: Krehel + Emil").
+
+---
+
+## 15. Polish pass (2026-11-26, night)
+
+Same look, better manners. What changed, and the hooks a builder needs:
+
+- **Sheets** (`Sheet` in `bits.tsx`): the band sticks to the top while the body scrolls, pulling the band down puts the sheet away, and a sheet leaves the way it came (200ms; it keeps showing what it last held, and `.sheet-wrap.closing` takes no taps). Escape closes only the sheet on top.
+- **Questions** (`ask({ title, body, yes, danger })` in `bits.tsx`, drawn by `<Asker />` in `App.tsx`): replaces every browser `confirm()`. Chalk band, one answer button (red when it destroys something), Cancel under it.
+- **Home**: on a chat with something new, the picture carries a play button (`.cc-play`) and tapping that side opens the room straight into the first unwatched holler (`#/c/<id>/watch`). The rest of the block still opens the room.
+- **Room**: Play left the strip (it scrolled out of sight) for the record row, across from Note: `button.side-btn.g-play-tile`. Side buttons carry a name (`.sb-lb`: Note, Play, Discard). The room paints in its own color and name at once from what home already knows; the strip shows `.tile-sk` blocks until the chat arrives. Once a strip spans more than one day, each day opens with `.strip-day` (Today, Yesterday, Mon, Nov 3), read up the side.
+- **Player**: the gestures are said once (`.p-hint`, `holler.phint` in localStorage). Delete is one tap and one question. Saved is a bookmark everywhere (header, player, tile).
+- **Chat info**: tap the code to copy it; people show "here now"; Mute is a switch (`Toggle` moved to `bits.tsx`); Leave chat is `.btn.leave` at the foot.
+- **You**: a switch that cannot work on this device is greyed; no "Turn on notifications" button when the phone has them blocked.
+- **Anywhere**: `.net-off` says when there is no connection; toasts leave as softly as they arrive; Saved loads as tile shapes, not a spinner.
+- Blur budget is zero again (`.spot-opt` had picked one up).
+
+`scripts/layout.mjs` now also shoots `2cdays` (a strip across several days, faked response) and `10bask` (a question over the info sheet).

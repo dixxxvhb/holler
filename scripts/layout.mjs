@@ -47,6 +47,11 @@ for (const d of DEVICES) {
     await p.goto(BASE); await p.waitForSelector('.chat-card'); await p.waitForTimeout(800); await shot('1home');
     if (!sa) { await p.close(); continue; }
     await p.click('.chat-card'); await p.waitForTimeout(2500); await shot('2chat');
+    // the strip across several days: same hollers, with the first two moved back (a faked response, nothing is written)
+    await p.route('**/rpc/holler_chat', async r => { const res = await r.fetch(); const j = await res.json(); const ps = j?.polos || []; if (ps[0]) ps[0].at = new Date(Date.now() - 4 * 864e5).toISOString(); if (ps[1]) ps[1].at = new Date(Date.now() - 864e5).toISOString(); await r.fulfill({ response: res, json: j }); });
+    const reenter = async () => { await p.locator('.chat-top .icon-btn').first().click(); await p.waitForSelector('.chat-card'); await p.click('.chat-card'); await p.waitForSelector('.strip .tile'); await p.waitForTimeout(1500); };   // a Home Screen app keeps its place in memory, so a reload would land on home
+    await reenter(); await p.evaluate(() => { const s = document.querySelector('.strip'); if (s) s.scrollLeft = 0; }); await p.waitForTimeout(300); await shot('2cdays');
+    await p.unroute('**/rpc/holler_chat'); await reenter();
     await p.click('.rail-btn[aria-label="More tools"]'); await p.waitForTimeout(300); await shot('2bmore'); await p.click('.rail-btn[aria-label="Fewer tools"]');
     await p.click('.rail-btn:has-text("Looks")'); await p.waitForTimeout(300); await shot('3looks');
     await p.click('.ktab:has-text("Warp")'); await p.click('.looks-panel .chip:has-text("Big head")'); await p.waitForTimeout(300);
@@ -61,6 +66,8 @@ for (const d of DEVICES) {
     await p.locator('.strip .tile:not(.pending)').last().evaluate(e => e.click()); await p.waitForTimeout(1500); await p.evaluate(() => document.querySelector('.p-video')?.pause()); await shot('9player-other');
     await p.click('.p-top .icon-btn'); await p.waitForTimeout(500);
     await p.locator('.chat-title').evaluate(e => e.click()); await p.waitForTimeout(600); await shot('10info');
+    await p.locator('.btn.leave').evaluate(e => e.click()); await p.waitForTimeout(500); await shot('10bask'); await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+    if (!(await p.locator('.sheet .code-big').count())) throw new Error('Escape on a question closed the sheet under it too');
     await p.goto(BASE); await p.waitForSelector('.me-btn'); await p.click('.me-btn'); await p.waitForTimeout(800); await shot('11settings');
     await p.evaluate(() => window.scrollTo(0, 99999)); await p.locator('.settings, main, body').first().evaluate(e => e.scrollTo?.(0, 99999)); await p.waitForTimeout(300); await shot('12settings-bottom');
     // more states (nothing below writes to the database: sheets are closed unsent, home variants are faked responses)
