@@ -7,7 +7,8 @@ import { speechSupported, isIOS } from '../lib/speech';
 import { enablePush, pushState } from '../lib/push';
 import { Avatar, COLORS, Sheet, Toggle, ask, toast, tone } from './bits';
 import { Icon } from './icons';
-import { isSimple, setSimple } from '../lib/device';
+import { isSimple, setSimple, camMode, setCamMode, type CamMode } from '../lib/device';
+import { ProfileSheet } from './Profile';
 
 const LIMIT = 1024 ** 3; // the free storage room Holler shares
 
@@ -22,6 +23,10 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
   const [link, setLink] = useState<{ url: string; qr: string; code: string } | null>(null);
   const [push, setPush] = useState<string>('');
   const [simple, setSimpleS] = useState(isSimple());
+  const [cam, setCam] = useState<CamMode>(camMode());
+  const [showMe, setShowMe] = useState(false);
+  const [words, setWords] = useState({ about: me.prefs?.about || '', into: me.prefs?.into || '', song: me.prefs?.song || '' });
+  const saveWord = (k: 'about' | 'into' | 'song') => { const v = words[k].trim(); if (v === (me.prefs?.[k] || '')) return; void set({ [k]: v }); };
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => { void cacheBytes().then(setLocal); void pushState().then(setPush); }, []);
 
@@ -84,8 +89,25 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
         {me.avatar && <button className="link-btn" onClick={() => void removePhoto()}>Remove photo</button>}
       </section>
 
+      <h3 className="sec">Profile</h3>
+      <section className="card prof-edit">
+        <p className="fine">Everyone in your chats sees these when they tap your name.</p>
+        <label className="lbl" htmlFor="pf-about">About you</label>
+        <textarea id="pf-about" className="field area sm" rows={2} maxLength={140} placeholder="A line or two about you" value={words.about} onChange={e => setWords(w => ({ ...w, about: e.target.value }))} onBlur={() => saveWord('about')} />
+        <label className="lbl" htmlFor="pf-into">Into lately</label>
+        <input id="pf-into" className="field" maxLength={60} placeholder="A show, a hobby, a place" value={words.into} onChange={e => setWords(w => ({ ...w, into: e.target.value }))} onBlur={() => saveWord('into')} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+        <label className="lbl" htmlFor="pf-song">On repeat</label>
+        <input id="pf-song" className="field" maxLength={60} placeholder="The song you can't stop playing" value={words.song} onChange={e => setWords(w => ({ ...w, song: e.target.value }))} onBlur={() => saveWord('song')} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+        <p className="fine">Your default look and voice below show on your profile too.</p>
+        <button className="btn" onClick={() => setShowMe(true)}><Icon name="eye" size={18} /> See your profile</button>
+      </section>
+
       <h3 className="sec">Recording</h3>
       <section className="card">
+        <Row label="On this phone">
+          <div className="seg">{([['on', 'Camera'], ['voice', 'Voice only'], ['off', 'Notes']] as [CamMode, string][]).map(([k, l]) => <button key={k} className={cam === k ? 'on' : ''} onClick={() => { setCamMode(k); setCam(k); }}>{l}</button>)}</div>
+        </Row>
+        <p className="fine">{cam === 'on' ? 'Camera and mic, the full Holler.' : cam === 'voice' ? "No camera on this phone: voice hollers, notes and the games that don't need a camera." : 'No camera or mic on this phone: notes, watching, and board, card and quiz games.'}</p>
         <Toggle label="HD video" hint="Sharper, about 2.5x the size. Up to 2.5 minutes." on={!!prefs.hd} set={v => void set({ hd: v })} />
         <Toggle label="Live captions" hint={speechSupported() && !isIOS() ? 'Writes down what you say so others can read along and search.' : 'Not available in this browser. Works in Chrome on Android and computers.'} on={prefs.captions !== false} set={v => void set({ captions: v })} disabled={!speechSupported() || isIOS()} />
         <Toggle label="Look before sending" hint="See your holler and choose Send or Retake. Off means it sends the moment you stop, with a few seconds to undo." on={!!prefs.review} set={v => void set({ review: v })} />
@@ -129,6 +151,7 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
       </section>
       <p className="fine center">Holler · made at home · no ads, no paywall</p>
 
+      <ProfileSheet person={showMe ? me : null} onClose={() => setShowMe(false)} />
       <Sheet open={!!link} onClose={() => setLink(null)} title="Use on another device">
         {link && <>
           <div className="lbl">On the other device, tap "I already have Holler" and enter</div>

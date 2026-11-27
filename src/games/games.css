@@ -526,3 +526,42 @@ button.g-pip-lab { border: 0; cursor: pointer; }
 .lc-pile { position: relative; }
 .lc-owe { position: absolute; top: -12px; right: -18px; z-index: 2; font: 400 18px/1 var(--display); padding: 7px 10px; border-radius: var(--r-pill);
   background: var(--chalk); color: var(--on-color); box-shadow: 0 4px 10px rgba(0, 0, 0, .4); transform: rotate(8deg); animation: d-pop var(--t-base) var(--ease-out); }
+
+/* ---- the game dock (11-27): one row of games above the strip, yours-to-move first ---- */
+.g-dock { width: 100%; display: flex; gap: 8px; overflow-x: auto; padding: 0 16px; margin-bottom: -4px; scrollbar-width: none; flex: none; }
+.g-dock::-webkit-scrollbar { display: none; }
+.g-chip { position: relative; flex: none; display: flex; align-items: center; gap: 8px; min-height: 46px; max-width: 230px; padding: 5px 14px 5px 5px;
+  border-radius: var(--r-tile) var(--r-tile) var(--r-tile) var(--r-tail); background: var(--deck-fill); color: var(--deck-ink); text-align: left;
+  transition: transform var(--t-press) var(--ease-out); }
+.g-chip:active { transform: scale(.96); }
+.g-chip-ic { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: 12px; background: var(--on-color); color: var(--room); }
+.g-chip-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.1; }
+.g-chip-txt b { font: 400 16px/1.05 var(--display); white-space: nowrap; }
+.g-chip-txt em { font: 700 12px/1.2 var(--body); font-style: normal; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-chip.turn { background: var(--on-color); color: var(--chalk); }
+.g-chip.turn .g-chip-ic { background: var(--room); color: var(--on-color); }
+.g-chip.turn .g-chip-txt em { color: var(--room); opacity: 1; }
+.g-chip-dot { position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; border-radius: 50%; background: var(--rec); box-shadow: 0 0 0 2px var(--room); animation: g-dot 1.6s var(--ease-in-out) infinite; }
+@keyframes g-dot { 50% { transform: scale(1.25); } }
+.g-chip.over { opacity: .62; }
+.g-dock.during-rec .g-chip:not(.turn) { opacity: .7; }
+@media (prefers-reduced-motion: reduce) { .g-chip-dot { animation: none; } }
+
+/* a board or card game floating over the camera while a holler records: the picture and the record button stay live */
+.g-page.float { inset: calc(var(--safe-t) + 64px) 10px auto 10px; max-height: calc(100dvh - var(--safe-t) - 64px - var(--bottom-h) - 12px); padding: 0 12px 16px; gap: 10px;
+  border-radius: var(--r-tile); box-shadow: 0 0 0 3px var(--on-color), 0 18px 40px rgba(0, 0, 0, .45); z-index: 30; }
+.g-page.float .g-head { height: 52px; padding-top: 0; margin: 0 -12px; background: linear-gradient(90deg, var(--room) 0 58%, transparent 58%), var(--pat), var(--room); }
+.g-page.float .g-head h2 { font-size: 26px; }
+.g-page.float .d-status { font-size: 22px; }
+.g-page.float .g-foot, .g-page.float .g-endgame { display: none; }
+
+/* camera mode sheet */
+.g-opt.cam-opt { background: none; color: var(--chalk); min-height: 92px; }
+.g-opt.cam-opt .g-opt-ic { color: var(--room); }
+.g-opt.cam-opt.on { background: linear-gradient(90deg, var(--room) 0 74%, transparent 74%), var(--pat), var(--room); color: var(--on-color); }
+.g-opt.cam-opt.on .g-opt-txt span { color: var(--on-color-2); }
+/* smaller boards while floating, so some of the picture still shows around them */
+.g-page.float .d-ttt { width: min(100%, 240px); }
+.g-page.float .d-checkers { width: min(100%, 300px); }
+.g-page.float .d-players { gap: 6px; }
+.g-page.float .d-player { padding: 6px 8px; }

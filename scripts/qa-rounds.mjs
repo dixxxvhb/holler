@@ -21,7 +21,7 @@ const checks = [];
 const check = (ok, what) => { checks.push([ok, what]); console.log(ok ? '  ok ' : '  FAIL', what); };
 const wait = ms => A.waitForTimeout(ms);
 const back = async p => { if (await p.locator('.g-page').count()) await p.click('.g-page .g-back'); await p.waitForTimeout(400); };
-const openTile = async (p, name) => { await back(p); await p.locator(`.g-tile:has-text("${name}")`).first().click(); await p.waitForSelector('.g-page'); await p.waitForTimeout(700); };
+const openTile = async (p, name) => { await back(p); await p.locator(`.g-chip:has-text("${name}")`).first().click(); await p.waitForSelector('.g-page'); await p.waitForTimeout(700); };
 
 try {
   step('three people, one chat');
@@ -50,7 +50,7 @@ try {
   await answer(A, 0);
   for (const [p, i] of [[B, 1], [C, 2]]) {
     step(`${N[i]} answers`);
-    await p.waitForSelector('.g-tile.turn:has-text("Poker Face")', { timeout: 25000 });
+    await p.waitForSelector('.g-chip.turn:has-text("Poker Face")', { timeout: 25000 });
     await openTile(p, 'Poker Face'); await shot(p, `04-${N[i]}-poker-page`);
     check((await p.textContent('.g-page .g-secret.g-open p')).trim() === q, `${N[i]} sees the question`);
     await p.click('.g-page .btn.g-go:has-text("Record your answer")');
@@ -101,7 +101,7 @@ try {
   };
   await actIt(A, 0);
   for (const [p, i] of [[B, 1], [C, 2]]) {
-    await p.waitForSelector('.g-tile.turn:has-text("Charades")', { timeout: 25000 });
+    await p.waitForSelector('.g-chip.turn:has-text("Charades")', { timeout: 25000 });
     await openTile(p, 'Charades'); await shot(p, `12-${N[i]}-charades-page`);
     await p.click('.g-page .btn.g-go:has-text("Act yours")');
     await actIt(p, i);

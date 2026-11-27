@@ -18,9 +18,12 @@ let active: { chat: string; status: Status } | null = null;
 export function setMe(id: string) { me = id; }
 
 let wanted: string[] = [];
+const joined = new Set<string>(); // chats whose channel is connected right now
+/** Every chat's live channel is connected, so a change anywhere arrives on its own (pollers can relax). */
+export const allLive = () => wanted.length > 0 && wanted.every(id => joined.has(id));
 export function syncChats(ids: string[]) {
   wanted = ids;
-  for (const [id, ch] of chans) if (!ids.includes(id)) { sb.removeChannel(ch); chans.delete(id); presence.delete(id); }
+  for (const [id, ch] of chans) if (!ids.includes(id)) { sb.removeChannel(ch); chans.delete(id); presence.delete(id); joined.delete(id); }
   for (const id of ids) if (!chans.has(id)) {
     const ch = sb.channel(`holler:${id}`, { config: { broadcast: { self: false }, presence: { key: me } } });
     ch.on('broadcast', { event: 'ev' }, ({ payload }) => {
@@ -47,11 +50,13 @@ export function syncChats(ids: string[]) {
     ch.subscribe((s, err) => {
       if (dbg()) console.log('[live] sub', id.slice(0, 6), s, err ? String(err) : '');
       if (s === 'SUBSCRIBED') {
+        if (chans.get(id) === ch) joined.add(id);
         void ch.track({ status: 'here', at: Date.now() });
         if (active?.chat === id && active.status !== 'here') send(id, 'status', { status: active.status });
         reconnects.forEach(f => f(id));
       }
       else if (chans.get(id) === ch) {
+        joined.delete(id);
         // dropped: rebuild it (and let screens re-fetch so nothing is missed meanwhile)
         chans.delete(id); void sb.removeChannel(ch);
         setTimeout(() => { if (wanted.includes(id)) syncChats(wanted); }, 1200);

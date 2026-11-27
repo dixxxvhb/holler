@@ -1,19 +1,19 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../App';
-import { api, publicUrl, type ChatFull, type Game, type Person, type Polo } from '../lib/api';
+import { api, peekChat, prefetch, publicUrl, type ChatFull, type Game, type Person, type Polo } from '../lib/api';
 import { onLive, onPresence, onReconnect, presenceOf, send as liveSend, setStatus } from '../lib/live';
 import { onOutbox, outgoing, retry, discard, sendRecording, sendText, undo, UNDO_MS } from '../lib/outbox';
-import { Studio, probeFile, type Recording, type Stroke } from '../lib/studio';
+import { Studio, probeFile, releaseMedia, type Recording, type Stroke } from '../lib/studio';
 import { KINDS, LOOKS, lookOf, type LookId, type LookKind } from '../lib/looks';
 import { VOICES, type VoiceId } from '../lib/voice';
 import { Captioner, isIOS, speechSupported, type Seg } from '../lib/speech';
 import { pop, recStart, recStop } from '../lib/sound';
 import { Avatar, Sheet, ago, ask, chatTitle, clock, dayLabel, toast, tone } from './bits';
 import { Icon } from './icons';
-import { isSimple, setSimple, routeInMemory } from '../lib/device';
+import { isSimple, setSimple, routeInMemory, camMode, setCamMode, type CamMode } from '../lib/device';
 import { Player } from './Player';
 import { ChatInfo } from './ChatInfo';
-import { TILE_NAME, doneFor, isDuel, isQuick, isTurns, markUsed, owes, roleOf, tileLine, usedIn } from '../games/roundLogic';
+import { TILE_NAME, isDuel, isQuick, isTurns, markUsed, owes, roleOf, tileLine, usedIn } from '../games/roundLogic';
 import type { CharadesAct } from '../lib/api';
 import { DECKS, type Card, type Deck } from '../games/content/cardDecks';
 import { loadGames, useGames } from '../games/load';
@@ -28,7 +28,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const { home, go, refresh, route } = useApp();
   const me = home!.me;
   const prefs = me.prefs || {};
-  const [chat, setChat] = useState<ChatFull | null>(null);
+  // a chat opened before this session paints at once from memory; the server's copy replaces it a moment later
+  const [chat, setChat] = useState<ChatFull | null>(() => peekChat(chatId));
   // the games are their own download; G is null for the first moment in a room, and nothing below needs it before a game is open
   const [G, loadG] = useGames();
   // what home already knows paints the room at once: its own color, name and faces (no flash of the wrong color while it loads)
@@ -44,7 +45,11 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const [look, setLook] = useState<LookId>((prefs.look as LookId) || 'none');
   const [voice, setVoice] = useState<VoiceId>((prefs.voice as VoiceId) || 'none');
   const [hd, setHd] = useState(!!prefs.hd);
+  // how this phone takes part: camera, voice only, or notes and games (a camera that won't behave shouldn't lock anyone out)
+  const [cam, setCam] = useState<CamMode>(camMode());
+  const [camSheet, setCamSheet] = useState(false);
   const [audioOnly, setAudioOnly] = useState(false);
+  const aOnly = audioOnly || cam === 'voice';
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [level, setLevel] = useState(0);
@@ -130,7 +135,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   useEffect(() => onLive(e => { if (e.chat === chatId) void load(); }), [chatId, load]);
   useEffect(() => onReconnect(id => { if (id === chatId) void load(); }), [chatId, load]);
   // backstop in case a live ping is missed
-  useEffect(() => { const i = setInterval(() => { if (!document.hidden) void load(); }, 15000); return () => clearInterval(i); }, [load]);
+  useEffect(() => { const i = setInterval(() => { if (!document.hidden) void load(); }, 30000); return () => clearInterval(i); }, [load]);
   useEffect(() => onPresence(() => bump(x => x + 1)), []);
   useEffect(() => onOutbox(() => bump(x => x + 1)), []);
   useEffect(() => { setStatus(chatId, 'here'); return () => setStatus(null); }, [chatId]);
@@ -139,19 +144,20 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   // camera
   const startCam = useCallback(async () => {
     if (!canvasRef.current) return;
+    if (cam === 'off') { studio.current?.close(); setCamState('off'); return; }
     setCamState('starting');
     try {
       if (!studio.current) studio.current = new Studio(canvasRef.current);
       const s = studio.current; s.voice = voice; s.simple = isSimple(); s.amt = amt;
       s.onCutout = st => { setCut(st); if (st === 'failed') toast('Background looks could not load here. Try again on wifi, or on a newer phone.'); };
-      await s.open({ hd });
+      await s.open({ hd, noCam: cam === 'voice' });
       s.setLook(look);
       s.onLevel = v => setLevel(v);
-      if (!s.glOk && previewRef.current && !previewRef.current.contains(s.video)) { s.video.className = `raw-video ${s.facing === 'user' ? 'mirror' : ''}`; previewRef.current.appendChild(s.video); }
+      if (!s.glOk && !s.noCam && previewRef.current && !previewRef.current.contains(s.video)) { s.video.className = `raw-video ${s.facing === 'user' ? 'mirror' : ''}`; previewRef.current.appendChild(s.video); }
       setCamState('on');
       // once per device: make sure effects actually record; if not, quietly use the plain camera
       let tested = ''; try { tested = localStorage.getItem('holler.camtest2') || ''; } catch { /* */ }
-      if ((tested === '' || tested.startsWith('unsure')) && s.glOk) {
+      if ((tested === '' || tested.startsWith('unsure')) && s.glOk && !s.noCam) {
         setTimeout(async () => {
           if (!studio.current || studio.current.recording) return;
           const ok = await studio.current.selfTest();
@@ -170,7 +176,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       console.warn(e); setCamState('denied');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hd, look, voice]);
+  }, [hd, look, voice, cam]);
 
   const startRef = useRef(startCam); startRef.current = startCam;
   useEffect(() => {
@@ -184,6 +190,28 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     return () => { document.removeEventListener('visibilitychange', vis); studio.current?.dispose(); studio.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // switching how this phone takes part restarts the camera side in the new mode
+  const camFirst = useRef(true);
+  useEffect(() => {
+    if (camFirst.current) { camFirst.current = false; return; }
+    if (cam === 'off') releaseMedia();
+    void startRef.current();
+  }, [cam]);
+  const pickCam = (m: CamMode) => {
+    setCamSheet(false);
+    if (m === cam) { if (camState !== 'on') void startCam(); return; }
+    if (recording) { toast('Send or discard this one first'); return; }
+    setCamMode(m); setCam(m);
+    toast(m === 'on' ? 'Camera on' : m === 'voice' ? "Voice only on this phone. You can still play every game that doesn't need a camera." : 'Notes and games only on this phone', undefined, 4200);
+  };
+  // the games that are a recording of your face need a camera; Poker Face works as a voice answer
+  const needsCam = (k: Game['kind'] | 'card') => k === 'passiton' || k === 'charades' || k === 'laugh' || k === 'spot' || (cam === 'off' && (k === 'poker' || k === 'card'));
+  const camBlocked = (k: Game['kind'] | 'card') => {
+    if (cam === 'on' || !needsCam(k)) return false;
+    toast(cam === 'off' && (k === 'poker' || k === 'card') ? 'This one needs at least your voice.' : 'This game needs a camera.', { label: 'Change', run: () => setCamSheet(true) }, 5000);
+    return true;
+  };
 
   useEffect(() => { studio.current?.setLook(look); }, [look]);
   useEffect(() => { if (studio.current) studio.current.amt = amt; }, [amt]);
@@ -203,6 +231,12 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   useEffect(() => { const el = stripRef.current; if (el) el.scrollLeft = el.scrollWidth; }, [polos.length, pend.length]);
 
   const unread = polos.filter(p => p.author !== me.id && !p.views.some(v => v.who === me.id));
+  // warm the hollers you haven't watched yet, oldest first, so tapping one plays at once (they'd be downloaded on watch anyway)
+  const unreadKey = unread.map(p => p.id).join(',');
+  useEffect(() => {
+    const paths = unread.filter(p => p.kind !== 'text' && p.path).map(p => p.path as string);
+    if (paths.length) prefetch(paths);
+  }, [unreadKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const { dayStarts, manyDays } = useMemo(() => {
     const starts = new Set<string>(); const stacked = new Set<string>(); let lastDay = '';
     for (const p of polos) {
@@ -231,6 +265,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const answerCard = (id: string) => { const d = id.split(':')[0] as Deck; void deal(d, id); setPanel(null); toast('Same card is on. Record your answer.'); };
   const wordsKey = `holler.words.${chatId}`;
   const takeTurn = (g: Game) => {
+    if (camBlocked(g.kind)) return;
     setGameId(null);
     if (g.kind === 'charades') {
       const list = G?.charadesWords(g.deck || 'mixed', usedIn(wordsKey)) || []; setWordI(0); setTurnWord(list[0] || 'Penguin');
@@ -239,6 +274,38 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     setTurn(g); setCard(null); setAudioOnly(false); setPanel(null);
   };
   const gameChanged = (g: Game) => setChat(c => (c ? { ...c, games: (c.games || []).map(x => (x.id === g.id ? g : x)) } : c));
+
+  // ---- the game dock: every game in this chat, yours-to-move first, always in reach (they used to sit at the far
+  // start of the strip, a long scroll back) ----
+  const myGo = (g: Game) => (g.kind === 'passiton' ? g.status === 'playing' && g.turnPerson === me.id : owes(g, me.id));
+  const dock = useMemo(() => {
+    const rank = (g: Game) => (myGo(g) ? 0 : g.status === 'playing' ? 1 : 2);
+    return games.filter(g => !g.hidden && (!recording || g.status === 'playing'))
+      .sort((a, b) => rank(a) - rank(b) || (a.createdAt < b.createdAt ? 1 : -1));
+  }, [games, recording, me.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [floatGame, setFloatGame] = useState(false);
+  const closeGame = () => { setGameId(null); setFloatGame(false); };
+  const openDock = (g: Game) => {
+    if (recording) {
+      // a board or card move doesn't need the camera, so it floats over the picture and the take keeps rolling
+      if (isTurns(g)) { setFloatGame(true); setGameId(g.id); }
+      else toast('Send this one first, then take your go.');
+      return;
+    }
+    setFloatGame(false);
+    if (g.kind === 'passiton' && g.status !== 'playing') setReveal(g); else setGameId(g.id);
+  };
+  const dockLine = (g: Game) => {
+    if (recording && myGo(g) && isTurns(g)) return 'Move while you talk';
+    if (g.kind !== 'passiton') return chat ? tileLine(g, me, chat) : '';
+    if (g.status !== 'playing') return 'Watch the reveal';
+    return g.turnPerson === me.id ? 'Your turn' : `${(chat?.members.find(m => m.id === g.turnPerson)?.name || 'Someone').split(' ')[0]} is up`;
+  };
+  // just sent a holler and a board or card game is waiting on you: offer it while you're here
+  const nudgeMove = () => {
+    const g = games.find(x => x.status === 'playing' && isTurns(x) && myGo(x));
+    if (g) setTimeout(() => toast(`Your move in ${TILE_NAME[g.kind]}`, { label: 'Play', run: () => { setFloatGame(false); setGameId(g.id); } }, 6000), UNDO_MS + 300);
+  };
 
   // ---- recording ----
   // timer: count down, then record (tap again during the count to call it off)
@@ -274,7 +341,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     if (studio.current?.recording) { void finish(); return; }
     // the screen says recording but the camera isn't: put the screen right instead of starting over
     if (recording) { clearInterval(tickRef.current); setRecording(false); setPaused(false); setCaption(''); return; }
-    if (countRef.current || (timer && !audioOnly)) { startCountdown(); return; }
+    if (countRef.current || (timer && !aOnly)) { startCountdown(); return; }
     pressAt.current = Date.now();
     beginP.current = begin();
   };
@@ -296,7 +363,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     if (settling.current || s.recording) return;
     settling.current = true;
     try {
-      await s.start(audioOnly ? 'audio' : 'video');
+      await s.start(aOnly ? 'audio' : 'video');
       settling.current = false;
       recStart();
       setRecording(true); setElapsed(0);
@@ -341,6 +408,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     else {
       const key = sendRecording(chatId, me.id, rec, segs.length ? JSON.stringify(segs) : null, () => { void load(); void refresh(); });
       toast('Sending', { label: 'Undo', run: () => undo(key) }, UNDO_MS);
+      nudgeMove();
     }
     clearInk();
   };
@@ -405,11 +473,11 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   };
   const swipe = useRef<{ x: number; y: number; t: number } | null>(null);
   const dragCtr = useRef(false);
-  const fx = !isSimple() && !audioOnly;
+  const fx = !isSimple() && !aOnly;
   const onDown = (e: React.PointerEvent) => {
     const s = studio.current; if (!s) return;
     s.wake();
-    if (!panel && !audioOnly) {
+    if (!panel && !aOnly) {
       const now = Date.now();
       if (now - lastTap.current < 320) { lastTap.current = 0; void flip(); return; }
       lastTap.current = now;
@@ -479,6 +547,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   };
 
   const toggle = (p: Panel) => setPanel(cur => (cur === p ? null : p));
+  const camLive = camState === 'on' && cam === 'on';
 
   if (err && !chat) return (
     <div className="center-screen"><p className="muted">{/not in this chat/.test(err) ? "You're not in this chat." : err}</p><button className="btn" onClick={() => go('/')}>Back home</button></div>
@@ -487,25 +556,36 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   return (
     <div className={`chat ${panel ? 'panel-open' : ''} ${recording ? 'is-rec' : ''} ${turn ? ((turn.kind === 'passiton' ? roleOf(turn) === 'act' : turn.kind === 'charades' || turn.kind === 'laugh') ? 'g-in-turn g-acting' : 'g-in-turn') : ''}`} ref={chatRef} data-room={shell?.theme || 'ember'}>
       <div className="preview" ref={previewRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => onUp()}>
-        <canvas ref={canvasRef} className={`cam ${audioOnly ? 'dim' : ''}`} />
-        {camState === 'denied' && (
+        <canvas ref={canvasRef} className={`cam ${aOnly ? 'dim' : ''}`} />
+        {camState === 'denied' && cam !== 'off' && (
           <div className="cam-off">
-            <Icon name="camera" size={40} />
-            <p>Holler needs your camera and mic to record.</p>
-            <button className="btn primary" onClick={() => void startCam()}>Turn on camera</button>
-            <p className="fine">If you said no before, allow camera and mic for this site in your browser settings.</p>
+            <Icon name={cam === 'voice' ? 'mic' : 'camera'} size={40} />
+            <p>{cam === 'voice' ? 'Holler could not reach your mic.' : 'Holler could not reach your camera.'}</p>
+            <button className="btn primary" onClick={() => void startCam()}>Try again</button>
+            {cam === 'on' && <button className="btn" onClick={() => pickCam('voice')}>Use my voice instead</button>}
+            <button className="btn" onClick={() => pickCam('off')}>Just notes and games</button>
+            <p className="fine">If you said no before, allow {cam === 'voice' ? 'the mic' : 'camera and mic'} for Holler in your phone's settings.</p>
           </div>
         )}
-        {camState === 'off' && <div className="cam-off"><button className="btn primary" onClick={() => void startCam()}>Turn on camera</button></div>}
-        {audioOnly && <div className="audio-mode"><Avatar p={me} size={120} /><div className="lvl" style={{ transform: `scale(${1 + level * 1.6})` }} /><p>Voice only</p></div>}
+        {camState === 'off' && cam !== 'off' && <div className="cam-off"><button className="btn primary" onClick={() => void startCam()}>Turn on camera</button></div>}
+        {cam === 'off' && (
+          <div className="cam-off notes-mode">
+            <Avatar p={me} size={96} />
+            <p>Notes and games on this phone</p>
+            <p className="fine">Send notes, watch everyone's hollers, and play. Turn your voice or camera on any time.</p>
+            <button className="btn" onClick={() => setCamSheet(true)}>Change</button>
+          </div>
+        )}
+        {aOnly && camState !== 'denied' && <div className="audio-mode"><Avatar p={me} size={120} /><div className="lvl" style={{ transform: `scale(${1 + level * 1.6})` }} /><p>Voice only</p></div>}
+        {cam === 'voice' && camState === 'on' && !recording && !turn && <button className="cam-mode-chip" onClick={() => setCamSheet(true)}>No camera on this phone · Change</button>}
         {caption && recording && <div className="live-cap"><span>{caption}</span></div>}
-        {ring && !audioOnly && <div className="ring-light" />}
+        {ring && !aOnly && <div className="ring-light" />}
         {countdown > 0 && <div className="countdown" key={countdown}>{countdown}</div>}
         {recording && paused && <div className="paused-tag"><Icon name="pause" size={16} /> Paused</div>}
         {flash && <div className="look-flash" key={flash}>{flash}</div>}
         {turn && chat && G && (turn.kind === 'passiton'
           ? <G.TurnBanner game={turn} me={me} chat={chat} phrase={turn.phrase} />
-          : turn.kind === 'spot' ? <G.SpotLive game={turn} studio={camState === 'on' ? studio.current : null} recording={recording} onDone={p => { spotPicks.current = p; void finish(); }} onFail={() => { if (recording) cancelRec(); }} />
+          : turn.kind === 'spot' ? <G.SpotLive game={turn} studio={camLive ? studio.current : null} recording={recording} onDone={p => { spotPicks.current = p; void finish(); }} onFail={() => { if (recording) cancelRec(); }} />
           : turn.kind === 'laugh' ? <G.LaughBanner game={turn} />
           : <G.RoundBanner game={turn} word={turnWord} recording={recording} onAnother={anotherWord} />)}
         {lookOf(look).seg && cut === 'loading' && fx && <div className="cut-tag">Finding you<span className="dots"><i /><i /><i /></span></div>}
@@ -533,17 +613,17 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       ))}
 
       <aside className={`rail ${recording ? 'live' : ''}`}>
-        {(!recording || (!audioOnly && studio.current?.canFlipLive)) && <button className="rail-btn" onClick={() => void flip()} aria-label="Flip camera"><Icon name="flip" /><span>Flip</span></button>}
+        {cam === 'on' && (!recording || (!aOnly && studio.current?.canFlipLive)) && <button className="rail-btn" onClick={() => void flip()} aria-label="Flip camera"><Icon name="flip" /><span>Flip</span></button>}
         {recording && studio.current?.canPause && <button className={`rail-btn ${paused ? 'set' : ''}`} onClick={togglePause} aria-label={paused ? 'Keep recording' : 'Pause'}><Icon name={paused ? 'play' : 'pause'} fill={paused ? 'currentColor' : undefined} /><span>{paused ? 'Resume' : 'Pause'}</span></button>}
-        {!isSimple() && <>
-          {!(recording && audioOnly) && <button className={`rail-btn ${panel === 'looks' ? 'on' : ''} ${look !== 'none' ? 'set' : ''}`} onClick={() => toggle('looks')}><Icon name="wand" /><span>Looks</span></button>}
+        {!isSimple() && cam !== 'off' && <>
+          {cam === 'on' && !(recording && aOnly) && <button className={`rail-btn ${panel === 'looks' ? 'on' : ''} ${look !== 'none' ? 'set' : ''}`} onClick={() => toggle('looks')}><Icon name="wand" /><span>Looks</span></button>}
           <button className={`rail-btn ${panel === 'voice' ? 'on' : ''} ${voice !== 'none' ? 'set' : ''}`} onClick={() => toggle('voice')}><Icon name="mic" /><span>Voice</span></button>
-          {!(recording && audioOnly) && <button className={`rail-btn ${panel === 'draw' ? 'on' : ''} ${studio.current?.strokes.length ? 'set' : ''}`} onClick={() => toggle('draw')}><Icon name="pen" /><span>Draw</span></button>}
-          {!(recording && audioOnly) && <button className={`rail-btn ${panel === 'text' ? 'on' : ''} ${text ? 'set' : ''}`} onClick={() => toggle('text')}><Icon name="text" /><span>Text</span></button>}
+          {cam === 'on' && !(recording && aOnly) && <button className={`rail-btn ${panel === 'draw' ? 'on' : ''} ${studio.current?.strokes.length ? 'set' : ''}`} onClick={() => toggle('draw')}><Icon name="pen" /><span>Draw</span></button>}
+          {cam === 'on' && !(recording && aOnly) && <button className={`rail-btn ${panel === 'text' ? 'on' : ''} ${text ? 'set' : ''}`} onClick={() => toggle('text')}><Icon name="text" /><span>Text</span></button>}
         </>}
         {card && <button className={`rail-btn set ${panel === 'card' ? 'on' : ''}`} onClick={() => toggle('card')}><Icon name="cards" /><span>Card</span></button>}
-        {!recording && <button className={`rail-btn ${panel === 'more' ? 'on' : ''} ${panel !== 'more' && (hd || timer || audioOnly || ring) ? 'set' : ''}`} onClick={() => toggle('more')} aria-label={panel === 'more' ? 'Fewer tools' : 'More tools'} aria-expanded={panel === 'more'}><Icon name="more" stroke={3.2} /><span>More</span></button>}
-        {recording && !audioOnly && <button className={`rail-btn ${ring ? 'set' : ''}`} onClick={() => { const v = !ring; setRing(v); keep('holler.ring', v ? '1' : '0'); if (v && !recording) toast('Light on. Turn your screen brightness up for the most glow.'); }}><Icon name="light" /><span>Light</span></button>}
+        {!recording && <button className={`rail-btn ${panel === 'more' ? 'on' : ''} ${panel !== 'more' && (hd || timer || audioOnly || ring || cam !== 'on') ? 'set' : ''}`} onClick={() => toggle('more')} aria-label={panel === 'more' ? 'Fewer tools' : 'More tools'} aria-expanded={panel === 'more'}><Icon name="more" stroke={3.2} /><span>More</span></button>}
+        {recording && !aOnly && <button className={`rail-btn ${ring ? 'set' : ''}`} onClick={() => { const v = !ring; setRing(v); keep('holler.ring', v ? '1' : '0'); if (v && !recording) toast('Light on. Turn your screen brightness up for the most glow.'); }}><Icon name="light" /><span>Light</span></button>}
         <input ref={fileRef} type="file" accept="video/*,audio/*" hidden onChange={e => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
       </aside>
 
@@ -576,15 +656,16 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         )}
         {panel === 'more' && !recording && (
           <div className="more-tools">
-          <button className={`rail-btn ${ring ? 'set' : ''}`} onClick={() => { const v = !ring; setRing(v); keep('holler.ring', v ? '1' : '0'); if (v && !recording) toast('Light on. Turn your screen brightness up for the most glow.'); }}><Icon name="light" /><span>Light</span></button>
-          <button className={`rail-btn ${timer ? 'set' : ''}`} onClick={() => { const v = timer === 0 ? 3 : timer === 3 ? 10 : 0; setTimer(v); keep('holler.timer', String(v)); toast(v ? `${v} second timer: prop your phone up, tap record, step back` : 'Timer off'); }}><Icon name="timer" /><span>{timer ? `${timer}s` : 'Timer'}</span></button>
-          <button className={`rail-btn ${hd ? 'set' : ''}`} onClick={async () => {
+          <button className={`rail-btn ${cam !== 'on' ? 'set' : ''}`} onClick={() => setCamSheet(true)}><Icon name={cam === 'on' ? 'camera' : cam === 'voice' ? 'mic' : 'keyboard'} /><span>{cam === 'on' ? 'Camera' : cam === 'voice' ? 'Voice' : 'Notes'}</span></button>
+          {cam === 'on' && <button className={`rail-btn ${ring ? 'set' : ''}`} onClick={() => { const v = !ring; setRing(v); keep('holler.ring', v ? '1' : '0'); if (v && !recording) toast('Light on. Turn your screen brightness up for the most glow.'); }}><Icon name="light" /><span>Light</span></button>}
+          {cam !== 'off' && <button className={`rail-btn ${timer ? 'set' : ''}`} onClick={() => { const v = timer === 0 ? 3 : timer === 3 ? 10 : 0; setTimer(v); keep('holler.timer', String(v)); toast(v ? `${v} second timer: prop your phone up, tap record, step back` : 'Timer off'); }}><Icon name="timer" /><span>{timer ? `${timer}s` : 'Timer'}</span></button>}
+          {cam === 'on' && <button className={`rail-btn ${hd ? 'set' : ''}`} onClick={async () => {
             const v = !hd; setHd(v);
             try { await studio.current?.setHD(v); }
             catch { setHd(!v); if (studio.current) studio.current.hd = !v; void startCam(); toast(v ? 'This camera would not switch to HD.' : 'Could not switch back to SD.'); return; }
             void api.updateMe({ prefs: { hd: v } }).catch(() => {}); toast(v ? 'HD on: sharper, bigger files' : 'HD off');
-          }}><Icon name="hd" /><span>{hd ? 'HD' : 'SD'}</span></button>
-          <button className={`rail-btn ${audioOnly ? 'set' : ''}`} onClick={() => setAudioOnly(a => !a)}><Icon name="wave" /><span>Voice only</span></button>
+          }}><Icon name="hd" /><span>{hd ? 'HD' : 'SD'}</span></button>}
+          {cam === 'on' && <button className={`rail-btn ${audioOnly ? 'set' : ''}`} onClick={() => setAudioOnly(a => !a)}><Icon name="wave" /><span>Voice only</span></button>}
           <button className="rail-btn" onClick={() => fileRef.current?.click()}><Icon name="upload" /><span>Upload</span></button>
           </div>
         )}
@@ -627,38 +708,25 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           </button>
         )}
 
-        {!panel && (
-          <div className="strip" ref={stripRef}>
-            {games.filter(g => !g.hidden).map(g => {
-              if (g.kind !== 'passiton') {
-                const mine = owes(g, me.id);
-                const done = (id: string) => doneFor(g, id);
-                return (
-                  <button key={g.id} className={`tile g-tile ${mine ? 'turn' : ''} ${g.status !== 'playing' ? 'over' : ''} ${g.createdBy === me.id ? 'mine' : ''}`} onClick={() => setGameId(g.id)}>
-                    <b>{TILE_NAME[g.kind]}</b>
-                    <span className="g-tile-who">{g.order.map(id => {
-                      const p = chat!.members.find(m => m.id === id) || (id === me.id ? me : undefined);
-                      return <span key={id} className={`g-tav ${done(id) ? 'done' : isTurns(g) ? 'up' : 'wait'}`}><Avatar p={p} size={14} /></span>;
-                    })}</span>
-                    <em>{tileLine(g, me, chat!)}</em>
-                  </button>
-                );
-              }
-              const mine = g.status === 'playing' && g.turnPerson === me.id;
+        {!panel && dock.length > 0 && (
+          <div className={`g-dock ${recording ? 'during-rec' : ''}`} aria-label="Games in this chat">
+            {dock.map(g => {
+              const mine = myGo(g);
               return (
-                <button key={g.id} className={`tile g-tile ${mine ? 'turn' : ''} ${g.status !== 'playing' ? 'over' : ''} ${g.createdBy === me.id ? 'mine' : ''}`} onClick={() => (g.status === 'playing' ? setGameId(g.id) : setReveal(g))}>
-                  <b>Pass It On</b>
-                  <span className="g-tile-who">{g.order.map((id, k) => {
-                    const p = chat!.members.find(m => m.id === id) || (id === me.id ? me : undefined);
-                    const st = g.status !== 'playing' ? 'done' : k < g.idx ? 'done' : k === g.idx ? 'up' : 'wait';
-                    return <span key={id} className={`g-tav ${st}`}><Avatar p={p} size={14} /></span>;
-                  })}</span>
-                  <em>{mine ? 'Your turn' : g.status === 'playing' ? `${(chat!.members.find(m => m.id === g.turnPerson)?.name || 'Someone').split(' ')[0]} is up` : 'Watch the reveal'}</em>
+                <button key={g.id} className={`g-chip ${mine ? 'turn' : ''} ${g.status !== 'playing' ? 'over' : ''}`} onClick={() => openDock(g)}>
+                  <span className="g-chip-ic"><Icon name={GAME_ICON[g.kind]} size={18} /></span>
+                  <span className="g-chip-txt"><b>{TILE_NAME[g.kind]}</b><em>{dockLine(g)}</em></span>
+                  {mine && <i className="g-chip-dot" aria-label="Your go" />}
                 </button>
               );
             })}
+          </div>
+        )}
+
+        {!panel && (
+          <div className="strip" ref={stripRef}>
             {!chat && pend.length === 0 && [0, 1, 2, 3].map(i => <span key={i} className="tile-sk" aria-hidden="true" />)}
-            {chat && polos.length === 0 && pend.length === 0 && games.length === 0 && <div className="strip-empty">{others.length ? 'No hollers yet. Say hi.' : 'Invite your people, then say hi.'}</div>}
+            {chat && polos.length === 0 && pend.length === 0 && <div className="strip-empty">{others.length ? 'No hollers yet. Say hi.' : 'Invite your people, then say hi.'}</div>}
             {polos.map((p, i) => {
               const day = manyDays && dayStarts.has(p.id) ? <span className="strip-day" aria-hidden="true"><i>{dayLabel(p.at)}</i></span> : null;
               const cid = typeof p.effects?.cardId === 'string' ? p.effects.cardId as string : null;
@@ -714,12 +782,14 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         )}
 
         <div className="rec-row">
-          {recording ? (
+          {cam === 'off' ? <div className="side-btn ghost" /> : recording ? (
             <button className="side-btn" onClick={cancelRec} aria-label="Discard recording"><Icon name="trash" /><span className="sb-lb">Discard</span></button>
           ) : (
             <button className="side-btn" onClick={() => setTyping(true)} aria-label="Send a text"><Icon name="keyboard" /><span className="sb-lb">Note</span></button>
           )}
-          <button className={`rec ${recording ? 'on' : ''} ${audioOnly ? 'audio' : ''} ${paused ? 'is-paused' : ''} ${countdown ? 'counting' : ''}`}
+          {cam === 'off' ? (
+            <button className="rec note-only" onClick={() => setTyping(true)} aria-label="Write a note"><Icon name="keyboard" size={30} /></button>
+          ) : <button className={`rec ${recording ? 'on' : ''} ${aOnly ? 'audio' : ''} ${paused ? 'is-paused' : ''} ${countdown ? 'counting' : ''}`}
             onPointerDown={onRecDown} onPointerUp={() => void onRecUp()} onPointerCancel={() => { pressAt.current = 0; }} onContextMenu={e => e.preventDefault()}
             onClick={e => { if (e.detail === 0) { if (recording) void finish(); else void begin(); } }}
             aria-label={recording ? 'Stop and send' : countdown ? 'Cancel timer' : 'Record'}>
@@ -728,7 +798,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
               {recording && <circle cx="50" cy="50" r="46" className="prog" style={{ strokeDashoffset: 289 - (289 * elapsed) / maxSec }} />}
             </svg>
             <span className="rec-core" style={recording ? { transform: `scale(${paused ? 0.55 : 0.55 + level * 0.25})` } : undefined} />
-          </button>
+          </button>}
           {recording ? <div className="timer">{clock(elapsed)}</div>
             : turn || !chat ? <div className="side-btn ghost" />
             : <button className="side-btn g-play-tile" onClick={() => { setPlayOpen(true); if (!G) loadG(); }} aria-label="Play a game"><Icon name="cards" /><span className="sb-lb">Play</span></button>}
@@ -752,29 +822,29 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       )}
       {player && chat && (
         <Player chat={chat} list={player.list} start={player.start} me={me} onClose={closePlayer} onChanged={() => void load()}
-          studio={camState === 'on' ? studio.current : null} onAnswerCard={answerCard} />
+          studio={camLive ? studio.current : null} onAnswerCard={answerCard} />
       )}
       {chat && G && (<>
         <G.PlaySheet open={playOpen} onClose={() => setPlayOpen(false)} people={chat.members.length}
-          onCard={() => { setPlayOpen(false); void deal(deck); setPanel('card'); }}
-          onPassItOn={() => { setPlayOpen(false); setStartOpen(true); }}
-          onRound={k => { setPlayOpen(false); if (k === 'lastcard') setCardsOpen(true); else if (k === 'ttt' || k === 'checkers') setDuelKind(k); else if (k === 'words' || k === 'trivia') setQuickKind(k); else if (k === 'spot' || k === 'laugh') setFaceKind(k); else setRoundKind(k); }} />
+          onCard={() => { if (camBlocked('card')) return; setPlayOpen(false); void deal(deck); setPanel('card'); }}
+          onPassItOn={() => { if (camBlocked('passiton')) return; setPlayOpen(false); setStartOpen(true); }}
+          onRound={k => { if (k !== 'lastcard' && camBlocked(k)) return; setPlayOpen(false); if (k === 'lastcard') setCardsOpen(true); else if (k === 'ttt' || k === 'checkers') setDuelKind(k); else if (k === 'words' || k === 'trivia') setQuickKind(k); else if (k === 'spot' || k === 'laugh') setFaceKind(k); else setRoundKind(k); }} />
         {faceKind === 'spot' && <G.SpotStart open onClose={() => setFaceKind(null)} chat={chat} me={me}
           onStarted={g => { setFaceKind(null); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); takeTurn(g); }} />}
         {faceKind === 'laugh' && <G.LaughStart open onClose={() => setFaceKind(null)} chat={chat} me={me}
           onStarted={g => { setFaceKind(null); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); takeTurn(g); }} />}
         {openGame && openGame.kind === 'spot' && <G.SpotPage game={openGame} chat={chat} me={me} onClose={() => setGameId(null)} onTakeTurn={takeTurn} onChanged={gameChanged} />}
-        {openGame && openGame.kind === 'laugh' && <G.LaughPage game={openGame} chat={chat} me={me} studio={camState === 'on' ? studio.current : null}
+        {openGame && openGame.kind === 'laugh' && <G.LaughPage game={openGame} chat={chat} me={me} studio={camLive ? studio.current : null}
           onClose={() => setGameId(null)} onTakeTurn={takeTurn} onChanged={gameChanged} />}
         <G.CardStart open={cardsOpen} onClose={() => setCardsOpen(false)} chat={chat} me={me}
           onStarted={g => { setCardsOpen(false); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); setGameId(g.id); }} />
-        {openGame && openGame.kind === 'lastcard' && <G.CardPage game={openGame} chat={chat} me={me} onClose={() => setGameId(null)} onChanged={gameChanged}
+        {openGame && openGame.kind === 'lastcard' && <G.CardPage game={openGame} chat={chat} me={me} float={floatGame} onClose={closeGame} onChanged={gameChanged}
           onRematch={g => { setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); setGameId(g.id); }} />}
         {duelKind && <G.DuelStart open={!!duelKind} kind={duelKind} onClose={() => setDuelKind(null)} chat={chat} me={me}
           onStarted={g => { setDuelKind(null); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); setGameId(g.id); }} />}
         {quickKind && <G.QuickStart open={!!quickKind} kind={quickKind} onClose={() => setQuickKind(null)} chat={chat} me={me}
           onStarted={g => { setQuickKind(null); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); setGameId(g.id); }} />}
-        {openGame && isDuel(openGame) && <G.DuelPage game={openGame} chat={chat} me={me} onClose={() => setGameId(null)} onChanged={gameChanged}
+        {openGame && isDuel(openGame) && <G.DuelPage game={openGame} chat={chat} me={me} float={floatGame} onClose={closeGame} onChanged={gameChanged}
           onRematch={g => { setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); setGameId(g.id); }} />}
         {openGame && isQuick(openGame) && <G.QuickPage game={openGame} chat={chat} me={me} onClose={() => setGameId(null)} onChanged={gameChanged} />}
         {roundKind && <G.RoundStart open={!!roundKind} kind={roundKind} onClose={() => setRoundKind(null)} chat={chat} me={me}
@@ -788,17 +858,43 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         {openGame && openGame.kind === 'passiton' && <G.GamePage game={openGame} chat={chat} me={me} onClose={() => setGameId(null)} onTakeTurn={takeTurn}
           onReveal={g => { setGameId(null); setReveal(g); }} onChanged={gameChanged} />}
         {lookAt && <G.LookScreen game={lookAt} chat={chat} me={me} onClose={() => setLookAt(null)} onCopy={g => { setLookAt(null); gameChanged(g); setTurn(g); setCard(null); setAudioOnly(false); }} />}
-        {reveal && <G.Reveal game={reveal} chat={chat} me={me} studio={camState === 'on' ? studio.current : null} onClose={() => { setReveal(null); void load(); }}
+        {reveal && <G.Reveal game={reveal} chat={chat} me={me} studio={camLive ? studio.current : null} onClose={() => { setReveal(null); void load(); }}
           onChanged={gameChanged} onPlayAgain={() => { setReveal(null); setStartOpen(true); }} />}
         <G.GuessSheet open={!!guessRec} initial={guessRec?.text || ''} onRetake={() => setGuessRec(null)}
           onSend={gv => { if (turn && guessRec) sendTurn(turn, guessRec.rec, guessRec.segs, gv); }} />
       </>)}
       {chat && <ChatInfo open={info} onClose={() => setInfo(false)} chat={chat} onChanged={() => { void load(); void refresh(); }} />}
+      <CamSheet open={camSheet} onClose={() => setCamSheet(false)} cam={cam} onPick={pickCam} />
       <Sheet open={typing} onClose={() => setTyping(false)} title="Send a note" className="typed" you={tone(me.color)}>
         <textarea className="field area" autoFocus maxLength={2000} rows={4} placeholder="Type something quick" value={msg} onChange={e => setMsg(e.target.value)} />
         <button className="btn primary wide" disabled={!msg.trim()} onClick={() => void sendMsg()}><Icon name="send" size={18} /> Send</button>
       </Sheet>
     </div>
+  );
+}
+
+const GAME_ICON: Record<Game['kind'], string> = {
+  passiton: 'chain', poker: 'facecam', charades: 'eye', spot: 'timer', laugh: 'laugh', words: 'letters', trivia: 'quiz', lastcard: 'cards', checkers: 'board', ttt: 'grid',
+};
+
+/** Camera, voice only, or notes and games: for a phone whose camera won't cooperate. Kept per device. */
+function CamSheet({ open, onClose, cam, onPick }: { open: boolean; onClose: () => void; cam: CamMode; onPick: (m: CamMode) => void }) {
+  const opts: { id: CamMode; icon: string; title: string; line: string }[] = [
+    { id: 'on', icon: 'camera', title: 'Camera and voice', line: 'The full Holler: video hollers, looks, every game.' },
+    { id: 'voice', icon: 'mic', title: 'Voice only', line: 'Holler with your voice, send notes, play board, card and quiz games, and Poker Face. No camera at all.' },
+    { id: 'off', icon: 'keyboard', title: 'Notes and games', line: 'No camera and no mic. Send notes, watch hollers, and play board, card and quiz games.' },
+  ];
+  return (
+    <Sheet open={open} onClose={onClose} title="On this phone">
+      <p className="g-sub">Pick what works for this phone. You can change it any time, here or in You.</p>
+      {opts.map(o => (
+        <button key={o.id} className={`g-opt cam-opt ${cam === o.id ? 'on' : ''}`} onClick={() => onPick(o.id)} aria-pressed={cam === o.id}>
+          <span className="g-opt-ic"><Icon name={o.icon} size={24} /></span>
+          <span className="g-opt-txt"><b>{o.title}</b><span>{o.line}</span></span>
+          {cam === o.id && <Icon name="check" size={20} stroke={3} />}
+        </button>
+      ))}
+    </Sheet>
   );
 }
 

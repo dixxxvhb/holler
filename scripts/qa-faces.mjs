@@ -21,7 +21,7 @@ const step = s => console.log('--', s);
 const checks = [];
 const check = (ok, what) => { checks.push([ok, what]); console.log(ok ? '  ok ' : '  FAIL', what); };
 const back = async p => { while (await p.locator('.g-page .g-back').count()) { await p.click('.g-page .g-back'); await p.waitForTimeout(400); } };
-const openTile = async (p, name) => { await back(p); await p.locator(`.g-tile:has-text("${name}")`).first().click(); await p.waitForSelector('.g-page'); await p.waitForTimeout(900); };
+const openTile = async (p, name) => { await back(p); await p.locator(`.g-chip:has-text("${name}")`).first().click(); await p.waitForSelector('.g-page'); await p.waitForTimeout(900); };
 const play = async (p, name) => { await back(p); await p.click('.g-play-tile'); await p.waitForSelector('.g-opt'); await p.waitForTimeout(450); await p.locator('.g-opt').filter({ has: p.locator(`b:text-is("${name}")`) }).click(); await p.waitForTimeout(500); };
 
 const spotGo = async (p, i) => {
@@ -52,7 +52,7 @@ try {
   await A.click('.g-opt:has-text("On The Spot")'); await A.waitForTimeout(400);
   await A.click('.btn.g-go:has-text("Start")');
   await spotGo(A, 0);
-  await B.waitForSelector('.g-tile.turn:has-text("On The Spot")', { timeout: 25000 });
+  await B.waitForSelector('.g-chip.turn:has-text("On The Spot")', { timeout: 25000 });
   await openTile(B, 'On The Spot'); await shot(B, '04-B-spot-page');
   check(await B.locator('.g-row:has-text("ZZTestAvery") .btn:has-text("Watch")').count() === 1, 'B can watch A before going');
   await B.click('.btn.g-go:has-text("Take my go")');
@@ -71,7 +71,7 @@ try {
   await A.click('.btn.g-go:has-text("Start")');
   await A.waitForSelector('.g-banner:has-text("Make them laugh")'); await shot(A, '09-A-laugh-turn');
   await A.click('.rec'); await A.waitForTimeout(13000);
-  await B.waitForSelector('.g-tile.turn:has-text("Don\'t Laugh")', { timeout: 25000 });
+  await B.waitForSelector('.g-chip.turn:has-text("Don\'t Laugh")', { timeout: 25000 });
   await openTile(B, 'Don\'t Laugh'); await B.click('.btn.g-go:has-text("Record mine")');
   await B.waitForSelector('.g-banner:has-text("Make them laugh")'); await B.click('.rec'); await B.waitForTimeout(13000);
   await openTile(B, 'Don\'t Laugh'); await shot(B, '10-B-laugh-page');

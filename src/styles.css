@@ -658,3 +658,41 @@ button.code-big:active { transform: scale(.98); }
 
 /* audit 11-26: "Look before sending" asks for a tap when iPhone won't start it with sound */
 .review .paused.tap.review-tap { pointer-events: auto; z-index: 2; border: 0; width: 100%; color: var(--chalk); font: inherit; font-weight: 700; }
+
+/* phones without a camera (11-27) */
+.cam-off .btn { min-width: 220px; }
+.cam-off.notes-mode .av { box-shadow: 0 0 0 5px var(--on-color); }
+.cam-off .btn:not(.primary) { background: var(--on-color); color: var(--chalk); }
+.cam-mode-chip { position: absolute; left: 12px; top: calc(var(--safe-t) + var(--band-h) + 12px); z-index: var(--z-chrome); padding: 9px 14px; border-radius: var(--r-pill);
+  background: var(--puck); color: var(--chalk); font: 700 13px/1 var(--body); white-space: nowrap; }
+.rec.note-only { width: 76px; height: 76px; border-radius: 50%; background: var(--on-color); color: var(--chalk); }
+.rec.note-only:active { transform: scale(.95); }
+/* home: a game waiting on you */
+.turn-tag { display: inline-flex; align-self: flex-start; align-items: center; margin: 4px 0 2px; padding: 2px 8px; border-radius: var(--r-pill); background: var(--on-color); color: var(--room); font: 700 11px/1.4 var(--body); vertical-align: 2px; }
+
+/* profiles (11-27) */
+.person-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 6px 0; text-align: left; color: inherit; }
+.person-row:active { opacity: .7; }
+.person-row .pmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.person-row .pabout { font-size: 13px; font-weight: 600; color: var(--chalk-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet.prof { padding-bottom: calc(28px + var(--safe-b)); }
+.prof-hero { margin: -4px -20px 0; padding: 18px 20px 20px; display: flex; align-items: center; gap: 18px; color: var(--on-color); background: linear-gradient(90deg, var(--room) 0 62%, transparent 62%), var(--pat), var(--room); --ring: var(--on-color); }
+.prof-hero .av { box-shadow: 0 0 0 4px var(--on-color); flex: none; }
+.prof-when { display: flex; flex-direction: column; gap: 4px; font-size: 14px; font-weight: 700; color: var(--on-color-2); min-width: 0; }
+.prof-when b { font: 700 15px/1.2 var(--body); color: var(--on-color); }
+.prof-when .prof-now { display: inline-flex; align-self: flex-start; padding: 3px 10px; border-radius: var(--r-pill); background: var(--on-color); color: var(--live); }
+.prof-about { margin: 18px 0 0; font: 400 26px/1.12 var(--display); color: var(--chalk); overflow-wrap: anywhere; }
+.prof-about.empty { font: 600 16px/1.4 var(--body); color: var(--chalk-3); }
+.prof-rows { margin: 14px 0 0; display: flex; flex-direction: column; gap: 10px; }
+.prof-rows div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.prof-rows dt { font: 700 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--chalk-3); }
+.prof-rows dd { margin: 0; font-weight: 700; color: var(--chalk); overflow-wrap: anywhere; }
+.prof-style .chip { pointer-events: none; display: inline-flex; align-items: center; gap: 6px; }
+.prof-stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--seam-w); margin: 0 -20px; }
+.prof-stat { display: flex; flex-direction: column; gap: 4px; padding: 14px 20px; background: var(--surface-2); }
+.prof-stat b { font: 400 40px/1 var(--display); color: var(--room); min-height: 40px; }
+.prof-stat span { font-size: 13px; font-weight: 700; color: var(--chalk-2); }
+.sk-num { display: inline-block; width: 46px; height: 32px; border-radius: 8px; background: var(--seam-2); animation: sk 1.2s var(--ease-in-out) infinite; }
+.sheet.prof .btn.primary.wide { margin-top: 22px; }
+.prof-edit .field.area.sm { min-height: 72px; }
+.prof-edit .btn { margin-top: 14px; align-self: flex-start; }

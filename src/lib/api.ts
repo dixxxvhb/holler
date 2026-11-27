@@ -6,8 +6,13 @@ export const sb = createClient(SB_URL, SB_KEY, { auth: { persistSession: false, 
 
 export type Prefs = {
   hd?: boolean; simple?: boolean; speed?: number; look?: string; voice?: string; captions?: boolean; review?: boolean; sounds?: boolean;
+  /** profile words, shown to the people you share a chat with */
+  about?: string; into?: string; song?: string;
 };
-export type Person = { id: string; name: string; color: string; avatar: string | null; lastSeen: string; prefs?: Prefs };
+/** What everyone in your chats sees on your profile (look and voice are your saved defaults). */
+export type Profile = { about?: string; into?: string; song?: string; look?: string; voice?: string };
+export type Person = { id: string; name: string; color: string; avatar: string | null; lastSeen: string; prefs?: Prefs; joined?: string; profile?: Profile };
+export type ProfileStats = { hollers: number; notes: number; minutes: number; seconds?: number; games: number; wins: number; first: string | null };
 export type Reaction = { id: string; who: string; kind: string; t: number | null };
 export type Polo = {
   id: string; chat: string; author: string; kind: 'video' | 'audio' | 'text'; path: string | null; thumb: string | null;
@@ -67,7 +72,40 @@ export type Home = { me: Person; chats: ChatSummary[]; usage: { bytes: number; c
 
 const TOKEN_KEY = 'holler.token';
 export function getToken(): string | null { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } }
-export function setToken(t: string | null) { try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch { /* private mode */ } }
+export function setToken(t: string | null) {
+  const was = getToken();
+  try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch { /* private mode */ }
+  if (was !== t) { clearHome(); chatMemo.clear(); } // a different person (or nobody) never sees the last one's chats
+}
+
+// ---- the last Home, kept on the device so the app paints at once and refreshes behind it ----
+const HOME_KEY = 'holler.home.v1';
+const whoKey = () => (getToken() || '').slice(0, 8);
+/** The last Home this signed-in person saw on this device, or null. */
+export function cachedHome(): Home | null {
+  try {
+    const raw = localStorage.getItem(HOME_KEY); if (!raw) return null;
+    const v = JSON.parse(raw) as { who?: string; home?: Home };
+    const who = whoKey();
+    return who && v.who === who && v.home?.me?.id && Array.isArray(v.home.chats) ? v.home : null;
+  } catch { return null; }
+}
+export function saveHome(h: Home) {
+  const who = whoKey(); if (!who) return;
+  try { localStorage.setItem(HOME_KEY, JSON.stringify({ who, home: h })); } catch { /* full or private mode */ }
+}
+export function clearHome() { try { localStorage.removeItem(HOME_KEY); } catch { /* private mode */ } }
+
+// ---- the last few chats, in memory, so reopening one paints at once ----
+const CHAT_MEMO_MAX = 8;
+const chatMemo = new Map<string, ChatFull>();
+function keepChat(c: ChatFull) {
+  chatMemo.delete(c.id); chatMemo.set(c.id, c); // newest last
+  while (chatMemo.size > CHAT_MEMO_MAX) chatMemo.delete(chatMemo.keys().next().value!);
+  return c;
+}
+/** The last copy of a chat this session fetched, or null. Use it as a starting state, then refresh. */
+export function peekChat(id: string): ChatFull | null { return chatMemo.get(id) ?? null; }
 
 async function rpc<T>(fn: string, args: Record<string, unknown> = {}, withToken = true): Promise<T> {
   const body = withToken ? { p_token: getToken(), ...args } : args;
@@ -92,8 +130,9 @@ export const api = {
   chatUpdate: (chat: string, p: { name?: string; theme?: string; muted?: boolean }) =>
     rpc<ChatSummary>('holler_chat_update', { p_chat: chat, p_name: p.name ?? null, p_theme: p.theme ?? null, p_muted: p.muted ?? null }),
   leave: (chat: string) => rpc<void>('holler_leave', { p_chat: chat }),
-  chat: (chat: string) => rpc<ChatFull>('holler_chat', { p_chat: chat }),
+  chat: (chat: string) => rpc<ChatFull>('holler_chat', { p_chat: chat }).then(keepChat),
   saved: () => rpc<Polo[]>('holler_saved'),
+  profile: (person: string) => rpc<Person & { stats: ProfileStats }>('holler_profile', { p_person: person }),
   startPolo: (chat: string, kind: Polo['kind'], ext: string | null, mime: string | null, body: string | null) =>
     rpc<Polo>('holler_start_polo', { p_chat: chat, p_kind: kind, p_ext: ext, p_mime: mime, p_body: body }),
   finishPolo: (id: string, p: { duration: number; w: number; h: number; transcript: string | null; effects: object; hasThumb: boolean }) =>
@@ -265,31 +304,113 @@ export function uploadResumable(path: string, blob: Blob, opts: { known?: string
 }
 
 // ---- media cache: whole files in Cache Storage so rewatching costs no data ----
+// A holler is downloaded once, whole, into Cache Storage, and played from there. Never streamed as well.
 const CACHE = 'holler-media-v1';
 const urlMemo = new Map<string, Promise<string>>();
-export function mediaUrl(path: string): Promise<string> {
+type Dl = { p: Promise<Blob>; loaded: number; total: number; subs: Set<(f: number) => void> };
+const downloads = new Map<string, Dl>(); // one network fetch per file, shared by whoever asks meanwhile
+let watching = 0; // downloads someone is waiting on to play right now; prefetch steps aside for them
+
+/** Fetch a file into the media cache (or join the fetch already going). Reports 0..1 when the size is known. */
+function download(path: string, onProgress?: (f: number) => void): Promise<Blob> {
+  let d = downloads.get(path);
+  if (!d) {
+    const dl: Dl = { loaded: 0, total: 0, subs: new Set(), p: null as unknown as Promise<Blob> };
+    const tell = () => { if (dl.total) { const f = Math.min(1, dl.loaded / dl.total); dl.subs.forEach(s => s(f)); } };
+    dl.p = (async () => {
+      const url = publicUrl(path);
+      const cache = await caches.open(CACHE);
+      const net = await fetch(url);
+      if (!net.ok) throw new Error('fetch ' + net.status);
+      const type = net.headers.get('content-type') || 'application/octet-stream';
+      dl.total = Number(net.headers.get('content-length')) || 0;
+      let blob: Blob;
+      if (net.body && dl.total) {
+        const reader = net.body.getReader(); const parts: BlobPart[] = [];
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          parts.push(value as Uint8Array<ArrayBuffer>); dl.loaded += value.byteLength; tell();
+        }
+        blob = new Blob(parts, { type });
+      } else blob = await net.blob();
+      await cache.put(url, new Response(blob, { headers: { 'content-type': type, 'content-length': String(blob.size) } }));
+      return blob;
+    })();
+    d = dl;
+    downloads.set(path, dl);
+    const off = () => { if (downloads.get(path) === dl) downloads.delete(path); dl.subs.clear(); };
+    dl.p.then(off, off);
+  }
+  if (onProgress) { d.subs.add(onProgress); if (d.total) onProgress(Math.min(1, d.loaded / d.total)); }
+  return d.p;
+}
+
+/** A playable URL for a holler: from the device cache, else downloaded whole first (onProgress 0..1 while it comes).
+ *  Falls back to the public URL when Cache Storage is not available. */
+export function mediaUrl(path: string, onProgress?: (f: number) => void): Promise<string> {
   let p = urlMemo.get(path);
   if (!p) {
     p = (async () => {
       const url = publicUrl(path);
       try {
         const cache = await caches.open(CACHE);
-        let res = await cache.match(url);
-        if (!res) {
-          const net = await fetch(url);
-          if (!net.ok) throw new Error('fetch ' + net.status);
-          await cache.put(url, net.clone());
-          res = net;
-        }
-        return URL.createObjectURL(await res.blob());
+        const hit = await cache.match(url);
+        if (hit) return URL.createObjectURL(await hit.blob());
+        watching++;
+        try { return URL.createObjectURL(await download(path, onProgress)); } finally { watching--; }
       } catch {
         return url;
       }
     })();
     p.catch(() => urlMemo.delete(path));
     urlMemo.set(path, p);
+  } else if (onProgress) {
+    const d = downloads.get(path); // someone else started it: listen in
+    if (d) { watching++; d.subs.add(onProgress); if (d.total) onProgress(Math.min(1, d.loaded / d.total)); const done = () => { watching--; }; d.p.then(done, done); }
   }
   return p;
+}
+
+// ---- prefetch: warm what people are about to watch, quietly, one file at a time ----
+type Job = { paths: string[]; budget: number; spent: number };
+const jobs: Job[] = [];
+let prefetching = false;
+let gate: () => boolean = () => false;
+/** Something that should hold prefetch back while true (the outbox sets this to "a holler is going up"). */
+export function setPrefetchGate(f: () => boolean) { gate = f; }
+const nap = (ms: number) => new Promise(r => setTimeout(r, ms));
+async function quiet() {
+  for (;;) {
+    if (document.hidden) { await new Promise<void>(r => { const f = () => { if (!document.hidden) { document.removeEventListener('visibilitychange', f); r(); } }; document.addEventListener('visibilitychange', f); }); continue; }
+    if (watching > 0 || gate()) { await nap(1500); continue; }
+    return;
+  }
+}
+/** Download these hollers into the device cache ahead of time, newest request first, one at a time.
+ *  Skips files already here, pauses while the app is hidden, a holler is loading to play, or one is sending,
+ *  and stops a request once it has used its byte budget (checked between files). */
+export function prefetch(paths: string[], budgetBytes = 30 * 1024 * 1024) {
+  const list = [...new Set(paths.filter(Boolean))];
+  if (!list.length || typeof caches === 'undefined') return;
+  jobs.unshift({ paths: list, budget: budgetBytes, spent: 0 });
+  if (!prefetching) void pump();
+}
+async function pump() {
+  prefetching = true;
+  try {
+    let cache: Cache;
+    try { cache = await caches.open(CACHE); } catch { jobs.length = 0; return; }
+    while (jobs.length) {
+      const job = jobs[0];
+      const path = job.paths.shift();
+      if (!path || job.spent >= job.budget) { jobs.shift(); continue; }
+      if (urlMemo.has(path) || downloads.has(path) || await cache.match(publicUrl(path))) continue;
+      await quiet();
+      if (urlMemo.has(path)) continue; // asked for to play while we waited
+      try { job.spent += (await download(path)).size; } catch { /* no signal or gone: leave it for when it is watched */ }
+    }
+  } finally { prefetching = false; }
 }
 export async function seedCache(path: string, blob: Blob) {
   urlMemo.set(path, Promise.resolve(URL.createObjectURL(blob)));
@@ -301,7 +422,7 @@ export async function seedCache(path: string, blob: Blob) {
 export async function cacheBytes(): Promise<number> {
   try { const e = await navigator.storage?.estimate?.(); return e?.usage ?? 0; } catch { return 0; }
 }
-export async function clearCache() { try { await caches.delete(CACHE); urlMemo.clear(); } catch { /* ignore */ } }
+export async function clearCache() { try { jobs.length = 0; await caches.delete(CACHE); urlMemo.clear(); } catch { /* ignore */ } }
 
 export function rid(n = 16) {
   const a = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';

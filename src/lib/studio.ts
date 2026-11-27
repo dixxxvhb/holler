@@ -81,13 +81,19 @@ export class Studio {
 
   get size() { return this.hd ? { w: 720, h: 1280 } : { w: 540, h: 960 }; }
 
-  async open(opts: { facing?: 'user' | 'environment'; hd?: boolean } = {}) {
+  /** true when this studio runs on the mic alone (no camera on this device, or the person chose voice only) */
+  noCam = false;
+
+  async open(opts: { facing?: 'user' | 'environment'; hd?: boolean; noCam?: boolean } = {}) {
     if (opts.facing) this.facing = opts.facing;
     if (opts.hd !== undefined) this.hd = opts.hd;
+    if (opts.noCam !== undefined) this.noCam = opts.noCam;
     const { w, h } = this.size;
-    await acquire(this.facing, this.hd);
+    if (this.noCam) { await acquireMic(); if (shared.cam) shared.cam.enabled = false; }
+    else await acquire(this.facing, this.hd);
     this.attach();
-    await this.video.play().catch(() => { /* iOS needs a gesture sometimes; frames still flow */ });
+    // with no camera there is nothing to play, and play() on an empty video never settles
+    if (!this.noCam) await this.video.play().catch(() => { /* iOS needs a gesture sometimes; frames still flow */ });
     this.canvas.width = w; this.canvas.height = h;
     this.overlay.width = w; this.overlay.height = h; this.ovDirty = true;
     if (!this.gl && !this.simple) this.initGL();
@@ -97,12 +103,13 @@ export class Studio {
   }
 
   private attach() {
-    this.stream = new MediaStream([shared.cam!, shared.mic!].filter(Boolean) as MediaStreamTrack[]);
-    this.video.srcObject = new MediaStream([shared.cam!]);
+    const cam = this.noCam ? null : shared.cam;
+    this.stream = new MediaStream([cam, shared.mic].filter(Boolean) as MediaStreamTrack[]);
+    this.video.srcObject = cam ? new MediaStream([cam]) : null;
   }
 
   /** Can the camera switch while recording? Not in Simple camera (the recorder holds the camera track itself). */
-  get canFlipLive() { return !this.recording || (this.recKind === 'video' && this.glOk); }
+  get canFlipLive() { return !this.noCam && (!this.recording || (this.recKind === 'video' && this.glOk)); }
 
   /** Swap front/back. Works mid-recording: the recorder records the canvas, so only the picture source
    *  changes; the mic is never touched. The canvas holds its last frame until the new camera is up. */
@@ -251,6 +258,7 @@ export class Studio {
   goSimple() { this.simple = true; this.glOk = false; }
 
   private draw() {
+    this.meterTick();
     const v = this.video; const gl = this.gl;
     if (!v.videoWidth || this.swapping) return;
     const { width: W, height: H } = this.canvas;
@@ -291,9 +299,14 @@ export class Studio {
       if (L.history) { gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.texP); gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGB, 0, 0, W, H, 0); }
     }
     this.ovDirty = false;
+  }
+
+  private meterBuf: Uint8Array<ArrayBuffer> | null = null;
+  private meterTick() {
     const an = this.analyser || this.meter?.an;
     if (an) {
-      const a = new Uint8Array(an.fftSize); an.getByteTimeDomainData(a);
+      if (!this.meterBuf || this.meterBuf.length !== an.fftSize) this.meterBuf = new Uint8Array(an.fftSize);
+      const a = this.meterBuf; an.getByteTimeDomainData(a);
       let m = 0; for (const x of a) m = Math.max(m, Math.abs(x - 128));
       const raw = Math.min(1, (m / 128) * 2.2);
       this.level = raw > this.level ? this.level * 0.4 + raw * 0.6 : this.level * 0.9 + raw * 0.1;
@@ -365,6 +378,7 @@ export class Studio {
   async start(kind: 'video' | 'audio' = 'video', opts: { videoBits?: number } = {}) {
     if (this.testP) await this.testP.catch(() => null);
     if (!this.stream) throw new Error('camera off');
+    if (this.noCam) kind = 'audio';
     if (this.recording) throw new Error('already recording');
     this.recKind = kind;
     const mic = this.stream.getAudioTracks()[0];
@@ -499,8 +513,10 @@ export class Studio {
 
 // ---- one camera + mic for the whole app session ----
 // iPhones ask for camera and mic again whenever a page stops its tracks and asks anew. So the app asks
-// once, keeps the tracks for as long as the page lives, and only switches them off (enabled = false,
-// which turns the camera light off) when no chat is open. Flipping swaps the camera track only.
+// once and keeps the tracks for as long as the page lives. The camera is switched off (enabled = false,
+// which turns the camera light off) when no chat is open. The mic is never switched off and on: on
+// iPhone every mic mute and unmute plays a loud system sound, which rang out each time Holler opened
+// or a chat closed (11-27). Flipping swaps the camera track only.
 const shared: { cam: MediaStreamTrack | null; mic: MediaStreamTrack | null; facing: string; hd: boolean } = { cam: null, mic: null, facing: '', hd: false };
 const live = (t: MediaStreamTrack | null): boolean => !!t && t.readyState === 'live';
 const camConstraints = (facing: string, hd: boolean): MediaTrackConstraints =>
@@ -509,11 +525,10 @@ const micConstraints: MediaTrackConstraints = { echoCancellation: true, noiseSup
 
 async function acquire(facing: string, hd: boolean, forceCam = false) {
   const camOk = live(shared.cam) && shared.facing === facing && shared.hd === hd && !forceCam;
-  if (camOk && live(shared.mic)) { shared.cam!.enabled = true; shared.mic!.enabled = true; return; }
+  if (camOk && live(shared.mic)) { shared.cam!.enabled = true; return; }
   if (live(shared.mic)) {
     // mic is still held, so this page is still capturing: a camera-only ask doesn't prompt again.
     // Phones can only run one camera at a time, so stop the old one first.
-    shared.mic!.enabled = true;
     if (!camOk) {
       shared.cam?.stop(); shared.cam = null;
       const s = await navigator.mediaDevices.getUserMedia({ video: camConstraints(facing, hd) });
@@ -527,8 +542,19 @@ async function acquire(facing: string, hd: boolean, forceCam = false) {
   shared.cam = s.getVideoTracks()[0]; shared.mic = s.getAudioTracks()[0]; shared.facing = facing; shared.hd = hd;
 }
 
-/** Camera light off, permission kept. */
-export function pauseMedia() { if (shared.cam) shared.cam.enabled = false; if (shared.mic) shared.mic.enabled = false; }
+/** Mic only (voice-only mode): asks for the mic alone, and never for the camera. */
+async function acquireMic() {
+  if (live(shared.mic)) return;
+  shared.mic?.stop(); shared.mic = null;
+  const s = await navigator.mediaDevices.getUserMedia({ audio: micConstraints });
+  shared.mic = s.getAudioTracks()[0];
+}
+
+/** Let go of the camera and mic altogether (notes-only mode). Stopping is not muting, so no mute sound. */
+export function releaseMedia() { shared.cam?.stop(); shared.mic?.stop(); shared.cam = shared.mic = null; shared.facing = ''; }
+
+/** Camera light off, permission kept. The mic is left alone (see above): nothing records unless a take is running. */
+export function pauseMedia() { if (shared.cam) shared.cam.enabled = false; }
 
 function waitFrames(v: HTMLVideoElement) {
   return new Promise<void>(res => {

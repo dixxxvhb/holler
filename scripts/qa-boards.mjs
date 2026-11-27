@@ -24,7 +24,7 @@ const step = s => console.log('--', s);
 const checks = [];
 const check = (ok, what) => { checks.push([ok, what]); console.log(ok ? '  ok ' : '  FAIL', what); };
 const back = async p => { while (await p.locator('.g-page .g-back').count()) { await p.click('.g-page .g-back'); await p.waitForTimeout(400); } };
-const openTile = async (p, name, nth = 0) => { await back(p); await p.locator(`.g-tile:has-text("${name}")`).nth(nth).click(); await p.waitForSelector('.g-page'); await p.waitForTimeout(800); };
+const openTile = async (p, name, nth = 0) => { await back(p); await p.locator(`.g-chip:has-text("${name}")`).nth(nth).click(); await p.waitForSelector('.g-page'); await p.waitForTimeout(800); };
 const status = p => p.textContent('.d-status').then(t => t.trim());
 const waitStatus = async (p, txt) => { await p.waitForFunction(t => document.querySelector('.d-status')?.textContent?.includes(t), txt, { timeout: 20000 }); };
 const play = async (p, name) => { await back(p); await p.click('.g-play-tile'); await p.waitForSelector('.g-opt'); await p.waitForTimeout(450); await p.locator('.g-opt').filter({ has: p.locator(`b:text-is("${name}")`) }).click(); await p.waitForTimeout(500); };
@@ -48,7 +48,7 @@ try {
   const ttt = async (p, cell) => { await p.click(`[data-cell="${cell}"]`); await p.waitForTimeout(900); };
   await ttt(A, 0);
   check(await status(A) !== 'Your move', 'after the move it is their turn');
-  await B.waitForSelector('.g-tile.turn:has-text("Tic-Tac-Toe")', { timeout: 20000 });
+  await B.waitForSelector('.g-chip.turn:has-text("Tic-Tac-Toe")', { timeout: 20000 });
   await openTile(B, 'Tic-Tac-Toe'); await ttt(B, 4);
   await waitStatus(A, 'Your move'); check(true, 'A sees B\'s move without reloading');
   await ttt(A, 1);
@@ -69,7 +69,7 @@ try {
   await sq(A, 42); check(await A.locator('.d-sq.to').count() === 2, 'a piece shows its two moves');
   await shot(A, '06-checkers-picked');
   await sq(A, 35); await A.waitForTimeout(900);
-  await B.waitForSelector('.g-tile.turn:has-text("Checkers")', { timeout: 20000 });
+  await B.waitForSelector('.g-chip.turn:has-text("Checkers")', { timeout: 20000 });
   await openTile(B, 'Checkers'); await shot(B, '07-checkers-B-view');
   check(await B.locator('.d-checkers .d-sq').first().getAttribute('data-sq') === '63', 'B sees the board from their side');
   await sq(B, 21); await sq(B, 28); await B.waitForTimeout(900);
@@ -99,7 +99,7 @@ try {
   await A.waitForTimeout(300); await shot(A, '11-words-go');
   check(await A.locator('.q-found p span').count() === mine.length, `${mine.length} real words taken, a fake one refused`);
   await A.click('text=I\'m done, hand it in'); await A.waitForSelector('.g-page .g-track'); await A.waitForTimeout(800);
-  await B.waitForSelector('.g-tile.turn:has-text("7 Letters")', { timeout: 20000 });
+  await B.waitForSelector('.g-chip.turn:has-text("7 Letters")', { timeout: 20000 });
   await openTile(B, '7 Letters');
   check(await B.locator('.g-lock').count() === 1, 'B cannot see A\'s words before playing');
   await B.click('.btn.g-go:has-text("Start my go")'); await B.waitForSelector('.q-rack'); await B.waitForTimeout(500);
@@ -126,7 +126,7 @@ try {
     }
   };
   await answerAll(A, 0, true); await A.waitForSelector('.g-page .g-track', { timeout: 15000 }); await A.waitForTimeout(800);
-  await B.waitForSelector('.g-tile.turn:has-text("Trivia")', { timeout: 20000 });
+  await B.waitForSelector('.g-chip.turn:has-text("Trivia")', { timeout: 20000 });
   await openTile(B, 'Trivia'); await answerAll(B, 1, false); await B.waitForTimeout(2500);
   await shot(B, '16-trivia-results');
   check(await B.locator('.g-board:has-text("Final scores")').count() === 1, 'trivia final scores');

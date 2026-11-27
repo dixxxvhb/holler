@@ -128,6 +128,7 @@ export function HomeScreen() {
                   </div>
                   <div className="cc-body">
                     <div className="cc-title">{chatTitle(c, me.id)}</div>
+                    {c.yourTurn ? <span className="turn-tag">{c.yourTurn > 1 ? `${c.yourTurn} games waiting on you` : 'A game is waiting on you'}</span> : null}
                     <div className="cc-sub">
                       {recording ? <span className="live-txt">{recording.name.split(' ')[0]} is recording</span>
                         : c.unread ? <span className="hot">{from}</span>

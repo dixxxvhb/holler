@@ -58,8 +58,8 @@ export function DuelStart({ open, kind, onClose, chat, me, onStarted }: {
 }
 
 // ---------------------------------------------------------------- the game page
-export function DuelPage({ game, chat, me, onClose, onChanged, onRematch }: {
-  game: Game; chat: ChatFull; me: Person; onClose: () => void; onChanged: (g: Game) => void; onRematch: (g: Game) => void;
+export function DuelPage({ game, chat, me, float, onClose, onChanged, onRematch }: {
+  game: Game; chat: ChatFull; me: Person; float?: boolean; onClose: () => void; onChanged: (g: Game) => void; onRematch: (g: Game) => void;
 }) {
   const person = personIn(chat, me);
   const kind = game.kind as DuelKind;
@@ -99,7 +99,7 @@ export function DuelPage({ game, chat, me, onClose, onChanged, onRematch }: {
     : myTurn ? 'Your move' : `${first(person(game.turnPerson || ''))}'s move`;
 
   return (
-    <div className="g-page">
+    <div className={`g-page${float ? ' float' : ''}`}>
       <header className="g-head">
         <button className="icon-btn g-back" onClick={onClose} aria-label="Back"><Icon name="back" /></button>
         <h2>{GAME_NAME[kind]}</h2>

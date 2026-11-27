@@ -4,6 +4,8 @@ import { api, type ChatFull } from '../lib/api';
 import { presenceOf, send as liveSend } from '../lib/live';
 import { Avatar, Sheet, THEMES, Toggle, ago, ask, chatTitle, toast } from './bits';
 import { Icon } from './icons';
+import { ProfileSheet } from './Profile';
+import type { Person } from '../lib/api';
 
 export const inviteLink = (code: string) => `${location.origin}${location.pathname}#/join/${code}`;
 
@@ -12,6 +14,7 @@ export function ChatInfo({ open, onClose, chat, onChanged }: { open: boolean; on
   const me = home!.me;
   const [name, setName] = useState(chat.name);
   const [qr, setQr] = useState('');
+  const [who, setWho] = useState<Person | null>(null);
   const link = inviteLink(chat.code);
   useEffect(() => { setName(chat.name); }, [chat.name]);
   useEffect(() => { if (open) void import('qrcode').then(Q => Q.toDataURL(link, { margin: 1, width: 360, color: { dark: '#15121c', light: '#ffffff' } })).then(setQr).catch(() => {}); }, [open, link]);
@@ -58,7 +61,11 @@ export function ChatInfo({ open, onClose, chat, onChanged }: { open: boolean; on
       <div className="lbl">People ({chat.members.length})</div>
       <ul className="people">
         {chat.members.map(m => (
-          <li key={m.id}><Avatar p={m} size={36} /><span className="pname">{m.id === me.id ? `${m.name} (you)` : m.name}</span><em className={pres[m.id] && m.id !== me.id ? 'now' : ''}>{m.id === me.id ? '' : pres[m.id] === 'recording' ? 'recording now' : pres[m.id] === 'watching' ? 'watching now' : pres[m.id] ? 'here now' : `active ${ago(m.lastSeen)}`}</em></li>
+          <li key={m.id}><button className="person-row" onClick={() => setWho(m)} aria-label={`${m.name}'s profile`}>
+            <Avatar p={m} size={40} />
+            <span className="pmain"><span className="pname">{m.id === me.id ? `${m.name} (you)` : m.name}</span>{m.profile?.about && <span className="pabout">{m.profile.about}</span>}</span>
+            <em className={pres[m.id] && m.id !== me.id ? 'now' : ''}>{m.id === me.id ? '' : pres[m.id] === 'recording' ? 'recording now' : pres[m.id] === 'watching' ? 'watching now' : pres[m.id] ? 'here now' : `active ${ago(m.lastSeen)}`}</em>
+          </button></li>
         ))}
       </ul>
 
@@ -73,6 +80,7 @@ export function ChatInfo({ open, onClose, chat, onChanged }: { open: boolean; on
       <Toggle label="Mute this chat" hint="No pings or sounds from here." on={chat.muted} set={() => void mute()} />
       <p className="fine">{n} {n === 1 ? 'holler' : 'hollers'} here, kept forever until someone deletes their own.</p>
       <button className="btn danger leave" onClick={() => void leave()}>Leave chat</button>
+      <ProfileSheet person={who} onClose={() => setWho(null)} status={who && who.id !== me.id ? ({ recording: 'Recording now', watching: 'Watching now', here: 'Here now' } as Record<string, string>)[pres[who.id] || ''] : undefined} />
     </Sheet>
   );
 }

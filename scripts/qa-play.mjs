@@ -80,14 +80,14 @@ try {
     // the order after the starter is shuffled, so find whoever is up
     let p = null, n = '';
     for (let w = 0; w < 40 && !p; w++) {
-      for (const [q, m] of [[B, 'B'], [C, 'C']]) if (await q.locator('.g-tile.turn').count()) { p = q; n = m; }
+      for (const [q, m] of [[B, 'B'], [C, 'C']]) if (await q.locator('.g-chip.turn').count()) { p = q; n = m; }
       if (!p) await A.waitForTimeout(1000);
     }
     if (!p) throw new Error('nobody got the next turn');
     const role = k === 0 ? 'copy' : 'guess';
     step(`${n} takes a turn (${role})`);
     await shot(p, `16-${n}-your-turn`);
-    await p.click('.g-tile.turn'); await p.waitForSelector('.g-page'); await p.waitForTimeout(450); await shot(p, `17-${n}-game-page`);
+    await p.click('.g-chip.turn'); await p.waitForSelector('.g-page'); await p.waitForTimeout(450); await shot(p, `17-${n}-game-page`);
     check(await p.locator('.g-lock').count() >= 1, `${n}: earlier clips are locked`);
     await p.click('.g-page .btn.g-go'); await p.waitForSelector('.g-look-card'); await p.waitForTimeout(450); await shot(p, `18-${n}-one-look`);
     await p.click('.g-bigplay'); await p.waitForTimeout(1200); await shot(p, `18b-${n}-looking`);
@@ -102,8 +102,8 @@ try {
 
   step('the reveal');
   await A.waitForTimeout(3000);
-  await A.waitForSelector('.g-tile.over', { timeout: 30000 }); await shot(A, '20-A-reveal-tile');
-  await A.click('.g-tile.over'); await A.waitForSelector('.g-rv-vid', { timeout: 15000 }); await A.waitForTimeout(1500); await shot(A, '21-A-reel');
+  await A.waitForSelector('.g-chip.over', { timeout: 30000 }); await shot(A, '20-A-reveal-tile');
+  await A.click('.g-chip.over'); await A.waitForSelector('.g-rv-vid', { timeout: 15000 }); await A.waitForTimeout(1500); await shot(A, '21-A-reel');
   check(await A.locator('.g-rv-bars i').count() === 3, 'reel has three clips');
   await A.waitForSelector('.g-end', { timeout: 40000 }); await A.waitForTimeout(3000); await shot(A, '22-A-end');
   check((await A.textContent('.g-box:not(.truth) p'))?.includes('ghost buying jeans'), 'guess shows next to the phrase');

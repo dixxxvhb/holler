@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, mediaUrl, type ChatFull, type Person, type Polo } from '../lib/api';
+import { api, mediaUrl, prefetch, publicUrl, type ChatFull, type Person, type Polo } from '../lib/api';
 import { send as liveSend } from '../lib/live';
 import { removeMine, sendRecording } from '../lib/outbox';
 import type { Recording, Studio } from '../lib/studio';
@@ -22,6 +22,7 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
   const [items, setItems] = useState(list);
   const [src, setSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dl, setDl] = useState<number | null>(null); // first watch: how much of the file is here (null = not known)
   const [paused, setPaused] = useState(false);
   const [t, setT] = useState(0);
   const [speed, setSpeed] = useState(me.prefs?.speed || 1);
@@ -65,8 +66,9 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
     const e = vid.current; if (!filming || !e || !studio) return;
     syncLog.current.push({ r: Math.round(studio.elapsed() * 100) / 100, o: Math.round(e.currentTime * 100) / 100, rate: e.playbackRate, playing: playing ?? !e.paused });
   };
-  const startFilm = async () => {
-    if (!canFilm || !film || filming || review || !studio || studio.recording) return;
+  // on: the switch was just flipped on in this same tap (state hasn't caught up yet)
+  const startFilm = async (on = film) => {
+    if (!canFilm || !on || filming || review || !studio || studio.recording) return;
     try {
       await studio.start('video', { videoBits: 500_000 });
       syncLog.current = [{ r: 0, o: Math.round((vid.current?.currentTime || 0) * 100) / 100, rate: vid.current?.playbackRate || 1, playing: true }];
@@ -133,7 +135,7 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
   useEffect(() => {
     if (!polo) return;
     let gone = false;
-    setSrc(null); setT(0); setPaused(false); setNeedTap(false); shown.current = new Set(); clearTimeout(textTimer.current);
+    setSrc(null); setT(0); setPaused(false); setNeedTap(false); setDl(null); shown.current = new Set(); clearTimeout(textTimer.current);
     if (polo.author !== me.id && !polo.views.some(v => v.who === me.id)) {
       api.view(polo.id).then(() => liveSend(polo.chat, 'view', { id: polo.id })).catch(() => {});
     }
@@ -143,10 +145,10 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
       textTimer.current = window.setTimeout(next, ms);
     } else if (polo.path) {
       setLoading(true);
-      mediaUrl(polo.path).then(u => { if (!gone) setSrc(u); });
+      mediaUrl(polo.path, f => { if (!gone) setDl(f); }).then(u => { if (!gone) setSrc(u); });
     }
-    // warm the next one
-    const n = items[idx + 1]; if (n?.path) void mediaUrl(n.path);
+    // warm the next one into the device cache (one file at a time, after this one has arrived)
+    const n = items[idx + 1]; if (n?.path) prefetch([n.path]);
     return () => { gone = true; clearTimeout(textTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [polo?.id]);
@@ -275,7 +277,7 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
         <button className="icon-btn glass" onClick={close} aria-label="Close"><Icon name="close" /></button>
       </div>
       {canFilm && !filming && (
-        <button className={`g-film ${film ? 'on' : ''}`} onClick={() => { const v = !film; setFilmS(v); if (chat) setFilm(chat.id, v); if (v && !paused && !needTap && !loading) void startFilm(); }}>
+        <button className={`g-film ${film ? 'on' : ''}`} onClick={() => { const v = !film; setFilmS(v); if (chat) setFilm(chat.id, v); if (v && !paused && !needTap && !loading) void startFilm(true); }}>
           <span className="g-sw" />Film my reaction
         </button>
       )}
@@ -305,7 +307,10 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
         {polo.kind === 'text' && (
           <div className="p-text" style={{ ['--c' as string]: tone(author?.color) }}><p>{polo.body}</p></div>
         )}
-        {loading && polo.kind !== 'text' && <div className="spinner" />}
+        {loading && polo.kind === 'video' && (polo.thumb || polo.pending?.thumbUrl) && (
+          <img className="p-video" src={polo.thumb ? publicUrl(polo.thumb) : polo.pending?.thumbUrl} alt="" draggable={false} style={{ pointerEvents: 'none' }} />
+        )}
+        {loading && polo.kind !== 'text' && (dl == null ? <div className="spinner" /> : <LoadRing f={dl} />)}
         {needTap && <div className="paused tap"><Icon name="play" size={56} fill="currentColor" /><span>Tap to play</span></div>}
         {paused && !needTap && <div className="paused"><Icon name="play" size={48} fill="currentColor" /></div>}
         {cc && caption && <div className="p-cap"><span>{caption}</span></div>}
@@ -359,6 +364,22 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
         {segs.length > 0 && cc && <details className="transcript"><summary>Full transcript</summary><p>{segs.map(s => s.text).join(' ')}</p></details>}
       </div>
       {review && <ReactionReview r={review} onDone={closeReview} />}
+    </div>
+  );
+}
+
+/** First watch: the file comes down whole before it plays (so rewatching is free); this shows how far along it is. */
+function LoadRing({ f }: { f: number }) {
+  const r = 26, c = 2 * Math.PI * r;
+  return (
+    <div role="progressbar" aria-label="Loading" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(f * 100)}
+      style={{ position: 'absolute', left: '50%', top: '50%', width: 68, height: 68, margin: -34, borderRadius: '50%', background: 'rgba(8, 7, 12, .55)', pointerEvents: 'none' }}>
+      <svg width="68" height="68" viewBox="0 0 68 68" aria-hidden="true">
+        <circle cx="34" cy="34" r={r} fill="none" stroke="var(--seam-2)" strokeWidth="5" />
+        <circle cx="34" cy="34" r={r} fill="none" stroke="var(--chalk)" strokeWidth="5" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c * (1 - Math.max(0.03, Math.min(1, f)))} transform="rotate(-90 34 34)"
+          style={{ transition: 'stroke-dashoffset .25s linear' }} />
+      </svg>
     </div>
   );
 }

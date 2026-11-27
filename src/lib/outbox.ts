@@ -1,6 +1,6 @@
 // Sending: optimistic local polo -> reserve a path -> upload thumb + media with progress -> finish.
 // A short undo window before the polo is marked ready. Failed sends stay visible with Retry.
-import { api, upload, uploadResumable, TUS_CHUNK, seedCache, sb, type Polo } from './api';
+import { api, upload, uploadResumable, TUS_CHUNK, seedCache, setPrefetchGate, sb, type Polo } from './api';
 import { send as liveSend } from './live';
 import type { Recording } from './studio';
 
@@ -16,6 +16,7 @@ const emit = () => subs.forEach(f => f());
 export const onOutbox = (f: () => void) => { subs.add(f); return () => { subs.delete(f); }; };
 export const outgoing = (chat: string) => [...items.values()].filter(o => o.chat === chat && !o.done && !o.cancelled);
 export const busy = () => [...items.values()].some(o => !o.done && !o.cancelled && !o.error);
+setPrefetchGate(() => [...items.values()].some(o => o.running)); // warming hollers to watch waits while one goes up
 
 export const UNDO_MS = 3500;
 
@@ -104,16 +105,24 @@ async function run(o: Outgoing, onSent?: (p: Polo) => void) {
       void persist(o, o.me);
     }
     if (o.cancelled) return cleanup(o);
-    const total = o.rec.blob.size + (o.rec.thumb?.size || 0);
-    let thumbDone = 0;
-    if (o.rec.thumb && o.polo.thumb) {
-      await upload(o.polo.thumb, o.rec.thumb, f => { o.progress = (f * o.rec.thumb!.size) / total; o.polo.pending!.progress = o.progress; emit(); }, signal);
-      thumbDone = o.rec.thumb.size;
-    }
-    const onMedia = (f: number) => { o.progress = (thumbDone + f * o.rec.blob.size) / total; o.polo.pending!.progress = o.progress; emit(); };
-    if (o.rec.blob.size > TUS_CHUNK) {
-      await uploadResumable(o.polo.path!, o.rec.blob, { known: o.tus, onUrl: u => { o.tus = u; void persist(o, o.me); }, onProgress: onMedia, signal });
-    } else await upload(o.polo.path!, o.rec.blob, onMedia, signal);
+    // the thumb and the file go up side by side; if either fails, the other is stopped too, so a Retry
+    // never races a leftover upload of the same file
+    const thumb = o.rec.thumb && o.polo.thumb ? o.rec.thumb : null;
+    const total = o.rec.blob.size + (thumb?.size || 0);
+    let thumbF = 0, mediaF = 0;
+    const tick = () => { o.progress = (thumbF * (thumb?.size || 0) + mediaF * o.rec.blob.size) / total; o.polo.pending!.progress = o.progress; emit(); };
+    const step = new AbortController();
+    const stopStep = () => step.abort();
+    signal.addEventListener('abort', stopStep, { once: true });
+    const both = Promise.all([
+      thumb ? upload(o.polo.thumb!, thumb, f => { thumbF = f; tick(); }, step.signal).then(() => { thumbF = 1; tick(); }) : Promise.resolve(),
+      o.rec.blob.size > TUS_CHUNK
+        ? uploadResumable(o.polo.path!, o.rec.blob, { known: o.tus, onUrl: u => { o.tus = u; void persist(o, o.me); }, onProgress: f => { mediaF = f; tick(); }, signal: step.signal })
+        : upload(o.polo.path!, o.rec.blob, f => { mediaF = f; tick(); }, step.signal),
+    ]);
+    try { await both; }
+    catch (e) { step.abort(); throw e; }
+    finally { signal.removeEventListener('abort', stopStep); }
     if (o.cancelled) return cleanup(o); // undone while the file was landing: take the file back down
     void seedCache(o.polo.path!, o.rec.blob);
     const wait = UNDO_MS - (Date.now() - stoppedAt);

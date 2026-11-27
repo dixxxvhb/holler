@@ -1,7 +1,7 @@
 import { routeInMemory } from './lib/device';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { api, getToken, setToken, type Home } from './lib/api';
-import { onLive, setMe, syncChats } from './lib/live';
+import { api, cachedHome, getToken, saveHome, setToken, type Home } from './lib/api';
+import { allLive, onLive, setMe, syncChats } from './lib/live';
 import { bigSending, busy, onOutbox, resumeOutbox } from './lib/outbox';
 import { Asker, Toaster, toast, chatTitle } from './ui/bits';
 import { Onboard } from './ui/Onboard';
@@ -9,6 +9,7 @@ import { HomeScreen } from './ui/HomeScreen';
 import { ChatScreen } from './ui/ChatScreen';
 import { Settings } from './ui/Settings';
 import { Saved } from './ui/Saved';
+import { UpdateCard } from './ui/Update';
 import { ding } from './lib/sound';
 
 type Ctx = { home: Home | null; refresh: () => Promise<void>; go: (h: string) => void; route: string[] };
@@ -19,8 +20,12 @@ function parse() { return (location.hash.replace(/^#\/?/, '') || '').split('/').
 
 export default function App() {
   const [route, setRoute] = useState(parse());
-  const [home, setHome] = useState<Home | null>(null);
   const [signedIn, setSignedIn] = useState(!!getToken());
+  // paint the last Home this person saw at once; the network answer replaces it a moment later
+  const [home, setHome] = useState<Home | null>(() => (getToken() ? cachedHome() : null));
+  useEffect(() => { if (home) { setMe(home.me.id); syncChats(home.chats.map(c => c.id)); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (home && getToken()) saveHome(home); }, [home]);
+  const lastRefresh = useRef(0);
   const [loadErr, setLoadErr] = useState('');
   const routeRef = useRef(route); routeRef.current = route;
   const [offline, setOffline] = useState(() => typeof navigator !== 'undefined' && navigator.onLine === false);
@@ -55,6 +60,7 @@ export default function App() {
 
   const refresh = useCallback(async () => {
     if (!getToken()) return;
+    lastRefresh.current = Date.now();
     try {
       const h = await api.home();
       setHome(h); setLoadErr('');
@@ -109,7 +115,15 @@ export default function App() {
     }
   }), [refresh, go]);
 
-  useEffect(() => { const i = setInterval(() => { if (!document.hidden && routeRef.current[0] !== 'c') void refresh(); }, 20000); return () => clearInterval(i); }, [refresh]);
+  // poll home every 20 s off a chat screen; every 60 s while every chat's live channel is connected (changes arrive on their own)
+  useEffect(() => {
+    const i = setInterval(() => {
+      if (document.hidden || routeRef.current[0] === 'c') return;
+      if (allLive() && Date.now() - lastRefresh.current < 58000) return;
+      void refresh();
+    }, 20000);
+    return () => clearInterval(i);
+  }, [refresh]);
 
   // catch up when the app comes back to the front
   useEffect(() => {
@@ -143,6 +157,7 @@ export default function App() {
       {screen}
       {offline && <div className="net-off" role="status">No connection. Holler will catch up when you're back.</div>}
       {!offline && sendingBig && <div className="net-off sending" role="status">Keep Holler open till it sends</div>}
+      <UpdateCard />
       <Toaster />
       <Asker />
     </AppCtx.Provider>

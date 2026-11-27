@@ -27,7 +27,9 @@ self.addEventListener('fetch', (e) => {
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     try {
-      const res = await fetch(req);
+      // the page itself always asks the server (no HTTP cache), so Restart after a deploy really gets the new build
+      let res = req.mode === 'navigate' ? await fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }) : await fetch(req);
+      if (res.redirected && req.mode === 'navigate') res = await fetch(req); // a page can't be answered with a followed redirect
       if (res.ok && res.status === 200) cache.put(req, res.clone()).catch(() => {});
       return res;
     } catch (err) {

@@ -21,7 +21,7 @@ const step = s => console.log('--', s);
 const checks = [];
 const check = (ok, what) => { checks.push([ok, what]); console.log(ok ? '  ok ' : '  FAIL', what); };
 const back = async p => { while (await p.locator('.g-page .g-back').count()) { await p.click('.g-page .g-back'); await p.waitForTimeout(400); } };
-const openTile = async (p, nth = 0) => { await back(p); await p.locator('.g-tile:has-text("Last Card")').nth(nth).click(); await p.waitForSelector('.lc-page'); await p.waitForTimeout(700); };
+const openTile = async (p, nth = 0) => { await back(p); await p.locator('.g-chip:has-text("Last Card")').nth(nth).click(); await p.waitForSelector('.lc-page'); await p.waitForTimeout(700); };
 const status = p => p.textContent('.d-status').then(t => t.trim());
 const hand = p => p.$$eval('.lc-hand .lc-card', els => els.map(e => e.dataset.card));
 
@@ -67,12 +67,12 @@ try {
   check(await status(A) === 'Your turn', 'the dealer goes first');
   check(await A.locator('.lc-seat').count() === 3, 'three seats');
   await shot(A, '03-A-table');
-  await B.waitForSelector('.g-tile:has-text("Last Card")', { timeout: 20000 }); await openTile(B);
+  await B.waitForSelector('.g-chip:has-text("Last Card")', { timeout: 20000 }); await openTile(B);
   const hb = await hand(B); check(hb.length === 7, 'B has seven too');
   check(JSON.stringify(hb) !== JSON.stringify(await hand(A)), 'B sees their own hand, not A\'s');
   check(await B.locator('.lc-deck:disabled').count() === 1, 'B cannot draw on A\'s turn');
   await shot(B, '04-B-waiting');
-  await C.waitForSelector('.g-tile:has-text("Last Card")', { timeout: 20000 }); await openTile(C);
+  await C.waitForSelector('.g-chip:has-text("Last Card")', { timeout: 20000 }); await openTile(C);
 
   step('play it out');
   const pages = { A, B, C };
@@ -112,8 +112,8 @@ try {
   await A.click('.btn.g-go:has-text("Deal")'); await A.waitForSelector('.lc-page'); await A.waitForTimeout(900);
   check((await A.textContent('.g-foot')).includes('Stacking is on'), 'the table says stacking is on');
   for (const p of [B, C]) {
-    await back(p); await p.waitForSelector('.g-tile:not(.over):has-text("Last Card")', { timeout: 20000 });
-    await p.locator('.g-tile:not(.over):has-text("Last Card")').first().click(); await p.waitForSelector('.lc-page'); await p.waitForTimeout(700);
+    await back(p); await p.waitForSelector('.g-chip:not(.over):has-text("Last Card")', { timeout: 20000 });
+    await p.locator('.g-chip:not(.over):has-text("Last Card")').first().click(); await p.waitForSelector('.lc-page'); await p.waitForTimeout(700);
   }
   let sawOwe = 0, sawTake = false, sawStacked = false, won2 = null;
   for (let m = 0; m < 200; m++) {

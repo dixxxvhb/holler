@@ -11,3 +11,9 @@ export const routeInMemory = (() => {
     return ios && standalone;
   } catch { return false; }
 })();
+
+/** How this device takes part: 'on' = camera and mic, 'voice' = mic only (voice hollers, notes, games),
+ *  'off' = no camera and no mic (notes and games). For a phone whose camera won't behave. */
+export type CamMode = 'on' | 'voice' | 'off';
+export function camMode(): CamMode { try { const v = localStorage.getItem('holler.cam'); return v === 'voice' || v === 'off' ? v : 'on'; } catch { return 'on'; } }
+export function setCamMode(m: CamMode) { try { localStorage.setItem('holler.cam', m); } catch { /* private mode */ } }
