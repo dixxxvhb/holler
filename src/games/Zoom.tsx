@@ -1,8 +1,9 @@
-// Zoom In: everyone films something for 5 seconds, the whole thing in frame. Everyone else watches it start way zoomed
-// in (8x on the middle) and pull out over 20 seconds. Tap I know it, type a guess, then see what it was and say
-// whether you got it. A phone with no camera joins as a guesser. Rules live in supabase/games7.sql.
+// Zoom In: everyone films something for 5 seconds, then pinches to pick where the others start (how close, and on
+// what). Everyone else watches it start there and pull out to the whole picture over 20 seconds. Tap I know it, type
+// a guess, then see what it was and say whether you got it. A phone with no camera joins as a guesser.
+// Rules live in supabase/games7.sql and games8.sql (where it starts).
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { api, mediaUrl, publicUrl, type ChatFull, type Game, type Person, type ZoomGuess, type ZoomShot } from '../lib/api';
+import { api, mediaUrl, publicUrl, type ChatFull, type Game, type Person, type ZoomFocus, type ZoomGuess, type ZoomShot } from '../lib/api';
 import { send as liveSend } from '../lib/live';
 import { Avatar, Sheet, ago, toast } from '../ui/bits';
 import { Icon } from '../ui/icons';
@@ -10,10 +11,24 @@ import { first, personIn, standings } from './roundLogic';
 import './games.css';
 
 const PULL_MS = 20000;
-const MAX_ZOOM = 8;
+/** A clip from before the filmer could pick: 8x on the middle. */
+const OLD_START: ZoomFocus = { x: 0.5, y: 0.5, z: 8 };
+export const PICK_MIN = 2, PICK_MAX = 10, PICK_START = 6;
 const hours6 = (iso: string | null | undefined) => !!iso && Date.now() - new Date(iso).getTime() < 6 * 3600e3;
-/** How big the picture is at a point in the pull-out (0 = all the way in). Exponential, so it feels steady. */
-export const zoomScale = (p: number) => Math.pow(MAX_ZOOM, 1 - Math.min(1, Math.max(0, p)));
+const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+/** How big the picture is at a point in the pull-out (0 = all the way in), from the start zoom down to 1x.
+ *  Exponential, so it feels steady. */
+export const zoomScale = (p: number, z = OLD_START.z) => Math.pow(z, 1 - clamp(p, 0, 1));
+/** Keep a zoomed view inside the frame: its middle can't sit closer to an edge than half the view. */
+export const clampFocus = (x: number, y: number, z: number): ZoomFocus => {
+  const h = 0.5 / z; return { x: clamp(x, h, 1 - h), y: clamp(y, h, 1 - h), z };
+};
+/** Scaling the picture by z about this point puts the focus in the middle of the view. Kept fixed while z eases to 1,
+ *  the view slides out to the whole frame and never shows past an edge (the point is always inside the frame). */
+export const originOf = (f: ZoomFocus) => (f.z <= 1.001 ? { ox: 0.5, oy: 0.5 }
+  : { ox: clamp((f.x * f.z - 0.5) / (f.z - 1), 0, 1), oy: clamp((f.y * f.z - 0.5) / (f.z - 1), 0, 1) });
+export const focusOf = (s: ZoomShot): ZoomFocus => (s.focus && typeof s.focus.z === 'number' ? s.focus : OLD_START);
+const xLabel = (z: number) => `${Math.round(z * 10) / 10}x`;
 /** Got it before a third of the pull-out: 3. Before two thirds: 2. After: 1. Didn't get it: 0. */
 export const zoomPoints = (g?: ZoomGuess | null) => (!g || g.got !== true ? 0 : g.at < 1 / 3 ? 3 : g.at < 2 / 3 ? 2 : 1);
 
@@ -67,15 +82,82 @@ export function ZoomStart({ open, onClose, chat, me, canFilm, onStarted }: {
 }
 
 // ---------------------------------------------------------------- over the camera while you film
-export function ZoomLive({ word, recording }: { word: string | null; recording: boolean }) {
+export function ZoomLive({ word }: { word: string | null; recording?: boolean }) {
   return (<>
-    <div className="g-banner"><Icon name="camera" size={24} /><span><b>Hold it in the middle</b>
-      <em>They start way zoomed in.</em></span></div>
+    <div className="g-banner"><Icon name="camera" size={24} /><span><b>Film it</b>
+      <em>Next you pick how close they start.</em></span></div>
     {word && <div className="g-secret-mini"><small>Only you see this</small><p>{word}</p></div>}
-    <div className="z-target" aria-hidden="true">
-      <svg viewBox="0 0 100 100"><path className="o" d="M8 32V8h24M68 8h24v24M92 68v24H68M32 92H8V68" /><path className="i" d="M8 32V8h24M68 8h24v24M92 68v24H68M32 92H8V68" /><circle cx="50" cy="50" r="4" /></svg>
-    </div>
   </>);
+}
+
+// ---------------------------------------------------------------- after the take: pick where they start
+// The take loops at its own shape. Pinch (or the slider) for how close, drag for where. It starts on the middle of what
+// you saw while filming (x0, y0, worked out by the recorder), not the middle of the whole frame.
+export function ZoomPick({ url, x0, y0, onSend, onRetake }: {
+  url: string; x0: number; y0: number; onSend: (f: ZoomFocus) => void; onRetake: () => void;
+}) {
+  const [f, setF] = useState<ZoomFocus>(() => clampFocus(x0, y0, PICK_START));
+  const [ar, setAr] = useState(9 / 16);
+  const [room, setRoom] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
+  const vid = useRef<HTMLVideoElement>(null);
+  const pts = useRef(new Map<number, { x: number; y: number }>());
+  const fRef = useRef(f); fRef.current = f;
+  useEffect(() => {
+    const on = () => setRoom({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', on); return () => window.removeEventListener('resize', on);
+  }, []);
+  useEffect(() => { const v = vid.current; if (!v) return; v.muted = true; v.src = url; void v.play().catch(() => {}); }, [url]);
+  // the clip's own shape, as wide as the screen, leaving room for the line and the buttons
+  const fw = Math.min(room.w, Math.max(200, room.h - 330) * ar), fh = fw / ar;
+  const set = (x: number, y: number, z: number) => setF(clampFocus(x, y, clamp(z, PICK_MIN, PICK_MAX)));
+  const down = (e: React.PointerEvent) => { e.currentTarget.setPointerCapture(e.pointerId); pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY }); };
+  const move = (e: React.PointerEvent) => {
+    const m = pts.current; const prev = m.get(e.pointerId); if (!prev) return;
+    const c = fRef.current;
+    if (m.size === 1) set(c.x - (e.clientX - prev.x) / (fw * c.z), c.y - (e.clientY - prev.y) / (fh * c.z), c.z);
+    else {
+      // two fingers: the spread sets how close, and their middle (half of this finger's move) drags
+      const o = [...m.entries()].find(([id]) => id !== e.pointerId)?.[1];
+      if (o) {
+        const d0 = Math.hypot(prev.x - o.x, prev.y - o.y), d1 = Math.hypot(e.clientX - o.x, e.clientY - o.y);
+        set(c.x - (e.clientX - prev.x) / 2 / (fw * c.z), c.y - (e.clientY - prev.y) / 2 / (fh * c.z), d0 > 12 ? c.z * (d1 / d0) : c.z);
+      }
+    }
+    m.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  };
+  const up = (e: React.PointerEvent) => { pts.current.delete(e.pointerId); };
+  const { ox, oy } = originOf(f);
+  const r3 = (n: number) => Math.round(n * 1000) / 1000;
+  return (
+    <div className="g-reveal z-pick">
+      <div className="g-rv-top">
+        <span className="g-rv-ic"><Icon name="camera" size={22} /></span>
+        <span className="g-rv-who"><b>Pick where they start</b><span>Pinch to zoom, drag to move</span></span>
+      </div>
+      <div className="z-pick-mid">
+        <div className="z-pick-frame" style={{ width: fw, height: fh }} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+          <div className="z-wrap" style={{ transformOrigin: `${ox * 100}% ${oy * 100}%`, transform: `scale(${f.z})` }}>
+            <video ref={vid} playsInline muted loop className="z-vid"
+              onLoadedMetadata={e => { const v = e.currentTarget; if (v.videoWidth && v.videoHeight) setAr(v.videoWidth / v.videoHeight); }} />
+          </div>
+          <span className="z-pick-x">{xLabel(f.z)}</span>
+        </div>
+      </div>
+      <div className="z-pick-bar">
+        <b>They start here, then it pulls out.</b>
+        <span className="z-slide">
+          <em>Wider</em>
+          <input id="z-zoom" type="range" min={PICK_MIN} max={PICK_MAX} step={0.1} value={f.z} aria-label="How close they start"
+            onChange={e => set(f.x, f.y, Number(e.target.value))} />
+          <em>Closer</em>
+        </span>
+        <span className="g-row-btns">
+          <button className="btn" onClick={onRetake}>Retake</button>
+          <button className="btn g-go" onClick={() => onSend({ x: r3(f.x), y: r3(f.y), z: Math.round(f.z * 100) / 100 })}><Icon name="send" size={18} /> Send it</button>
+        </span>
+      </div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------- the game page
@@ -225,6 +307,18 @@ function ZoomGuessScreen({ shot, game, chat, me, onClose, onChanged }: {
   const [needTap, setNeedTap] = useState(false);
   const raf = useRef(0);
   const t0 = useRef(0);
+  const frame = useRef<HTMLDivElement>(null);
+  // the picture at its cover size, so the focus (in the video's own frame) lands where the filmer put it
+  const [box, setBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const fit = () => {
+    const v = vid.current, fr = frame.current; if (!v || !fr || !v.videoWidth || !v.videoHeight) return;
+    const W = fr.clientWidth, H = fr.clientHeight, k = Math.max(W / v.videoWidth, H / v.videoHeight);
+    const width = v.videoWidth * k, height = v.videoHeight * k;
+    setBox({ left: (W - width) / 2, top: (H - height) / 2, width, height });
+  };
+  useEffect(() => { window.addEventListener('resize', fit); return () => window.removeEventListener('resize', fit); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const focus = focusOf(shot);
+  const { ox, oy } = originOf(focus);
   const name = own ? 'Your' : `${first(person(shot.who))}'s`;
   useEffect(() => { if (shot.clip?.path) void mediaUrl(shot.clip.path).then(setSrc).catch(() => toast('That clip would not load. Try again in a moment.')); }, [shot.clip?.path]);
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
@@ -265,14 +359,17 @@ function ZoomGuessScreen({ shot, game, chat, me, onClose, onChanged }: {
     catch (e) { toast((e as Error).message); }
     setBusy(false);
   };
-  const scale = stage === 'reveal' ? 1 : zoomScale(p);
+  const scale = stage === 'reveal' ? 1 : zoomScale(p, focus.z);
   const others = Object.entries(shot.guesses || {}).filter(([who]) => who !== me.id);
   const mine = shot.mine;
   return (
     <div className={`g-reveal z-guess ${stage}`}>
-      <div className="z-frame">
-        <video ref={vid} playsInline loop muted className="g-rv-vid z-vid" style={{ transform: `scale(${scale})` }}
-          onClick={() => { if (needTap) void vid.current?.play().then(() => setNeedTap(false)); }} />
+      <div className="z-frame" ref={frame}>
+        {/* iPhone: scale a wrapper, never the video itself */}
+        <div className="z-wrap" style={{ ...(box || {}), transformOrigin: `${ox * 100}% ${oy * 100}%`, transform: `scale(${scale})` }}>
+          <video ref={vid} playsInline loop muted className="z-vid" onLoadedMetadata={fit}
+            onClick={() => { if (needTap) void vid.current?.play().then(() => setNeedTap(false)); }} />
+        </div>
       </div>
       <div className="g-rv-top">
         <span className="g-rv-ic"><Icon name="camera" size={22} /></span>
@@ -285,7 +382,7 @@ function ZoomGuessScreen({ shot, game, chat, me, onClose, onChanged }: {
         <div className="g-end z-ready">
           <div className="g-box"><small><Avatar p={person(shot.who)} size={18} /> {first(person(shot.who))} filmed something</small>
             <p>What is it?</p></div>
-          <p className="g-meta">It starts {MAX_ZOOM}x zoomed in and pulls out over 20 seconds. Tap I know it the moment you know. Sooner scores more.</p>
+          <p className="g-meta">It starts {xLabel(focus.z)} zoomed in and pulls out over 20 seconds. Tap I know it the moment you know. Sooner scores more.</p>
           <button className="btn g-go wide" disabled={!src} onClick={() => void begin()}>{src ? 'Start' : 'Getting it ready...'}</button>
           <p className="g-fine">You only get one guess.</p>
         </div>
@@ -293,7 +390,7 @@ function ZoomGuessScreen({ shot, game, chat, me, onClose, onChanged }: {
       {stage === 'zoom' && <button className="btn g-go g-know" onClick={know}>I know it</button>}
       {stage === 'type' && (
         <form className="g-guessbar" onSubmit={e => { e.preventDefault(); void send(); }}>
-          <span className="g-guess-t">{p >= 1 ? 'All the way out. Your best guess?' : `You stopped it at ${zoomScale(p).toFixed(1)}x`}</span>
+          <span className="g-guess-t">{p >= 1 ? 'All the way out. Your best guess?' : `You stopped it at ${zoomScale(p, focus.z).toFixed(1)}x`}</span>
           <input id="z-guess" className="field big" autoFocus maxLength={40} value={text} onChange={e => setText(e.target.value)} placeholder="What is it?" autoComplete="off" />
           <button type="submit" className="btn g-go" disabled={!text.trim() || busy}><Icon name="send" size={18} /> Guess</button>
         </form>

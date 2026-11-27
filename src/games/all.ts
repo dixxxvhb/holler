@@ -9,7 +9,7 @@ export { CardPage, CardStart } from './Cards';
 export { QuickPage, QuickStart } from './Quick';
 export { SpotLive, SpotPage, SpotStart } from './Spot';
 export { LaughBanner, LaughPage, LaughStart } from './Laugh';
-export { ZoomLive, ZoomPage, ZoomStart } from './Zoom';
+export { ZoomLive, ZoomPage, ZoomPick, ZoomStart } from './Zoom';
 export { SaidPage, SaidStart } from './Said';
 export { cardById, dealOrder } from './content/cards';
 export { charadesWords } from './roundDecks';

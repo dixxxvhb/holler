@@ -86,6 +86,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const [reveal, setReveal] = useState<Game | null>(null);
   const [turn, setTurn] = useState<Game | null>(null);
   const [guessRec, setGuessRec] = useState<{ rec: Recording; segs: Seg[]; text: string } | null>(null);
+  // a Zoom In take waits here while the filmer picks where the others start (x, y: the middle of what they saw)
+  const [zoomTake, setZoomTake] = useState<{ rec: Recording; segs: Seg[]; url: string; x: number; y: number } | null>(null);
   const [roundKind, setRoundKind] = useState<'poker' | 'charades' | null>(null);
   const [duelKind, setDuelKind] = useState<'ttt' | 'checkers' | null>(null);
   const [cardsOpen, setCardsOpen] = useState(false);
@@ -388,6 +390,9 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     clearInterval(tickRef.current);
     const s = studio.current; if (!s || settling.current) return;
     if (!s.hasTake) {
+      // a timed turn calls this twice (the tick and the elapsed effect); the late call from an older render lands
+      // just after the take ended fine, so it is not a stuck screen
+      if (Date.now() - endedAt.current < 1500) return;
       // the screen says recording but there is no take at all: put the screen right instead of sitting stuck
       if (recordingRef.current) { recStop(); setPaused(false); setRecording(false); setLevel(0); setCaption(''); toast('That take stopped before it could send. Please go again.'); }
       return;
@@ -408,6 +413,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     if (turn) {
       clearInk();
       if (turn.kind === 'passiton' && roleOf(turn) === 'guess') { setGuessRec({ rec, segs, text: segs.map(x => x.text).join(' ').trim().slice(0, 200) }); return; }
+      if (turn.kind === 'zoom') { setZoomTake({ rec, segs, url: URL.createObjectURL(rec.blob), ...seenCentre() }); return; }
       sendTurn(turn, rec, segs, null);
       return;
     }
@@ -424,9 +430,26 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const beginRef = useRef(begin); beginRef.current = begin;
   const finishRef = useRef(finish); finishRef.current = finish; // the auto-stop timer always calls the latest one
 
-  const sendTurn = (g: Game, rec: Recording, segs: Seg[], guess: string | null) => {
+  // the middle of what you could see while filming (between the top bar and the chat panel), in the video's own frame,
+  // mapped through the cover crop the way ptOf does. The panel covers the bottom of the picture, so this sits above
+  // the frame's true middle.
+  const seenCentre = (): { x: number; y: number } => {
+    const s = studio.current; const mid = { x: 0.5, y: 0.5 }; if (!s) return mid;
+    const el: HTMLElement | null = s.glOk ? canvasRef.current : s.video;
+    const fw = s.glOk ? canvasRef.current?.width || 0 : s.video.videoWidth, fh = s.glOk ? canvasRef.current?.height || 0 : s.video.videoHeight;
+    if (!el || !fw || !fh) return mid;
+    const r = el.getBoundingClientRect();
+    const top = Math.max(r.top, chatRef.current?.querySelector('.chat-top')?.getBoundingClientRect().bottom ?? r.top);
+    const bot = Math.min(r.bottom, bottomRef.current?.getBoundingClientRect().top ?? r.bottom);
+    if (bot - top < 40) return mid;
+    const k = Math.max(r.width / fw, r.height / fh), dw = fw * k, dh = fh * k;
+    const x = (r.width / 2 - (r.width - dw) / 2) / dw, y = ((top + bot) / 2 - r.top - (r.height - dh) / 2) / dh;
+    return { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) };
+  };
+
+  const sendTurn = (g: Game, rec: Recording, segs: Seg[], guess: string | null, focus?: { x: number; y: number; z: number }) => {
     const picks = [...spotPicks.current]; while (picks.length < 3) picks.push({ pick: -1, ms: 10000 });
-    rec.effects = { ...rec.effects, game: g.kind === 'charades' || g.kind === 'zoom' ? { id: g.id, word: turnWord } : g.kind === 'spot' ? { id: g.id, picks } : guess ? { id: g.id, guess } : { id: g.id } };
+    rec.effects = { ...rec.effects, game: g.kind === 'zoom' ? { id: g.id, word: turnWord, ...(focus ? { focus } : null) } : g.kind === 'charades' ? { id: g.id, word: turnWord } : g.kind === 'spot' ? { id: g.id, picks } : guess ? { id: g.id, guess } : { id: g.id } };
     spotPicks.current = [];
     if (g.kind === 'charades' && turnWord) markUsed(wordsKey, turnWord.toLowerCase());
     // a Zoom In clip carries no captions: saying what it is out loud would give it away
@@ -440,7 +463,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       const nextP = chat?.members.find(m => m.id === g.order[g.idx + 1]);
       toast(roleOf(g) === 'guess' ? 'Guess sent. The reveal is ready in a moment.' : `Your turn is in. ${nextP ? nextP.name.split(' ')[0] + ' is up.' : ''}`);
     }
-    setTurn(null); setGuessRec(null); setTurnWord(null);
+    setTurn(null); setGuessRec(null); setTurnWord(null); setZoomTake(null);
   };
   const anotherWord = () => {
     if (!turn) return; const list = G?.charadesWords(turn.deck || 'mixed', usedIn(wordsKey)) || [];
@@ -817,8 +840,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
             : turn || !chat ? <div className="side-btn ghost" />
             : <button className="side-btn g-play-tile" onClick={() => { setPlayOpen(true); if (!G) loadG(); }} aria-label="Play a game"><Icon name="cards" /><span className="sb-lb">Play</span></button>}
         </div>
-        {recording && <div className="rec-hint">{fixedTurn && turn ? `Sends itself at ${turn.turnSec} seconds` : turn?.kind === 'spot' ? 'Tap your answers. It sends itself after the third.' : turn ? 'Tap to send your answer' : held ? 'Let go to send' : paused ? 'Paused. Tap Resume to keep going, or tap to send.' : 'Tap to send'}</div>}
-        {turn && !recording && <div className="rec-hint">{turn.kind === 'poker' ? 'Tap record and give your answer' : turn.kind === 'spot' ? 'Tap record. Your first question shows right away.' : turn.kind === 'laugh' ? 'Tap record and make them laugh' : turn.kind === 'zoom' ? 'Tap record. It sends itself at 5 seconds.' : turn.kind === 'charades' || roleOf(turn) === 'act' ? 'Tap record and act it out' : roleOf(turn) === 'guess' ? 'Tap record and say your guess' : 'Tap record and copy it'}</div>}
+        {recording && <div className="rec-hint">{turn?.kind === 'zoom' ? `Stops at ${turn.turnSec} seconds` : fixedTurn && turn ? `Sends itself at ${turn.turnSec} seconds` : turn?.kind === 'spot' ? 'Tap your answers. It sends itself after the third.' : turn ? 'Tap to send your answer' : held ? 'Let go to send' : paused ? 'Paused. Tap Resume to keep going, or tap to send.' : 'Tap to send'}</div>}
+        {turn && !recording && <div className="rec-hint">{turn.kind === 'poker' ? 'Tap record and give your answer' : turn.kind === 'spot' ? 'Tap record. Your first question shows right away.' : turn.kind === 'laugh' ? 'Tap record and make them laugh' : turn.kind === 'zoom' ? 'Tap record. It stops at 5 seconds.' : turn.kind === 'charades' || roleOf(turn) === 'act' ? 'Tap record and act it out' : roleOf(turn) === 'guess' ? 'Tap record and say your guess' : 'Tap record and copy it'}</div>}
         {countdown > 0 && <div className="rec-hint">Tap to call it off</div>}
       </div>
 
@@ -883,6 +906,9 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           onChanged={gameChanged} onPlayAgain={() => { setReveal(null); setStartOpen(true); }} />}
         <G.GuessSheet open={!!guessRec} initial={guessRec?.text || ''} onRetake={() => setGuessRec(null)}
           onSend={gv => { if (turn && guessRec) sendTurn(turn, guessRec.rec, guessRec.segs, gv); }} />
+        {zoomTake && turn?.kind === 'zoom' && <G.ZoomPick url={zoomTake.url} x0={zoomTake.x} y0={zoomTake.y}
+          onSend={f => { const t = zoomTake; URL.revokeObjectURL(t.url); sendTurn(turn, t.rec, t.segs, null, f); }}
+          onRetake={() => { URL.revokeObjectURL(zoomTake.url); setZoomTake(null); }} />}
       </>)}
       {chat && <ChatInfo open={info} onClose={() => setInfo(false)} chat={chat} onChanged={() => { void load(); void refresh(); }} />}
       <CamSheet open={camSheet} onClose={() => setCamSheet(false)} cam={cam} onPick={pickCam} />

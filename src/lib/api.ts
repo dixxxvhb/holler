@@ -62,7 +62,10 @@ export type Game = {
 /** Zoom In: at = how far out it was when you knew it (0 = all the way in, 1 = the whole picture); got = you said you got it. */
 export type ZoomGuess = { at: number; text: string; got: boolean | null; ts?: string };
 /** answer and guesses are null until you've guessed it (always there for your own, and once the game is over). */
-export type ZoomShot = { who: string; at: string; clip: Polo | null; mine: ZoomGuess | null; answer: string | null; guesses: Record<string, ZoomGuess> | null };
+/** Where a Zoom In clip starts: x and y are 0 to 1 in the video frame (the middle of the zoomed view), z how far in.
+ *  Null on a clip from before the filmer could pick (it starts 8x on the middle). */
+export type ZoomFocus = { x: number; y: number; z: number };
+export type ZoomShot = { who: string; at: string; focus?: ZoomFocus | null; clip: Polo | null; mine: ZoomGuess | null; answer: string | null; guesses: Record<string, ZoomGuess> | null };
 /** Who Said It: who is null until the board is open to you (yours always shows). */
 export type SaidAnswer = { k: string; text: string; who: string | null };
 export type SaidPick = { picks: Record<string, string>; at: string };
@@ -79,7 +82,7 @@ export type CardEvent = { who: string; kind: 'play' | 'draw' | 'keep' | 'take' |
   skip?: string; stack?: string; hit?: string; n?: number; forgot?: number; called?: boolean };
 export type CardMove = { play: string; color?: string; last?: boolean } | { draw: true } | { pass: true };
 export type QuickPlay = { at: string; words?: string[]; answers?: { pick: number; ms: number }[] };
-export type CharadesGuess = { tries: number; ok: boolean; done: boolean; t: number | null; text?: string; at: string };
+export type CharadesGuess = { tries: number; ok: boolean; done: boolean; t: number | null; text?: string; at: string; counted?: boolean };
 export type CharadesAct = { who: string; at: string; clip: Polo | null; word: string | null; mine: CharadesGuess | null; results: Record<string, CharadesGuess> };
 export type ChatFull = ChatSummary & { polos: Polo[]; games?: Game[] };
 export type Home = { me: Person; chats: ChatSummary[]; usage: { bytes: number; count: number } };
@@ -174,6 +177,8 @@ export const api = {
   gameResign: (id: string) => rpc<Game>('holler_game_resign', { p_game: id }),
   zoomMove: (id: string, move: ZoomMove) => rpc<Game>('holler_zoom_move', { p_game: id, p_move: move }),
   saidMove: (id: string, move: SaidMove) => rpc<Game>('holler_said_move', { p_game: id, p_move: move }),
+  /** The actor counts a near miss on their Charades act as right (fewest points, marked counted). */
+  charadesCount: (id: string, guesser: string) => rpc<Game>('holler_charades_count', { p_game: id, p_guesser: guesser }),
   gameBegin: (id: string) => rpc<Game>('holler_game_begin', { p_game: id }),
   gamePlay: (id: string, play: { words: string[] } | { answers: { pick: number; ms: number }[] }) =>
     rpc<Game>('holler_game_play', { p_game: id, p_play: play }),

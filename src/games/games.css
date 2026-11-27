@@ -567,13 +567,6 @@ button.g-pip-lab { border: 0; cursor: pointer; }
 .g-page.float .d-player { padding: 6px 8px; }
 
 /* ---------------------------------------------------------------- round six: Zoom In */
-/* the target over the camera is only on your screen, never in the video: chalk lines with an ink edge so it shows on anything */
-.z-target { position: absolute; left: 50%; top: 50%; width: 104px; height: 104px; transform: translate(-50%, -50%); z-index: var(--z-banner); pointer-events: none; }
-.z-target svg { width: 100%; height: 100%; overflow: visible; }
-.z-target path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
-.z-target .o { stroke: var(--on-color); stroke-width: 9; }
-.z-target .i { stroke: var(--chalk); stroke-width: 4.5; }
-.z-target circle { fill: var(--chalk); stroke: var(--on-color); stroke-width: 2.5; }
 /* what you're filming: the ink secret block, with its field and two buttons */
 .g-page .z-film { gap: 8px; }
 .z-film p { font-size: 24px; }
@@ -598,8 +591,11 @@ button.g-pip-lab { border: 0; cursor: pointer; }
 .g-row-txt .av span, .s-cta .av span { font-size: inherit; font-weight: inherit; color: inherit; }
 /* guessing: the clip fills the screen and the picture is scaled from its middle */
 .z-frame { position: absolute; inset: 0; overflow: hidden; background: #000; }
-.z-vid { transform-origin: 50% 50%; will-change: transform; }
-.z-guess.reveal .z-vid { transition: transform .7s var(--ease-out); }
+/* the picture is scaled through a wrapper (iPhone Safari won't smoothly scale a playing video), about the point that
+   puts the filmer's pick in the middle */
+.z-wrap { position: absolute; inset: 0; will-change: transform; }
+.z-wrap .z-vid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.z-guess.reveal .z-wrap { transition: transform .7s var(--ease-out); }
 .z-bar { position: absolute; left: 12px; right: 12px; top: calc(var(--safe-t) + 8px); z-index: 3; height: 4px; border-radius: 2px; background: rgba(247, 246, 251, .3); overflow: hidden; }
 .z-bar i { display: block; height: 100%; background: var(--room); }
 .z-ready { justify-content: center; }
@@ -660,3 +656,33 @@ button.g-pip-lab { border: 0; cursor: pointer; }
 .s-pts { display: block; font-size: 12.5px; font-weight: 600; color: var(--chalk-3); }
 .g-board-row.top .s-pts { color: var(--on-color-2); }
 .g-page > .s-score { margin: 0 -16px; border-top: 0; }
+
+/* ---------------------------------------------------------------- round seven: Zoom In, pick where they start */
+.z-pick { display: flex; flex-direction: column; background: var(--ground); }
+.z-pick::before { display: none; }
+.z-pick .g-rv-top { position: relative; top: auto; left: auto; right: auto; padding: calc(var(--safe-t) + 14px) 16px 12px; }
+.z-pick-mid { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.z-pick-frame { position: relative; overflow: hidden; background: #000; touch-action: none; cursor: grab; }
+.z-pick-x { position: absolute; right: 10px; top: 10px; z-index: 2; padding: 4px 10px; border-radius: var(--r-pill);
+  background: var(--room); color: var(--on-color); font: 400 18px/1.1 var(--display); pointer-events: none; }
+.z-pick-bar { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px calc(var(--safe-b) + 14px); background: var(--surface); }
+.z-pick-bar > b { font: 400 22px/1.1 var(--display); }
+.z-slide { display: flex; align-items: center; gap: 10px; }
+.z-slide em { font-style: normal; font-size: 13px; font-weight: 700; color: var(--chalk-2); }
+.z-slide input { flex: 1; min-width: 0; height: 32px; accent-color: var(--room); }
+.z-pick-bar .g-row-btns { margin: 0; }
+
+/* ---------------------------------------------------------------- round seven: Charades, who got it and Count it */
+.c-got { margin-top: 6px; }
+.c-near { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.c-near > small { font-size: 12.5px; font-weight: 700; color: var(--chalk-2); }
+.c-miss { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 4px 4px 6px; border-radius: 14px; background: var(--surface); }
+.g-row-txt .c-miss > span:not(.av) { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; color: var(--chalk); overflow-wrap: anywhere; }
+.c-miss > span:not(.av) { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.c-miss b { font-weight: 800; }
+.g-row-txt .c-miss b { font-size: 14px; }
+.c-miss .btn.c-count { flex: none; margin: 0; min-height: 34px; padding: 0 14px; font-size: 14px; background: var(--room); color: var(--on-color); }
+/* on the actor's own result (the room's color): ink rows */
+.g-result .c-near > small { color: var(--on-color-2); }
+.g-result .c-miss { background: var(--on-color); color: var(--chalk); --ring: var(--on-color); }
+.g-result .btn.c-count { background: var(--room); color: var(--on-color); box-shadow: none; }

@@ -123,7 +123,7 @@ export function RoundPage({ game, chat, me, onClose, onTakeTurn, onWatch, onGues
         {game.kind === 'charades' ? ` ${game.turnSec} seconds an act.` : ''}</p>
 
       {game.kind === 'poker' && <PokerBody game={game} me={me} person={person} onTakeTurn={onTakeTurn} onWatch={onWatch} />}
-      {game.kind === 'charades' && <CharadesBody game={game} me={me} person={person} onTakeTurn={onTakeTurn} onGuess={onGuess} />}
+      {game.kind === 'charades' && <CharadesBody game={game} me={me} person={person} chatId={chat.id} onTakeTurn={onTakeTurn} onGuess={onGuess} onChanged={onChanged} />}
 
       {showBoard && (
         <div className="g-board">
@@ -200,8 +200,53 @@ function PokerBody({ game, me, person, onTakeTurn, onWatch }: {
   </>);
 }
 
-function CharadesBody({ game, me, person, onTakeTurn, onGuess }: {
-  game: Game; me: Person; person: (id: string) => Person | undefined; onTakeTurn: (g: Game) => void; onGuess: (g: Game, a: CharadesAct) => void;
+// ---------------------------------------------------------------- Charades: who got it, and the actor's Count it
+/** Everyone who got an act, as little tags; one the actor counted says so. */
+function GotTags({ act, actor, me, person }: { act: CharadesAct; actor: string; me: Person; person: (id: string) => Person | undefined }) {
+  const got = Object.entries(act.results || {}).filter(([, r]) => r.ok);
+  if (!got.length) return null;
+  return (
+    <span className="z-guesses c-got">{got.map(([who, r]) => (
+      <span key={who} className="z-g got"><Avatar p={person(who)} size={18} /><b>{who === me.id ? 'You' : first(person(who))}{r.counted ? ',' : ''}</b>
+        {r.counted ? `counted by ${actor}` : ' got it'}</span>
+    ))}</span>
+  );
+}
+
+/** The actor's near misses: everyone who finished without getting it, their last guess, and Count it. */
+function NearMisses({ game, act, me, person, chatId, onChanged }: {
+  game: Game; act: CharadesAct; me: Person; person: (id: string) => Person | undefined; chatId: string; onChanged: (g: Game) => void;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [counted, setCounted] = useState<string[]>([]);
+  if (act.who !== me.id || (game.status !== 'playing' && game.status !== 'done')) return null;
+  const misses = Object.entries(act.results || {}).filter(([who, r]) => r.done && !r.ok && r.text && !counted.includes(who));
+  if (!misses.length) return null;
+  const count = async (who: string) => {
+    setBusy(who);
+    try {
+      const g = await api.charadesCount(game.id, who); onChanged(g); liveSend(chatId, 'chat', { game: g.id });
+      setCounted(c => [...c, who]); toast(`Counted. ${first(person(who))} gets a point.`);
+    } catch (e) { toast((e as Error).message); }
+    setBusy(null);
+  };
+  return (
+    <span className="c-near">
+      <small>Close enough? You can count it.</small>
+      {misses.map(([who, r]) => (
+        <span key={who} className="c-miss">
+          <Avatar p={person(who)} size={24} />
+          <span><b>{first(person(who))}</b> said {'\u201c'}{r.text}{'\u201d'}</span>
+          <button className="btn c-count" disabled={busy === who} onClick={() => void count(who)}>Count it</button>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function CharadesBody({ game, me, person, chatId, onTakeTurn, onGuess, onChanged }: {
+  game: Game; me: Person; person: (id: string) => Person | undefined; chatId: string; onTakeTurn: (g: Game) => void;
+  onGuess: (g: Game, a: CharadesAct) => void; onChanged: (g: Game) => void;
 }) {
   const playing = game.status === 'playing';
   const acts = game.acts || [];
@@ -216,7 +261,7 @@ function CharadesBody({ game, me, person, onTakeTurn, onGuess }: {
         const got = Object.values(a.results || {}).filter(r => r.ok).length;
         const r = a.mine;
         const sub = mine ? `Your word: ${a.word}. ${got} of ${others} got it.`
-          : r?.ok ? `You got it: ${a.word}. +${guessPoints(r.t, a.clip?.duration || game.turnSec)}`
+          : r?.ok ? `${r.counted ? `Counted by ${first(p)}` : 'You got it'}: ${a.word}. +${guessPoints(r.t, a.clip?.duration || game.turnSec)}`
           : r?.done ? `Missed. It was ${a.word}.`
           : !playing ? `It was ${a.word}.`
           : r?.tries ? `${3 - r.tries} ${3 - r.tries === 1 ? 'try' : 'tries'} left`
@@ -228,7 +273,9 @@ function CharadesBody({ game, me, person, onTakeTurn, onGuess }: {
               {a.clip?.thumb ? <img src={publicUrl(a.clip.thumb)} alt="" /> : <span className="g-thumb-blank" />}
               <span className="g-thumb-av"><Avatar p={p} size={18} /></span>
             </button>
-            <span className="g-row-txt"><b>{mine ? 'You acted' : `${first(p)} acted`}</b><span>{sub}</span></span>
+            <span className="g-row-txt"><b>{mine ? 'You acted' : `${first(p)} acted`}</b><span>{sub}</span>
+              <GotTags act={a} actor={mine ? 'you' : first(p)} me={me} person={person} />
+              <NearMisses game={game} act={a} me={me} person={person} chatId={chatId} onChanged={onChanged} /></span>
             {todo && a.clip && <button className="btn g-go g-row-btn" onClick={() => onGuess(game, a)}>Guess</button>}
           </li>
         );
@@ -397,8 +444,9 @@ export function CharadesGuess({ game, act, chat, me, onClose, onChanged }: {
       )}
       {result && (
         <div className={`g-result ${result.ok ? 'ok' : ''}`}>
-          <small>{watchOnly && act.who === me.id ? 'Your word' : result.ok ? `You got it. +${result.pts}` : 'It was'}</small>
+          <small>{watchOnly && act.who === me.id ? 'Your word' : result.ok ? `${act.mine?.counted ? `Counted by ${first(actor)}` : 'You got it'}. +${result.pts}` : 'It was'}</small>
           <p>{result.word}</p>
+          {act.who === me.id && <NearMisses game={game} act={act} me={me} person={person} chatId={chat.id} onChanged={onChanged} />}
           <span className="g-row-btns">{watchOnly && <button className="btn" onClick={() => { setResult(null); setEnded(false); void vid.current?.play(); }}><Icon name="play" size={16} fill="currentColor" /> Again</button>}
             <button className="btn g-go" onClick={onClose}>Done</button></span>
         </div>

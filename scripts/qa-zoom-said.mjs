@@ -2,14 +2,19 @@
 // Notes-mode phone with no camera). Zoom In: two film (typed answer, 5 s clip), the third joins as a guesser; the
 // answer stays out of every holler and every payload until you've guessed; I know it stops the pull-out; Yes scores
 // by the thirds rule; wrong guesses show only after you've done a clip; the end shows answers and guesses.
+// Where it starts (games8): after the take the filmer gets Pick where they start (slider, drag, Retake, Send it),
+// the focus lands in state, the guesser's first frame is at that zoom and origin, and an old clip with no focus
+// (made by taking the focus out of a QA clip's state) still starts 8x on the middle.
 // Who Said It: everyone writes two, each matches the answers about themselves (prompts about others are skipped at
 // 3 people), scores and fooled points add up, the end shows every prompt with its writers.
-// Usage: PW_CHANNEL=chrome node scripts/qa-zoom-said.mjs [baseUrl]  -> shots/zoom-said/*.png
+// Usage: PW_CHANNEL=chrome node scripts/qa-zoom-said.mjs [baseUrl]  -> shots/zoom-said/*.png, shots/zoom-focus/*.png
 // Then ALWAYS clean the QA people (the batched cleaner the brief names).
 import { chromium } from 'playwright';
 import { mkdirSync, readFileSync } from 'fs';
+import { execFileSync } from 'child_process';
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const OUT = 'shots/zoom-said'; mkdirSync(OUT, { recursive: true });
+const FOC = 'shots/zoom-focus'; mkdirSync(FOC, { recursive: true });
 const env = Object.fromEntries(readFileSync('.env.local', 'utf8').trim().split(/\r?\n/).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
 const rpc = async (fn, body) => {
   const r = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/rpc/${fn}`, { method: 'POST', headers: { apikey: env.VITE_SUPABASE_ANON_KEY, 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -35,10 +40,14 @@ const mk = async (name, notes) => {
   return page;
 };
 const shot = (p, n) => p.screenshot({ path: `${OUT}/${n}.png` });
+const shotF = (p, n) => p.screenshot({ path: `${FOC}/${n}.png` });
 const back = async p => { while (await p.locator('.g-page .g-back').count()) { await p.locator('.g-page .g-back').first().click(); await p.waitForTimeout(400); } };
 const openChip = async (p, name) => { await back(p); await p.locator(`.g-chip:has-text("${name}")`).first().click(); await p.waitForSelector('.g-page'); await p.waitForTimeout(1200); };
 const until = async (f, ms = 30000) => { const t = Date.now(); while (Date.now() - t < ms) { const v = await f(); if (v) return v; await new Promise(r => setTimeout(r, 800)); } return null; };
-const scaleOf = async p => Number((await p.$eval('.z-vid', v => v.style.transform)).replace(/[^0-9.]/g, ''));
+const scaleOf = async p => Number((await p.$eval('.z-wrap', v => v.style.transform)).replace(/[^0-9.]/g, ''));
+const originOf = async p => (await p.$eval('.z-wrap', v => v.style.transformOrigin)).split(' ').map(x => parseFloat(x) / 100);
+// the focus a wrapper shows: origin o and scale z put frame point (o(z-1)+0.5)/z in the middle
+const focusIn = async p => { const z = await scaleOf(p); const [ox, oy] = await originOf(p); return { x: (ox * (z - 1) + 0.5) / z, y: (oy * (z - 1) + 0.5) / z, z }; };
 
 const A = await mk('A'), B = await mk('B'), C = await mk('C', true);
 try {
@@ -64,13 +73,40 @@ try {
   await shot(A, '00-zoom-film-form');
   const zg = (await rpc('holler_chat', { p_token: tok.A, p_chat: chat })).games.find(g => g.kind === 'zoom'); const zid = zg.id;
   await A.fill('#z-word', 'the kettle'); await A.click('.z-film .btn.g-go');
-  await A.waitForSelector('.z-target'); await A.waitForTimeout(1200);
-  check(await A.isVisible('.g-banner:has-text("in the middle")') && await A.isVisible('.g-secret-mini:has-text("the kettle")'), 'recorder shows the line and your secret');
-  await shot(A, '01-zoom-recorder-target');
+  await A.waitForSelector('.g-banner:has-text("Film it")'); await A.waitForTimeout(1200);
+  check(await A.isVisible('.g-banner:has-text("Next you pick how close they start")') && await A.isVisible('.g-secret-mini:has-text("the kettle")'), 'recorder shows the new line and your secret');
+  check(await A.locator('.z-target').count() === 0, 'no centre box on the recorder');
+  await shotF(A, '01-recorder');
   await A.click('button.rec'); await A.waitForTimeout(1500);
-  check(await A.isVisible('.rec-hint:has-text("Sends itself at 5 seconds")'), 'fixed 5 second clip');
+  check(await A.isVisible('.rec-hint:has-text("Stops at 5 seconds")'), 'fixed 5 second take');
+
+  step('Pick where they start: default, slider, Retake');
+  await A.waitForSelector('.z-pick', { timeout: 20000 }); await A.waitForTimeout(1500);
+  check(await A.isVisible('.z-pick-bar:has-text("They start here, then it pulls out.")'), 'the pick screen shows after the take');
+  check(!(await rpc('holler_game', { p_token: tok.A, p_game: zid })).filmed?.includes(ids.A), 'the take waits: nothing sent yet');
+  const f0 = await focusIn(A);
+  check(Math.abs(f0.z - 6) < 0.01 && (await A.textContent('.z-pick-x')).trim() === '6x', 'starts at 6x', JSON.stringify(f0));
+  check(f0.y < 0.49 && Math.abs(f0.x - 0.5) < 0.02, 'default is the middle of what you saw (above the frame\'s true middle)', JSON.stringify(f0));
+  await shotF(A, '02-pick-default');
+  await A.fill('#z-zoom', '3'); await A.waitForTimeout(300);
+  check(Math.abs(await scaleOf(A) - 3) < 0.01 && (await A.textContent('.z-pick-x')).trim() === '3x', 'the slider changes the zoom');
+  await A.click('.z-pick .btn:has-text("Retake")'); await A.waitForTimeout(800);
+  check(await A.locator('.z-pick').count() === 0 && await A.isVisible('button.rec') && await A.isVisible('.g-secret-mini:has-text("the kettle")'), 'Retake: back to ready, same word');
+  check(!(await rpc('holler_game', { p_token: tok.A, p_game: zid })).filmed?.includes(ids.A), 'Retake threw the take away');
+  await A.click('button.rec');
+  await A.waitForSelector('.z-pick', { timeout: 20000 }); await A.waitForTimeout(1500);
+  await A.fill('#z-zoom', '5'); await A.waitForTimeout(200);
+  const fr = await A.locator('.z-pick-frame').boundingBox();
+  await A.mouse.move(fr.x + fr.width / 2, fr.y + fr.height / 2); await A.mouse.down();
+  await A.mouse.move(fr.x + fr.width / 2 + 40, fr.y + fr.height / 2 + 30, { steps: 6 }); await A.mouse.up(); await A.waitForTimeout(300);
+  const f1 = await focusIn(A);
+  check(f1.x < f0.x - 0.01 && Math.abs(f1.z - 5) < 0.01, 'dragging moves where it starts', JSON.stringify(f1));
+  await shotF(A, '03-pick-moved');
+  await A.click('.z-pick .btn.g-go:has-text("Send it")');
   const aIn = await until(async () => (await rpc('holler_game', { p_token: tok.A, p_game: zid })).filmed?.includes(ids.A), 40000);
   check(aIn, 'Avery\'s clip landed');
+  const sent = (await rpc('holler_game', { p_token: tok.A, p_game: zid })).shots[0].focus;
+  check(sent && Math.abs(sent.x - f1.x) < 0.005 && Math.abs(sent.y - f1.y) < 0.005 && sent.z === 5, 'Send stores the focus in state', JSON.stringify(sent));
   const chatB0 = await rpc('holler_chat', { p_token: tok.B, p_chat: chat });
   const chatC0 = await rpc('holler_chat', { p_token: tok.C, p_chat: chat });
   check(!JSON.stringify(chatB0).includes('kettle') && !JSON.stringify(chatC0).includes('kettle'), 'answer not in anyone else\'s chat payload');
@@ -82,9 +118,13 @@ try {
   await B.waitForSelector('.g-chip.turn:has-text("Zoom In")', { timeout: 25000 });
   check(await B.locator('.g-chip.turn:has-text("Zoom In") em:has-text("Film yours")').count() === 1, 'Blake\'s dock says Film yours');
   await openChip(B, 'Zoom In');
-  await B.fill('#z-word', 'my left shoe'); await B.click('.z-film .btn.g-go'); await B.waitForSelector('.z-target');
+  await B.fill('#z-word', 'my left shoe'); await B.click('.z-film .btn.g-go'); await B.waitForSelector('.g-banner:has-text("Film it")');
   await B.click('button.rec');
+  await B.waitForSelector('.z-pick', { timeout: 20000 }); await B.waitForTimeout(800); await B.click('.z-pick .btn.g-go:has-text("Send it")');
   check(await until(async () => (await rpc('holler_game', { p_token: tok.B, p_game: zid })).filmed?.includes(ids.B), 40000), 'Blake\'s clip landed');
+  // make Blake's an old clip, like Dixon's live one: no focus in state at all (QA rows only)
+  execFileSync('node', ['scripts/sb.mjs', 'sql', `update holler.games set state = state #- '{clips,${ids.B},focus}' where id = '${zid}' and kind = 'zoom'`], { env: { ...process.env, MSYS_NO_PATHCONV: '1' } });
+  check((await rpc('holler_game', { p_token: tok.A, p_game: zid })).shots.find(x => x.who === ids.B).focus == null, 'Blake\'s is now an old clip (no focus)');
 
   step('the Notes phone joins as a guesser');
   await C.waitForSelector('.g-chip.turn:has-text("Zoom In")', { timeout: 25000 });
@@ -97,10 +137,14 @@ try {
   step('C guesses Avery\'s, mid pull-out, and misses');
   await C.locator('.z-row:has-text("Avery") .btn.g-go').click();
   await C.waitForSelector('.z-ready .btn.g-go:not([disabled])', { timeout: 20000 }); await shot(C, '01b-zoom-ready'); await C.click('.z-ready .btn.g-go');
-  await C.waitForSelector('.g-know'); await C.waitForTimeout(3500);
+  await C.waitForSelector('.g-know');
+  const g1 = await focusIn(C);
+  check(Math.abs(g1.z - 5) < 0.25 && Math.abs(g1.x - sent.x) < 0.03 && Math.abs(g1.y - sent.y) < 0.03, 'guesser\'s first frame is at the chosen zoom and spot', JSON.stringify(g1));
+  await shotF(C, '04-guess-first-frame');
+  await C.waitForTimeout(3500);
   const s1 = await scaleOf(C);
-  await shot(C, '02-zoom-guess-pullout');
-  check(s1 > 2 && s1 < 8, 'pulling out from 8x', `scale ${s1}`);
+  await shot(C, '02-zoom-guess-pullout'); await shotF(C, '05-guess-pullout');
+  check(s1 > 1.5 && s1 < 5, 'pulling out from 5x', `scale ${s1}`);
   await C.click('.g-know'); const s2 = await scaleOf(C); await C.waitForTimeout(1500); const s3 = await scaleOf(C);
   check(Math.abs(s2 - s3) < 0.01, 'I know it stops the zoom', `${s2} then ${s3}`);
   await C.fill('#z-guess', 'a teapot'); await C.click('.g-guessbar .btn.g-go');
@@ -135,7 +179,12 @@ try {
   await A.click('.z-result .btn:has-text("Done")');
   await openChip(C, 'Zoom In');
   await C.locator('.z-row:has-text("Blake") .btn.g-go').click();
-  await C.waitForSelector('.z-ready .btn.g-go:not([disabled])', { timeout: 20000 }); await C.click('.z-ready .btn.g-go');
+  await C.waitForSelector('.z-ready .btn.g-go:not([disabled])', { timeout: 20000 });
+  check((await C.textContent('.z-ready .g-meta')).includes('8x'), 'old clip: says it starts 8x');
+  await C.click('.z-ready .btn.g-go'); await C.waitForSelector('.g-know');
+  const o1 = await originOf(C); const os = await scaleOf(C);
+  check(Math.abs(os - 8) < 0.4 && Math.abs(o1[0] - 0.5) < 0.001 && Math.abs(o1[1] - 0.5) < 0.001, 'old clip still starts 8x on the middle', `${os} ${o1}`);
+  await shotF(C, '06-old-clip-first-frame');
   await C.waitForSelector('.g-guessbar', { timeout: 30000 });
   check((await C.textContent('.g-guess-t')).includes('All the way out'), 'no tap: still asked to guess at 1x');
   await C.fill('#z-guess', 'a boot'); await C.click('.g-guessbar .btn.g-go');
