@@ -565,3 +565,98 @@ button.g-pip-lab { border: 0; cursor: pointer; }
 .g-page.float .d-checkers { width: min(100%, 300px); }
 .g-page.float .d-players { gap: 6px; }
 .g-page.float .d-player { padding: 6px 8px; }
+
+/* ---------------------------------------------------------------- round six: Zoom In */
+/* the target over the camera is only on your screen, never in the video: chalk lines with an ink edge so it shows on anything */
+.z-target { position: absolute; left: 50%; top: 50%; width: 104px; height: 104px; transform: translate(-50%, -50%); z-index: var(--z-banner); pointer-events: none; }
+.z-target svg { width: 100%; height: 100%; overflow: visible; }
+.z-target path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.z-target .o { stroke: var(--on-color); stroke-width: 9; }
+.z-target .i { stroke: var(--chalk); stroke-width: 4.5; }
+.z-target circle { fill: var(--chalk); stroke: var(--on-color); stroke-width: 2.5; }
+/* what you're filming: the ink secret block, with its field and two buttons */
+.g-page .z-film { gap: 8px; }
+.z-film p { font-size: 24px; }
+.z-film .field { background: rgba(247, 246, 251, .1); border-color: rgba(247, 246, 251, .22); }
+.z-film-note { font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--chalk-2); }
+.z-film .g-row-btns { align-self: stretch; margin-top: 4px; }
+.z-film .btn:not(.g-go) { background: none; color: var(--chalk); box-shadow: inset 0 0 0 2.5px rgba(247, 246, 251, .4); }
+/* a clip on the page: its answer in the room's color, then everyone's guesses as little name tags */
+.z-ans { font-style: normal; color: var(--room); }
+.g-row.up .z-ans { color: inherit; }
+.z-row { align-items: flex-start; padding: 12px 0; }
+.z-row > .btn { align-self: center; }
+.z-guesses, .z-others { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.z-g { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-height: 28px; padding: 3px 10px 3px 3px; border-radius: var(--r-pill);
+  background: var(--surface); color: var(--chalk); font-size: 13px; font-weight: 600; line-height: 1.2; }
+.z-g b { font-weight: 800; }
+.z-g.got { background: var(--live); color: var(--on-color); --ring: var(--on-color); }
+.g-row-txt .z-g { color: var(--chalk); }
+.g-row-txt .z-g.got { color: var(--on-color); }
+.g-row-txt .z-g b { font-size: 13px; font-weight: 800; }
+/* row text styles its spans; an avatar's initials are a span too, so they keep the avatar's own size and ink */
+.g-row-txt .av span, .s-cta .av span { font-size: inherit; font-weight: inherit; color: inherit; }
+/* guessing: the clip fills the screen and the picture is scaled from its middle */
+.z-frame { position: absolute; inset: 0; overflow: hidden; background: #000; }
+.z-vid { transform-origin: 50% 50%; will-change: transform; }
+.z-guess.reveal .z-vid { transition: transform .7s var(--ease-out); }
+.z-bar { position: absolute; left: 12px; right: 12px; top: calc(var(--safe-t) + 8px); z-index: 3; height: 4px; border-radius: 2px; background: rgba(247, 246, 251, .3); overflow: hidden; }
+.z-bar i { display: block; height: 100%; background: var(--room); }
+.z-ready { justify-content: center; }
+.z-result { max-height: 72dvh; overflow-y: auto; }
+.z-result > .btn.g-go { margin-top: 4px; }
+.z-you { font-size: 15px; font-weight: 600; color: var(--on-color-2); }
+.z-you b { color: var(--on-color); font-weight: 800; }
+.z-ask { font: 400 24px/1.1 var(--display); margin-top: 4px; }
+.z-result .z-g { background: var(--on-color); color: var(--chalk); --ring: var(--on-color); }
+.z-result .z-g.got { background: var(--chalk); color: var(--on-color); }
+.z-result .g-row-btns { margin-top: 0; }
+.g-page > .z-hard { margin: 0 -16px; border-top: 0; }
+.z-hard .av { box-shadow: 0 0 0 2px var(--on-color); }
+.z-hard > span { display: block; margin-top: 6px; font-size: 14px; font-weight: 700; color: var(--on-color-2); }
+.g-page .q-ready .link-btn { padding: 6px 0; }
+
+/* ---------------------------------------------------------------- round six: Who Said It */
+/* writing: one block per person, their own color across the top, the field right under it */
+.s-write { display: flex; flex-direction: column; gap: 12px; }
+.s-write .g-sub { margin: 0; }
+.s-w { display: flex; flex-direction: column; margin: 0 -16px; background: var(--surface); }
+.s-w-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--c); color: var(--on-color); --ring: var(--on-color); }
+.s-w-head b { font: 400 21px/1.1 var(--display); }
+.s-w .field.area { min-height: 72px; border-radius: 0; border-width: 0 0 2px; border-color: transparent; background: var(--surface); font-size: 17px; }
+.s-w .field.area:focus { border-color: var(--c); }
+.s-wait { display: flex; flex-direction: column; gap: 6px; margin: 0 -16px; padding: 18px 16px; background: var(--surface); }
+.s-wait > b { font: 400 26px/1.08 var(--display); }
+.s-wait > span { font-size: 14px; color: var(--chalk-2); line-height: 1.45; }
+.s-mine { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.s-wait .s-mine > span { display: flex; align-items: flex-start; gap: 8px; color: var(--chalk); font-size: 15px; font-weight: 600; line-height: 1.35; }
+.s-mine em { font-style: normal; color: var(--chalk-2); }
+/* a prompt: a block in the person's color, then the answers on ink, each edged in its writer's color */
+.s-board { margin: 0 -16px; display: flex; flex-direction: column; background: var(--surface); }
+.s-head { padding: 16px 16px 18px; background: var(--c); color: var(--on-color); --ring: var(--on-color); }
+.s-head small { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 800; color: var(--on-color-2); }
+.s-head p { margin: 8px 0 0; font: 400 28px/1.05 var(--display); }
+.s-board.me .s-head p { font-size: 34px; }
+.s-cta { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+.s-cta span { flex: 1; font-size: 14px; font-weight: 600; color: var(--chalk-2); line-height: 1.4; }
+.s-cta .btn { flex: none; margin: 0; }
+.s-answers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.s-ans { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 16px 14px; border-top: var(--seam-w) solid var(--ground); border-left: 6px solid var(--w, var(--surface-2)); }
+.s-ans p { margin: 0; font: 400 24px/1.12 var(--display); overflow-wrap: anywhere; }
+.s-ans p::before { content: '\201C'; }
+.s-ans p::after { content: '\201D'; }
+.s-by { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--chalk-2); }
+.s-by b { color: var(--w); font-size: 16px; font-weight: 800; }
+.s-calls { display: flex; flex-wrap: wrap; gap: 6px; }
+.s-call { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 2px 10px 2px 3px; border-radius: var(--r-pill); background: var(--ground-2); color: var(--chalk-2); font-size: 12.5px; font-weight: 700; }
+.s-call.ok { background: var(--live); color: var(--on-color); --ring: var(--on-color); }
+/* matching: a row of faces under each answer, each face used once */
+.s-faces { display: flex; flex-wrap: wrap; gap: 8px; }
+.s-face { display: inline-flex; align-items: center; gap: 7px; min-height: 42px; padding: 4px 14px 4px 5px; border-radius: var(--r-pill); border: 2px solid var(--seam-2); background: none; color: var(--chalk); font-size: 15px; }
+.s-face b { font-weight: 700; }
+.s-face.on { background: var(--f); border-color: var(--f); color: var(--on-color); --ring: var(--on-color); }
+.s-face.used { opacity: .38; }
+.s-face:active { transform: scale(.96); }
+.s-pts { display: block; font-size: 12.5px; font-weight: 600; color: var(--chalk-3); }
+.g-board-row.top .s-pts { color: var(--on-color-2); }
+.g-page > .s-score { margin: 0 -16px; border-top: 0; }

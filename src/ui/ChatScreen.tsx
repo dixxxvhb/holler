@@ -89,7 +89,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const [duelKind, setDuelKind] = useState<'ttt' | 'checkers' | null>(null);
   const [cardsOpen, setCardsOpen] = useState(false);
   const [quickKind, setQuickKind] = useState<'words' | 'trivia' | null>(null);
-  const [faceKind, setFaceKind] = useState<'spot' | 'laugh' | null>(null);
+  const [faceKind, setFaceKind] = useState<'spot' | 'laugh' | 'zoom' | 'said' | null>(null);
   const spotPicks = useRef<{ pick: number; ms: number }[]>([]);
   const [turnWord, setTurnWord] = useState<string | null>(null);
   const [wordI, setWordI] = useState(0);
@@ -206,7 +206,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     toast(m === 'on' ? 'Camera on' : m === 'voice' ? "Voice only on this phone. You can still play every game that doesn't need a camera." : 'Notes and games only on this phone', undefined, 4200);
   };
   // the games that are a recording of your face need a camera; Poker Face works as a voice answer
-  const needsCam = (k: Game['kind'] | 'card') => k === 'passiton' || k === 'charades' || k === 'laugh' || k === 'spot' || (cam === 'off' && (k === 'poker' || k === 'card'));
+  // (Zoom In needs one only to film: a phone without one joins as a guesser, so it is never blocked from the Play sheet)
+  const needsCam = (k: Game['kind'] | 'card') => k === 'passiton' || k === 'charades' || k === 'laugh' || k === 'spot' || k === 'zoom' || (cam === 'off' && (k === 'poker' || k === 'card'));
   const camBlocked = (k: Game['kind'] | 'card') => {
     if (cam === 'on' || !needsCam(k)) return false;
     toast(cam === 'off' && (k === 'poker' || k === 'card') ? 'This one needs at least your voice.' : 'This game needs a camera.', { label: 'Change', run: () => setCamSheet(true) }, 5000);
@@ -264,12 +265,13 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const nextCard = () => { if (!dealt.length) return; const i = (cardI + 1) % dealt.length; setCardI(i); setCard(dealt[i]); };
   const answerCard = (id: string) => { const d = id.split(':')[0] as Deck; void deal(d, id); setPanel(null); toast('Same card is on. Record your answer.'); };
   const wordsKey = `holler.words.${chatId}`;
-  const takeTurn = (g: Game) => {
+  // word: what a Zoom In clip is (typed on its game page; it rides in effects.game.word and the server keeps it secret)
+  const takeTurn = (g: Game, word?: string) => {
     if (camBlocked(g.kind)) return;
     setGameId(null);
     if (g.kind === 'charades') {
       const list = G?.charadesWords(g.deck || 'mixed', usedIn(wordsKey)) || []; setWordI(0); setTurnWord(list[0] || 'Penguin');
-    } else setTurnWord(null);
+    } else setTurnWord(g.kind === 'zoom' ? word || null : null);
     if (g.kind === 'passiton' && roleOf(g) !== 'act' && !g.looked) { setLookAt(g); return; }
     setTurn(g); setCard(null); setAudioOnly(false); setPanel(null);
   };
@@ -418,11 +420,13 @@ export function ChatScreen({ chatId }: { chatId: string }) {
 
   const sendTurn = (g: Game, rec: Recording, segs: Seg[], guess: string | null) => {
     const picks = [...spotPicks.current]; while (picks.length < 3) picks.push({ pick: -1, ms: 10000 });
-    rec.effects = { ...rec.effects, game: g.kind === 'charades' ? { id: g.id, word: turnWord } : g.kind === 'spot' ? { id: g.id, picks } : guess ? { id: g.id, guess } : { id: g.id } };
+    rec.effects = { ...rec.effects, game: g.kind === 'charades' || g.kind === 'zoom' ? { id: g.id, word: turnWord } : g.kind === 'spot' ? { id: g.id, picks } : guess ? { id: g.id, guess } : { id: g.id } };
     spotPicks.current = [];
     if (g.kind === 'charades' && turnWord) markUsed(wordsKey, turnWord.toLowerCase());
-    sendRecording(chatId, me.id, rec, segs.length ? JSON.stringify(segs) : null, () => { void load(); void refresh(); });
+    // a Zoom In clip carries no captions: saying what it is out loud would give it away
+    sendRecording(chatId, me.id, rec, segs.length && g.kind !== 'zoom' ? JSON.stringify(segs) : null, () => { void load(); void refresh(); });
     if (g.kind === 'poker') toast('Answer in. Voting opens once everyone has gone.');
+    else if (g.kind === 'zoom') toast('Clip sent. Now guess theirs.');
     else if (g.kind === 'charades') toast('Act sent. Everyone else gets to guess.');
     else if (g.kind === 'spot') toast('Your go is in. Now watch everyone else sweat.');
     else if (g.kind === 'laugh') toast('Clip sent. Now try to keep a straight face through theirs.');
@@ -554,7 +558,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   );
 
   return (
-    <div className={`chat ${panel ? 'panel-open' : ''} ${recording ? 'is-rec' : ''} ${turn ? ((turn.kind === 'passiton' ? roleOf(turn) === 'act' : turn.kind === 'charades' || turn.kind === 'laugh') ? 'g-in-turn g-acting' : 'g-in-turn') : ''}`} ref={chatRef} data-room={shell?.theme || 'ember'}>
+    <div className={`chat ${panel ? 'panel-open' : ''} ${recording ? 'is-rec' : ''} ${turn ? ((turn.kind === 'passiton' ? roleOf(turn) === 'act' : turn.kind === 'charades' || turn.kind === 'laugh' || turn.kind === 'zoom') ? 'g-in-turn g-acting' : 'g-in-turn') : ''}`} ref={chatRef} data-room={shell?.theme || 'ember'}>
       <div className="preview" ref={previewRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => onUp()}>
         <canvas ref={canvasRef} className={`cam ${aOnly ? 'dim' : ''}`} />
         {camState === 'denied' && cam !== 'off' && (
@@ -587,6 +591,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           ? <G.TurnBanner game={turn} me={me} chat={chat} phrase={turn.phrase} />
           : turn.kind === 'spot' ? <G.SpotLive game={turn} studio={camLive ? studio.current : null} recording={recording} onDone={p => { spotPicks.current = p; void finish(); }} onFail={() => { if (recording) cancelRec(); }} />
           : turn.kind === 'laugh' ? <G.LaughBanner game={turn} />
+          : turn.kind === 'zoom' ? <G.ZoomLive word={turnWord} recording={recording} />
           : <G.RoundBanner game={turn} word={turnWord} recording={recording} onAnother={anotherWord} />)}
         {lookOf(look).seg && cut === 'loading' && fx && <div className="cut-tag">Finding you<span className="dots"><i /><i /><i /></span></div>}
       </div>
@@ -804,7 +809,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
             : <button className="side-btn g-play-tile" onClick={() => { setPlayOpen(true); if (!G) loadG(); }} aria-label="Play a game"><Icon name="cards" /><span className="sb-lb">Play</span></button>}
         </div>
         {recording && <div className="rec-hint">{fixedTurn && turn ? `Sends itself at ${turn.turnSec} seconds` : turn?.kind === 'spot' ? 'Tap your answers. It sends itself after the third.' : turn ? 'Tap to send your answer' : held ? 'Let go to send' : paused ? 'Paused. Tap Resume to keep going, or tap to send.' : 'Tap to send'}</div>}
-        {turn && !recording && <div className="rec-hint">{turn.kind === 'poker' ? 'Tap record and give your answer' : turn.kind === 'spot' ? 'Tap record. Your first question shows right away.' : turn.kind === 'laugh' ? 'Tap record and make them laugh' : turn.kind === 'charades' || roleOf(turn) === 'act' ? 'Tap record and act it out' : roleOf(turn) === 'guess' ? 'Tap record and say your guess' : 'Tap record and copy it'}</div>}
+        {turn && !recording && <div className="rec-hint">{turn.kind === 'poker' ? 'Tap record and give your answer' : turn.kind === 'spot' ? 'Tap record. Your first question shows right away.' : turn.kind === 'laugh' ? 'Tap record and make them laugh' : turn.kind === 'zoom' ? 'Tap record. It sends itself at 5 seconds.' : turn.kind === 'charades' || roleOf(turn) === 'act' ? 'Tap record and act it out' : roleOf(turn) === 'guess' ? 'Tap record and say your guess' : 'Tap record and copy it'}</div>}
         {countdown > 0 && <div className="rec-hint">Tap to call it off</div>}
       </div>
 
@@ -828,7 +833,14 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         <G.PlaySheet open={playOpen} onClose={() => setPlayOpen(false)} people={chat.members.length}
           onCard={() => { if (camBlocked('card')) return; setPlayOpen(false); void deal(deck); setPanel('card'); }}
           onPassItOn={() => { if (camBlocked('passiton')) return; setPlayOpen(false); setStartOpen(true); }}
-          onRound={k => { if (k !== 'lastcard' && camBlocked(k)) return; setPlayOpen(false); if (k === 'lastcard') setCardsOpen(true); else if (k === 'ttt' || k === 'checkers') setDuelKind(k); else if (k === 'words' || k === 'trivia') setQuickKind(k); else if (k === 'spot' || k === 'laugh') setFaceKind(k); else setRoundKind(k); }} />
+          onRound={k => { if (k !== 'lastcard' && k !== 'zoom' && k !== 'said' && camBlocked(k)) return; setPlayOpen(false); if (k === 'lastcard') setCardsOpen(true); else if (k === 'ttt' || k === 'checkers') setDuelKind(k); else if (k === 'words' || k === 'trivia') setQuickKind(k); else if (k === 'spot' || k === 'laugh' || k === 'zoom' || k === 'said') setFaceKind(k); else setRoundKind(k); }} />
+        {faceKind === 'zoom' && <G.ZoomStart open onClose={() => setFaceKind(null)} chat={chat} me={me} canFilm={cam === 'on'}
+          onStarted={g => { setFaceKind(null); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); setGameId(g.id); }} />}
+        {faceKind === 'said' && <G.SaidStart open onClose={() => setFaceKind(null)} chat={chat} me={me}
+          onStarted={g => { setFaceKind(null); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); setGameId(g.id); }} />}
+        {openGame && openGame.kind === 'zoom' && <G.ZoomPage game={openGame} chat={chat} me={me} canFilm={cam === 'on'} onClose={() => setGameId(null)}
+          onFilm={(g, w) => takeTurn(g, w)} onCamera={() => setCamSheet(true)} onChanged={gameChanged} />}
+        {openGame && openGame.kind === 'said' && <G.SaidPage game={openGame} chat={chat} me={me} onClose={() => setGameId(null)} onChanged={gameChanged} />}
         {faceKind === 'spot' && <G.SpotStart open onClose={() => setFaceKind(null)} chat={chat} me={me}
           onStarted={g => { setFaceKind(null); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); takeTurn(g); }} />}
         {faceKind === 'laugh' && <G.LaughStart open onClose={() => setFaceKind(null)} chat={chat} me={me}
@@ -875,6 +887,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
 
 const GAME_ICON: Record<Game['kind'], string> = {
   passiton: 'chain', poker: 'facecam', charades: 'eye', spot: 'timer', laugh: 'laugh', words: 'letters', trivia: 'quiz', lastcard: 'cards', checkers: 'board', ttt: 'grid',
+  zoom: 'camera', said: 'wow',
 };
 
 /** Camera, voice only, or notes and games: for a phone whose camera won't cooperate. Kept per device. */

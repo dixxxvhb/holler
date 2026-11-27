@@ -37,7 +37,7 @@ export type Game = {
   /** Round games (Poker Face, Charades Relay): who still owes a move. */
   todo?: string[]; deck?: string;
   // Poker Face
-  cardId?: string; question?: string; phase?: 'record' | 'vote'; since?: string; recorded?: string[]; voted?: string[];
+  cardId?: string; question?: string; phase?: 'record' | 'vote' | 'write' | 'guess'; since?: string; recorded?: string[]; voted?: string[];
   myVote?: string | null; truthIsMe?: boolean; answer?: string | null; truth?: string | null; votes?: Record<string, string> | null;
   // Charades Relay
   acted?: string[]; acts?: CharadesAct[];
@@ -54,13 +54,27 @@ export type Game = {
   myPlay?: QuickPlay | null; plays?: Record<string, QuickPlay> | null;
   // On The Spot
   takes?: SpotTake[];
+  // Zoom In (shots, not clips: Pass It On has clips)
+  filmed?: string[]; skipped?: string[]; shots?: ZoomShot[];
+  // Who Said It
+  wrote?: string[]; boards?: SaidBoard[]; scores?: Record<string, { right: number; fooled: number }>;
 };
+/** Zoom In: at = how far out it was when you knew it (0 = all the way in, 1 = the whole picture); got = you said you got it. */
+export type ZoomGuess = { at: number; text: string; got: boolean | null; ts?: string };
+/** answer and guesses are null until you've guessed it (always there for your own, and once the game is over). */
+export type ZoomShot = { who: string; at: string; clip: Polo | null; mine: ZoomGuess | null; answer: string | null; guesses: Record<string, ZoomGuess> | null };
+/** Who Said It: who is null until the board is open to you (yours always shows). */
+export type SaidAnswer = { k: string; text: string; who: string | null };
+export type SaidPick = { picks: Record<string, string>; at: string };
+export type SaidBoard = { about: string; prompt: string | null; n: number; open: boolean; mine: SaidPick | null; guesses: Record<string, SaidPick> | null; answers: SaidAnswer[] };
+export type ZoomMove = { skip: true } | { who: string; at: number; guess: string } | { who: string; got: boolean };
+export type SaidMove = { write: Record<string, string> } | { about: string; picks: Record<string, string> };
 export type SpotTake = { who: string; at: string; qids: string[]; picks: { pick: number; ms: number }[]; clip: Polo | null };
 /** Don't Laugh shares Game.acts with Charades, in this shape: read it with laughActs(). */
 export type LaughWatch = { done?: boolean; cracked?: number | null; at?: string; clip?: Polo | null };
 export type LaughAct = { who: string; at: string; clip: Polo | null; mine: LaughWatch | null; results: Record<string, LaughWatch> | null };
 export const laughActs = (g: Game) => (g.acts || []) as unknown as LaughAct[];
-export type GameKind = 'passiton' | 'poker' | 'charades' | 'ttt' | 'checkers' | 'words' | 'trivia' | 'spot' | 'laugh' | 'lastcard';
+export type GameKind = 'passiton' | 'poker' | 'charades' | 'ttt' | 'checkers' | 'words' | 'trivia' | 'spot' | 'laugh' | 'lastcard' | 'zoom' | 'said';
 export type CardEvent = { who: string; kind: 'play' | 'draw' | 'keep' | 'take' | 'idle' | 'left'; at: string; card?: string; color?: string;
   skip?: string; stack?: string; hit?: string; n?: number; forgot?: number; called?: boolean };
 export type CardMove = { play: string; color?: string; last?: boolean } | { draw: true } | { pass: true };
@@ -158,6 +172,8 @@ export const api = {
   cardMove: (id: string, version: number, move: CardMove) => rpc<Game>('holler_card_move', { p_game: id, p_version: version, p_move: move }),
   cardLeave: (id: string) => rpc<Game>('holler_card_leave', { p_game: id }),
   gameResign: (id: string) => rpc<Game>('holler_game_resign', { p_game: id }),
+  zoomMove: (id: string, move: ZoomMove) => rpc<Game>('holler_zoom_move', { p_game: id, p_move: move }),
+  saidMove: (id: string, move: SaidMove) => rpc<Game>('holler_said_move', { p_game: id, p_move: move }),
   gameBegin: (id: string) => rpc<Game>('holler_game_begin', { p_game: id }),
   gamePlay: (id: string, play: { words: string[] } | { answers: { pick: number; ms: number }[] }) =>
     rpc<Game>('holler_game_play', { p_game: id, p_play: play }),

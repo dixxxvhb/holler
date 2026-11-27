@@ -18,7 +18,7 @@ export { roleOf, type Role } from './roundLogic';
 
 // ---------------------------------------------------------------- the Play sheet
 export function PlaySheet({ open, onClose, people, onCard, onPassItOn, onRound }: {
-  open: boolean; onClose: () => void; people: number; onCard: () => void; onPassItOn: () => void; onRound: (k: 'poker' | 'charades' | 'ttt' | 'checkers' | 'words' | 'trivia' | 'spot' | 'laugh' | 'lastcard') => void;
+  open: boolean; onClose: () => void; people: number; onCard: () => void; onPassItOn: () => void; onRound: (k: 'poker' | 'charades' | 'ttt' | 'checkers' | 'words' | 'trivia' | 'spot' | 'laugh' | 'lastcard' | 'zoom' | 'said') => void;
 }) {
   return (
     <Sheet open={open} onClose={onClose} title="Play">
@@ -51,6 +51,16 @@ export function PlaySheet({ open, onClose, people, onCard, onPassItOn, onRound }
         <span className="g-opt-ic pass"><Icon name="laugh" size={24} /></span>
         <span className="g-opt-txt"><b>Don't Laugh</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Record something to crack them up. Watch theirs while your camera watches you. Smile and you\'re out.'}</span></span>
         <span className="g-opt-n">2 to 5</span>
+      </button>
+      <button className="g-opt game" onClick={() => onRound('zoom')} disabled={people < 2}>
+        <span className="g-opt-ic pass"><Icon name="camera" size={24} /></span>
+        <span className="g-opt-txt"><b>Zoom In</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Film something up close. Everyone sees it way zoomed in and pulling out. Name it before it gets obvious.'}</span></span>
+        <span className="g-opt-n">2 to 6</span>
+      </button>
+      <button className="g-opt game" onClick={() => onRound('said')} disabled={people < 3}>
+        <span className="g-opt-ic pass"><Icon name="wow" size={24} /></span>
+        <span className="g-opt-txt"><b>Who Said It</b><span>{people < 3 ? 'Needs 3 or more people in this chat.' : 'Everyone answers a prompt about each other. Then guess who wrote what about you. No camera needed.'}</span></span>
+        <span className="g-opt-n">3 to 6</span>
       </button>
       <span className="lbl g-play-lbl">Quick games</span>
       <button className="g-opt game" onClick={() => onRound('words')} disabled={people < 2}>

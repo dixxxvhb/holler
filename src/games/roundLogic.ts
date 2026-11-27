@@ -4,11 +4,11 @@
 import type { ChatFull, Game, Person } from '../lib/api';
 
 export const GAME_NAME: Record<Game['kind'], string> = {
-  passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades Relay', ttt: 'Tic-Tac-Toe', checkers: 'Checkers', words: 'Seven Letters', trivia: 'Trivia', spot: 'On The Spot', laugh: "Don't Laugh", lastcard: 'Last Card',
+  passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades Relay', ttt: 'Tic-Tac-Toe', checkers: 'Checkers', words: 'Seven Letters', trivia: 'Trivia', spot: 'On The Spot', laugh: "Don't Laugh", lastcard: 'Last Card', zoom: 'Zoom In', said: 'Who Said It',
 };
 /** Strip tiles are narrow. */
 export const TILE_NAME: Record<Game['kind'], string> = {
-  passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades', ttt: 'Tic-Tac-Toe', checkers: 'Checkers', words: '7 Letters', trivia: 'Trivia', spot: 'On The Spot', laugh: "Don't Laugh", lastcard: 'Last Card',
+  passiton: 'Pass It On', poker: 'Poker Face', charades: 'Charades', ttt: 'Tic-Tac-Toe', checkers: 'Checkers', words: '7 Letters', trivia: 'Trivia', spot: 'On The Spot', laugh: "Don't Laugh", lastcard: 'Last Card', zoom: 'Zoom In', said: 'Who Said It',
 };
 export const isDuel = (g: Game) => g.kind === 'ttt' || g.kind === 'checkers';
 /** Games where one person is up at a time (turnPerson). */
@@ -74,7 +74,7 @@ export const owes = (g: Game, me: string) => g.status === 'playing' && (isTurns(
 /** Has this person done their part for now (for the little faces on a tile)? */
 export const doneFor = (g: Game, id: string) => g.status !== 'playing' || (isTurns(g) ? g.turnPerson !== id
   : isQuick(g) || g.kind === 'spot' ? (g.played || []).includes(id)
-  : g.kind === 'laugh' ? !(g.todo || []).includes(id)
+  : g.kind === 'laugh' || g.kind === 'zoom' || g.kind === 'said' ? !(g.todo || []).includes(id)
   : g.kind === 'poker' ? (g.phase === 'vote' || (g.recorded || []).includes(id)) : (g.acted || []).includes(id));
 
 /** The line under a round game's tile in the strip. */
@@ -85,9 +85,18 @@ export function tileLine(g: Game, me: Person, chat: ChatFull): string {
     return g.turnPerson === me.id ? 'Your move' : `${first(chat.members.find(m => m.id === g.turnPerson))}'s move`;
   }
   if (g.status === 'ended') return 'Ended early';
-  if (g.status === 'done') return g.kind === 'poker' ? 'See who lied' : 'Final scores';
+  if (g.status === 'done') return g.kind === 'poker' ? 'See who lied' : g.kind === 'said' ? 'See who said what' : g.kind === 'zoom' ? 'See what it all was' : 'Final scores';
   if (isQuick(g)) return owes(g, me.id) ? 'Your go' : `${(g.played || []).length} of ${n} played`;
   if (g.kind === 'spot') return owes(g, me.id) ? 'Your go' : `${(g.played || []).length} of ${n} went`;
+  if (g.kind === 'zoom') {
+    const mineIn = (g.filmed || []).includes(me.id) || (g.skipped || []).includes(me.id);
+    if (!mineIn && g.order.includes(me.id)) return 'Film yours';
+    return owes(g, me.id) ? 'Guess theirs' : `${(g.filmed || []).length} of ${n} filmed`;
+  }
+  if (g.kind === 'said') {
+    if (g.phase === 'write') return owes(g, me.id) ? 'Write yours' : `${(g.wrote || []).length} of ${n} wrote`;
+    return owes(g, me.id) ? 'Who said it?' : 'Guessing';
+  }
   if (g.kind === 'laugh') return !(g.acted || []).includes(me.id) ? 'Record yours' : owes(g, me.id) ? 'Watch, no smiling' : `${(g.acted || []).length} of ${n} in`;
   if (g.kind === 'poker') {
     if (g.phase === 'vote') return owes(g, me.id) ? 'Your vote' : 'Voting';
