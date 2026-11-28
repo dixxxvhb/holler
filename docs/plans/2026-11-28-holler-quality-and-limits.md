@@ -40,31 +40,55 @@ Two cheap quality fixes: Blur behind no longer smears the person into a glow rou
 land on you barely count), and Twins folds back at the picture's edge instead of smearing the last column.
 A saved default look or an old holler naming a look that is gone falls back to Natural (`lookId()` in looks.ts).
 
-## 3. Per-chat limit (BUILT, OFF, waits for Dixon's yes)
+## 3. Per-chat limit (BUILT, NOT APPLIED, NOT ON: waits for Dixon's yes)
+
+Nothing in this section has touched the database. The SQL has only ever run inside `limits-check.sql`, which
+rolls everything back. The app code is on main and does nothing until the server sends the new fields.
 
 The rule and every setting are written at the top of `supabase/limits.sql`. In short: each chat keeps its newest
-12 minutes of video and voice; what falls past that is marked leaving for 3 days (one ping per chat per daily
-batch, a bar at the top of the chat that opens a list with one button each: Save to camera roll); then it is
-taken out; its file is deleted a day later; hidden game clips go with no notice. Notes never count.
+12 minutes of video and voice (12 to 15 in practice: a holler stays while everything newer adds up to under 12);
+what falls past that is marked leaving for 3 days (one ping per chat per daily batch, a bar at the top of the chat
+that opens a list with one button each: Save to camera roll); then it is taken out of the chat; its file is
+deleted a day later (the hold, which storage itself enforces, so an undo is real); clips of games already hidden
+go with no notice. Notes never count and are never touched. Every run works out afresh what is past the limit,
+so a mark comes off if the holler is back inside the 12 minutes, and a mark that is days overdue (the run was
+not happening) gets a fresh 3 days and a fresh ping instead of a silent removal.
+
+Reviewed twice by `second-look`. Round one found eight problems (marks never re-checked, the limit advertised
+while off, undo ringing phones, storage not enforcing the hold, silent failures, the test path judging a chat
+by members only, timing, test gaps); all were fixed. Round two: "clean enough to apply with the switch off",
+plus three smaller points, also fixed (the real run refuses a mistyped setting; QA cleanup clears a hold on QA
+files; the ping is tested for real). Not exercised anywhere: `limits-on.sql`, `limits-off.sql`, `limits-undo.sql`
+(read by the reviewer twice, never run).
 
 Files:
-- `supabase/limits.sql` the columns, `holler.limit_run(scope)`, and the chat read (`leavesAt`, `leaving`, `keepSeconds`).
-- `supabase/limits-check.sql` dry run of the above plus `limits-tests.sql` (built by `scripts/build-limits-check.sh`);
-  it ends by reporting what the real run would do today, and keeps nothing.
+- `supabase/limits.sql` the columns (`leaves_at`, `removed_at`, `purge_after`), `holler.limit_run(scope)`, the
+  storage rule `public.holler_delete_ok`, and the chat read (`leavesAt`, `leaving`, `keepSeconds`).
+- `supabase/limits-check.sql` dry run of the above plus `limits-tests.sql` (built by `scripts/build-limits-check.sh`).
+  Passes. It ends by reporting what the real run would do today, and keeps nothing.
+- `supabase/limits-key.sql` stores the publishable key so the database can ask storage to delete a file.
 - `supabase/limits-on.sql` THE SWITCH: sets `limit_on = '1'` and schedules the daily run (17:00 UTC). Dixon's yes only.
 - `supabase/limits-off.sql` off again, and clears every leaving mark. `supabase/limits-undo.sql` puts back what
-  was taken out while its file still exists (the 24-hour hold).
-- `supabase/limits-status.sql` read-only: switch, numbers, storage used, minutes per chat, last runs.
-- `supabase/limits-qa-mark.sql`, `limits-qa-due.sql` and `scripts/qa-limit.mjs`: the end-to-end test. It can only
-  reach chats named exactly `ZZ limit test` whose every member is a QA person.
-- App: `src/ui/Leaving.tsx` (bar and sheet), `src/lib/keep.ts` (share sheet on a phone, download elsewhere),
-  badge on leaving tiles in `Thread.tsx`, the chat-info line in `ChatInfo.tsx`.
+  was taken out while its file still exists.
+- `supabase/limits-status.sql` read-only: switch, numbers, storage used, minutes per chat, last runs (needs limits.sql applied).
+- `supabase/limits-qa-mark.sql`, `limits-qa-due.sql`, `scripts/qa-limit.mjs`: the full loop on QA people, files
+  really deleted. NEVER RUN YET: it needs limits.sql and limits-key.sql applied. It can only reach chats named
+  exactly `ZZ limit test` whose every member and every author is a QA person.
+- App: `src/ui/Leaving.tsx` + `src/ui/leaving.css` (bar and list), `src/lib/keep.ts` (share sheet on a phone,
+  download elsewhere), the badge in `Thread.tsx`, the chat-info line in `ChatInfo.tsx`, `public/sw.js` (a leaving
+  ping does not count on the app icon and opens `/c/<id>/leaving`). Tested with stand-in data, nothing applied:
+  `scripts/qa-leaving-ui.mjs` 16/16; screens in `shots/limit/`.
 
-Storage sums (11-28): the `holler` bucket held about 199 MB; nothing else in the project's 1 GB is big. A full
-chat (12 to 15 minutes at about 12 MB a minute) is 145 to 180 MB, plus whatever is waiting out its 3 days and
-1-day hold. So 1 GB holds about five full chats. More chats than that means a smaller number than 12.
+On Dixon's yes, in this order: (1) `holler-sql limits.sql`, (2) `holler-sql limits-key.sql`, (3)
+`PW_CHANNEL=chrome node scripts/qa-limit.mjs` then `node scripts/clean-qa-remote.mjs`, (4) deploy main so phones
+have the bar and list, (5) only then `holler-sql limits-on.sql`, (6) `holler-sql limits-status.sql` the next day.
 
-Open with Dixon (see the status file): the numbers (12 minutes, 3 days, the 24-hour hold, noon Eastern), the
-wording of the ping, bar and sheet, and whether Saved follows the same rule (`limit_saved_same`, default yes).
-When the switch goes on these lines stop being true and need his words: Saved's "even years from now", the
-player's "Saved forever", and the games' "Saved, so these clips stay".
+Numbers on 11-28, 2:20am: the `holler` bucket held 260 MB of the 1 GB (169 MB three hours earlier); chats at
+15.5, 6.6 and 1.9 minutes. Switched on that day, the first run would mark 16 hollers in the 15.5-minute chat as
+leaving in 3 days and ping that chat once. A full chat is 145 to 180 MB, so 1 GB is about five full chats.
+
+Open with Dixon: the numbers (12 minutes, 3 days, the 24-hour hold, noon Eastern), the wording of the ping, bar
+and list, and whether Saved follows the same rule (`limit_saved_same`, default yes). When the switch goes on
+these lines stop being true and need his words: Saved's "even years from now", the player's "Saved forever",
+and the games' "Saved, so these clips stay". Known gap: an uploaded voice file is stored with length 0, so it
+never counts toward a chat's minutes.
