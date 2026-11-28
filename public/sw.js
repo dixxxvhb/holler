@@ -44,11 +44,14 @@ self.addEventListener('push', (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data ? e.data.text() : '' }; }
   const chat = d.chat || '';
-  e.waitUntil(Promise.all([bumpBadge(), self.registration.showNotification(d.title || 'Holler', {
+  // a "leaving soon" ping is not a new holler: it does not count on the app icon, and it does not replace the
+  // chat's last holler notification
+  const leaving = /\/leaving$/.test(d.url || '');
+  e.waitUntil(Promise.all([leaving ? null : bumpBadge(), self.registration.showNotification(d.title || 'Holler', {
     body: d.body || '',
     icon: './icon-192.png',
     badge: './icon-192.png',
-    tag: chat || 'holler',
+    tag: (chat || 'holler') + (leaving ? ':leaving' : ''),
     renotify: true,
     data: { chat, url: d.url || (chat ? '#/c/' + chat : '') },
   })]));
@@ -69,7 +72,7 @@ async function bumpBadge() {
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   const data = e.notification.data || {};
-  const hash = data.chat ? '#/c/' + data.chat : (data.url || '');
+  const hash = data.url || (data.chat ? '#/c/' + data.chat : '');
   e.waitUntil((async () => {
     const base = new URL('./', self.location).href;
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });

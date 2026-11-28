@@ -764,7 +764,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       <Thread chat={chat} me={me} polos={polos} pend={pend} others={others}
         recordingNow={others.filter(o => pres[o.id] === 'recording')}
         watchingNow={others.some(o => pres[o.id] === 'recording') ? null : others.find(o => pres[o.id] === 'watching') || null}
-        unreadCount={unread.length} onOpen={openPlayer} onWatchNew={() => openPlayer(polos, polos.indexOf(unread[0]))} />
+        unreadCount={unread.length} onOpen={openPlayer} onWatchNew={() => openPlayer(polos, polos.indexOf(unread[0]))} openLeaving={route[2] === 'leaving'} />
 
       <div className="bottom" ref={bottomRef}>
         {panel === 'looks' && (

@@ -93,3 +93,22 @@
 /* waking: a quiet line in the middle of the picture, and the record button waits */
 .cam-starting { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); z-index: var(--z-banner); padding: 8px 14px; border-radius: var(--r-pill); background: var(--puck); color: var(--chalk-2); font-size: 14px; font-weight: 700; white-space: nowrap; pointer-events: none; }
 .rec.waiting { opacity: .5; }
+
+/* ---------- leaving soon (the per-chat limit; shows only when something is on its way out) ---------- */
+.leaving-bar { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 6px 0 12px;
+  border-radius: var(--r-tile) var(--r-tile) var(--r-tile) var(--r-tail); background: var(--chalk); color: var(--on-color); font: 700 14px/1.2 var(--body); text-align: left; }
+.leaving-bar b { flex: 1; min-width: 0; }
+.leaving-bar span { flex: none; padding: 7px 12px; border-radius: var(--r-pill); background: var(--on-color); color: var(--chalk); font-size: 13px; }
+.leaving-bar:active { transform: scale(.98); }
+.tile-leave { position: absolute; top: 4px; left: 50%; margin-left: -10px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--chalk); color: var(--on-color); }
+.leaving-why { margin: 0 0 14px; color: var(--chalk-2); font-size: 15px; line-height: 1.45; }
+.leaving-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.leaving-list li { display: flex; gap: 12px; align-items: stretch; }
+.leaving-pic { flex: none; width: 72px; height: 96px; padding: 0; overflow: hidden; border-radius: var(--r-tile) var(--r-tile) var(--r-tile) var(--r-tail); background: var(--surface-2); }
+.leaving-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.leaving-voice { display: grid; place-items: center; align-content: center; gap: 6px; width: 100%; height: 100%; color: var(--chalk-2); }
+.leaving-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; justify-content: center; }
+.leaving-main b { font-size: 15px; }
+.leaving-main em { font-style: normal; color: var(--chalk-3); font-size: 13px; }
+.leaving-save { align-self: flex-start; margin-top: 7px; min-height: 44px; padding: 0 16px; background: var(--room); color: var(--on-color); font-size: 15px; }
+.leaving-save:disabled { opacity: .7; }
