@@ -263,7 +263,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; letter-sp
 @keyframes fade { from { opacity: 0; } }
 
 /* ---- home: the rooms, stacked edge to edge ---- */
-.home { height: 100%; min-height: 100%; overflow-y: auto; max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; padding: calc(var(--safe-t) + 4px) 0 calc(var(--safe-b) + 73px); }
+.home { height: 100%; min-height: 100%; overflow-y: auto; max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; padding: calc(var(--safe-t) + 4px) 0 var(--tabs-h, calc(var(--safe-b) + 56px)); }
 .home, .page { animation: fade var(--t-fast); }
 .home-top { display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 10px 0 16px; flex: none; }
 .me-btn { border-radius: 50%; width: 44px; height: 44px; display: grid; place-items: center; }
@@ -290,9 +290,9 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; letter-sp
 .cc-play { z-index: 1; width: 48px; height: 48px; padding-left: 3px; border-radius: 50%; display: grid; place-items: center; background: var(--chalk); color: var(--on-color); box-shadow: 0 0 0 3px var(--on-color); }
 /* unread: the block grows, the count goes huge, the picture gets the white frame */
 .chat-card.unread .cc-title { font-size: var(--fs-1); }
-.chats li:only-child .cc-title { font-size: 44px; }
-.chats li:only-child .cc-sub { font-size: 16px; margin-top: 8px; }
-.chats li:only-child .badge { font-size: 150px; bottom: 0; }
+.chats.solo li .cc-title { font-size: 44px; }
+.chats.solo li .cc-sub { font-size: 16px; margin-top: 8px; }
+.chats.solo li .badge { font-size: 150px; bottom: 0; }
 .chat-card.unread .cc-thumb { position: static; }
 .chat-card.unread .cc-thumb > :is(img, .cc-text, .fc) { height: min(78%, 178px); box-shadow: 0 0 0 4px var(--chalk), 0 0 0 7px var(--on-color); }
 .badge { position: absolute; left: 14px; bottom: 4px; font: 400 var(--fs-num)/1 var(--display); color: var(--on-color); background: none; min-width: 0; height: auto; padding: 0; border-radius: 0; display: block; }
@@ -303,12 +303,6 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; letter-sp
 .live-txt { display: inline-flex; align-items: center; gap: 7px; min-height: 28px; padding: 0 11px 0 9px; border-radius: var(--r-pill); background: var(--on-color); color: var(--chalk); font-weight: 700; font-size: 13px; animation: none; }
 .live-txt::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--rec); animation: blink 1s infinite; }
 .here-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--live); box-shadow: 0 0 0 2px var(--on-color); flex: none; }
-/* the dock: the only place New chat and Join live */
-.fab-row { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex; justify-content: stretch; gap: 4px; padding: 12px 16px calc(var(--safe-b) + 12px); background: var(--ground); pointer-events: auto; }
-.fab-row .btn { box-shadow: none; }
-.fab-row .btn:not(.primary) { background: none; color: var(--chalk-2); padding: 0 14px 0 6px; }
-.fab-row .btn.primary { flex: 1; }
-@media (min-width: 652px) { .fab-row { max-width: 620px; margin: 0 auto; } }
 .hint { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 var(--seam-w); padding: 14px 8px 14px 16px; border-radius: 0; background: var(--surface); }
 .hint div { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .hint span { color: var(--chalk-2); line-height: 1.4; }
@@ -320,7 +314,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; letter-sp
 .empty .muted { color: var(--on-color-2); font-weight: 700; margin: 0; max-width: 310px; }
 .empty .col { width: 100%; margin-top: 12px; }
 .empty-art { display: none; }
-.home .empty { margin-bottom: calc(-1 * (var(--safe-b) + 73px)); }   /* no dock on an empty home: the block runs to the bottom edge */
+.home .empty { margin-bottom: calc(-1 * var(--tabs-h, 56px)); padding-bottom: calc(var(--tabs-h, 56px) + 24px); }   /* the block runs down behind the tab bar */
 .page .empty { margin: 0 -16px calc(-1 * (var(--safe-b) + 40px)); min-height: calc(100vh - var(--safe-t) - 60px); min-height: calc(100dvh - var(--safe-t) - 60px); padding-bottom: calc(var(--safe-b) + 28px); }
 
 /* ---- pages (You, Saved) ---- */
@@ -390,7 +384,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; letter-sp
 
 /* ---- the room: color band, picture, color deck ---- */
 .chat { position: fixed; inset: 0; overflow: hidden; background: #000; --bottom-h: 260px; --ring: var(--on-color); }
-.preview { position: absolute; inset: 0; touch-action: none; }
+.preview { position: absolute; left: 0; top: 0; width: 100%; height: 100%; touch-action: none; }   /* thread.css lays it over the live tile in the thread */
 .cam, .raw-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .raw-video.mirror { transform: scaleX(-1); }
 .cam.dim { visibility: hidden; }  /* voice only: no blurred live camera, the room's wall shows instead */
@@ -445,28 +439,20 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; letter-sp
 .chat.panel-open .rail .rail-btn span, .rail.live .rail-btn span { display: none; }
 .chat.panel-open .rail .rail-btn, .rail.live .rail-btn { min-height: 46px; }
 
-/* the deck: a block of the room's color. Strip above, record at the bottom center. */
+/* the deck: a block of the room's color, record at the bottom center (thread.css seats it under the thread) */
 .bottom { position: absolute; left: 0; right: 0; bottom: 0; z-index: var(--z-deck); display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 14px 0 calc(var(--safe-b) + 14px);
   --deck: var(--room); --deck-ink: var(--on-color); --deck-ink-2: var(--on-color-2); --deck-fill: var(--on-color-fill);
   background: var(--deck); color: var(--deck-ink); transition: background-color var(--t-base) var(--ease-out), color var(--t-base); }
-.new-pill { display: inline-flex; align-items: center; gap: 8px; min-height: 46px; margin-top: -39px; padding: 0 20px 0 16px; border-radius: var(--r-pill); background: var(--chalk); color: var(--on-color); font-weight: 700; font-size: 15px; box-shadow: 0 0 0 3px var(--on-color); animation: rise var(--t-slow) var(--ease-out) both; }
+.new-pill { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px 0 14px; border-radius: var(--r-pill); background: var(--chalk); color: var(--on-color); font-weight: 700; font-size: 15px; animation: rise var(--t-slow) var(--ease-out) both; transition: transform var(--t-press) var(--ease-out); }
+.new-pill:active { transform: scale(.96); }
 .new-pill b { font: 700 15px var(--mono); }
-.strip { width: 100%; display: flex; gap: 12px; overflow-x: auto; padding: 6px 16px; scroll-behavior: smooth; scrollbar-width: none; min-height: 104px; align-items: center; }
-.strip::-webkit-scrollbar { display: none; }
-/* while the room loads, the strip holds its shape */
+/* while the room loads, the thread holds its shape */
 .tile-sk { flex: none; width: 66px; height: 92px; border-radius: var(--r-tile) var(--r-tile) var(--r-tile) var(--r-tail); background: var(--deck-fill); }
-/* a new day starts here: a short rule and the day, read up the side like the spine of a book */
-.strip-day { flex: none; align-self: stretch; display: flex; align-items: center; gap: 5px; margin: 0 -3px; }
-.strip-day::before { content: ''; width: 2px; height: 64px; border-radius: 1px; background: var(--deck-ink); opacity: .22; }
-.strip-day i { writing-mode: vertical-rl; transform: rotate(180deg); font: 700 11px/1 var(--body); font-style: normal; color: var(--deck-ink-2); white-space: nowrap; }
-.strip-day:first-child::before { display: none; }
-.strip-empty { color: var(--deck-ink); font-weight: 700; margin: 0 auto; }
 .tile { position: relative; flex: none; width: 66px; height: 92px; border-radius: var(--r-tile) var(--r-tile) var(--r-tile) var(--r-tail); overflow: hidden; background: var(--on-color); color: var(--chalk); box-shadow: 0 0 0 2px var(--on-color); display: grid; place-items: center; --ring: var(--on-color); }
 .tile.mine { border-radius: var(--r-tile) var(--r-tile) var(--r-tail) var(--r-tile); }
 .tile.new { box-shadow: 0 0 0 3px var(--chalk), 0 0 0 5px var(--on-color); }
 .tile.new::after { content: none; }
 .tile img, .tile .fc { width: 100%; height: 100%; object-fit: cover; }
-.tile-text { padding: 7px; font: 700 var(--fs-micro)/1.2 var(--body); text-align: left; overflow: hidden; height: 100%; width: 100%; background: var(--c); color: var(--on-color); display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; }
 .tile-audio { display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--chalk-2); margin-top: -12px; }
 .tile-av { position: absolute; left: 4px; bottom: 4px; display: flex; }
 .tile-dur { position: absolute; right: 4px; bottom: 4px; font: 700 10px/1 var(--mono); background: var(--on-color); color: var(--chalk); padding: 3px 4px; border-radius: 5px; }
@@ -506,10 +492,9 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; letter-sp
 .rec.counting .rec-core { transform: scale(.7); opacity: .6; }
 .rec-hint { font-size: 13px; font-weight: 700; color: var(--deck-ink-2); margin-top: -4px; }
 
-/* while you record the room goes quiet: color drains to ink, the strip leaves, a thin line keeps the room */
+/* while you record the room goes quiet: color drains to ink, a thin line keeps the room */
 .chat.is-rec .bottom, .chat:has(.rec.on) .bottom { --deck: var(--on-color); --deck-ink: var(--chalk); --deck-ink-2: var(--chalk-2); --deck-fill: rgba(247, 246, 251, .14); box-shadow: 0 calc(-1 * var(--seam-w)) 0 var(--room); }
 .chat.is-rec .chat-top, .chat:has(.rec.on) .chat-top { background-color: var(--on-color); color: var(--chalk); box-shadow: 0 var(--seam-w) 0 var(--room); --ring: var(--chalk); }
-.chat.is-rec .strip, .chat:has(.rec.on) .strip { display: none; }
 .chat.is-rec .rec-ring circle:not(.prog), .chat:has(.rec.on) .rec-ring circle:not(.prog) { stroke: rgba(247, 246, 251, .24); }
 .chat.is-rec .side-btn:not(.ghost), .chat:has(.rec.on) .side-btn:not(.ghost) { background: var(--deck-fill); }
 

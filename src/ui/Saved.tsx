@@ -18,7 +18,7 @@ export function Saved() {
   return (
     <div className="page" data-you="" style={{ ['--room' as string]: tone(me.color) }}>
       <header className="page-top">
-        <button className="icon-btn" onClick={() => go('/')} aria-label="Back"><Icon name="back" /></button>
+        <button className="icon-btn" onClick={() => go('/settings')} aria-label="Back"><Icon name="back" /></button>
         <h1>Saved</h1><span />
       </header>
       {list === null ? <div className="grid" aria-busy="true">{[0, 1, 2, 3, 4, 5].map(i => <span key={i} className="g-tile sk" />)}</div> : list.length === 0 ? (

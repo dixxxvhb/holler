@@ -1,5 +1,8 @@
 // Flip mid-recording + camera asked only once across chat hops. Pass "ios" to fake an iPhone Home Screen app.
 import { chromium } from 'playwright';
+// the room opens on its thread (11-27): the camera opens from the live tile. camFirst opens it before a step
+// that uses the camera's own controls (the record button, the rail); it does nothing when the camera is already open.
+const camFirst = async p => { if (await p.locator('.chat.in-thread .rec.live-tile').count()) { await p.locator('.rec.live-tile').click(); await p.waitForSelector('.chat.cam-open'); } };
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const IOS = process.argv[3] === 'ios';
 const b = await chromium.launch({ channel: process.env.PW_CHANNEL || undefined, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
@@ -25,15 +28,15 @@ for (let i = 0; i < 2; i++) {
   await p.click('.chat-card'); await p.waitForTimeout(1500);
 }
 // flip before recording, then twice during
-await p.click('.rail-btn:has-text("Flip")'); await p.waitForTimeout(800);
-await p.click('.rec'); await p.waitForTimeout(1500);
+await camFirst(p); await p.click('.rail-btn:has-text("Flip")'); await p.waitForTimeout(800);
+await camFirst(p); await p.click('.rec'); await p.waitForTimeout(1500);
 const flipDuring = await p.locator('.rail-btn:has-text("Flip")').count();
-await p.click('.rail-btn:has-text("Flip")'); await p.waitForTimeout(1200);
+await camFirst(p); await p.click('.rail-btn:has-text("Flip")'); await p.waitForTimeout(1200);
 // double-tap the picture
 const box = await p.locator('.preview').boundingBox();
 await p.mouse.click(box.x + box.width / 2, box.y + 300); await p.mouse.click(box.x + box.width / 2, box.y + 300);
 await p.waitForTimeout(1500);
-await p.click('.rec');
+await camFirst(p); await p.click('.rec');
 await p.waitForSelector('.tile:not(.pending) img', { timeout: 30000 });
 await p.waitForTimeout(500);
 // play it back and check it decodes with real pixels and full length

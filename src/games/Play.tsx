@@ -13,7 +13,8 @@ const first = (p?: Person | null) => (p?.name || 'Someone').split(' ')[0];
 const local = (k: string, d: string) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
 const keep = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
 
-import { roleOf } from './roundLogic';
+import { roleOf, GAME_NAME } from './roundLogic';
+import { CATALOG, GROUPS, GROUP_LABEL, countLine } from './catalog';
 export { roleOf, type Role } from './roundLogic';
 
 // ---------------------------------------------------------------- the Play sheet
@@ -22,74 +23,27 @@ export function PlaySheet({ open, onClose, people, onCard, onPassItOn, onRound }
 }) {
   return (
     <Sheet open={open} onClose={onClose} title="Play">
-      <p className="g-sub">Everything here is a holler. Play whenever you have a minute; nobody has to be on at the same time.</p>
-      <button className="g-opt" onClick={onCard}>
+      <button className="g-opt g-card" onClick={onCard}>
         <span className="g-opt-ic card"><Icon name="cards" size={24} /></span>
         <span className="g-opt-txt"><b>Give me a card</b><span>Something to talk about, on screen while you record. Say it, guess it, or act it.</span></span>
       </button>
-      <button className="g-opt game" onClick={onPassItOn} disabled={people < 3}>
-        <span className="g-opt-ic pass"><Icon name="chain" size={24} /></span>
-        <span className="g-opt-txt"><b>Pass It On</b><span>{people < 3 ? 'Needs 3 or more people in this chat.' : 'You act out a secret phrase. Each person copies only the clip before theirs. The last one guesses.'}</span></span>
-        <span className="g-opt-n">3 to 5</span>
-      </button>
-      <button className="g-opt game" onClick={() => onRound('poker')} disabled={people < 3}>
-        <span className="g-opt-ic pass"><Icon name="facecam" size={24} /></span>
-        <span className="g-opt-txt"><b>Poker Face</b><span>{people < 3 ? 'Needs 3 or more people in this chat.' : 'Everyone answers the same question to camera. One of you secretly has the real answer. Vote on who.'}</span></span>
-        <span className="g-opt-n">3 to 5</span>
-      </button>
-      <button className="g-opt game" onClick={() => onRound('charades')} disabled={people < 2}>
-        <span className="g-opt-ic pass"><Icon name="eye" size={24} /></span>
-        <span className="g-opt-txt"><b>Charades Relay</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Everyone acts out a secret word with no talking. Guess the others. Faster scores more.'}</span></span>
-        <span className="g-opt-n">2 to 5</span>
-      </button>
-      <button className="g-opt game" onClick={() => onRound('spot')} disabled={people < 2}>
-        <span className="g-opt-ic pass"><Icon name="timer" size={24} /></span>
-        <span className="g-opt-txt"><b>On The Spot</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Trivia on camera. Your questions appear the moment you hit record. Everyone watches you sweat.'}</span></span>
-        <span className="g-opt-n">2 to 5</span>
-      </button>
-      <button className="g-opt game" onClick={() => onRound('laugh')} disabled={people < 2}>
-        <span className="g-opt-ic pass"><Icon name="laugh" size={24} /></span>
-        <span className="g-opt-txt"><b>Don't Laugh</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Record something to crack them up. Watch theirs while your camera watches you. Smile and you\'re out.'}</span></span>
-        <span className="g-opt-n">2 to 5</span>
-      </button>
-      <button className="g-opt game" onClick={() => onRound('zoom')} disabled={people < 2}>
-        <span className="g-opt-ic pass"><Icon name="camera" size={24} /></span>
-        <span className="g-opt-txt"><b>Zoom In</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Film something up close. Everyone sees it way zoomed in and pulling out. Name it before it gets obvious.'}</span></span>
-        <span className="g-opt-n">2 to 6</span>
-      </button>
-      <button className="g-opt game" onClick={() => onRound('said')} disabled={people < 3}>
-        <span className="g-opt-ic pass"><Icon name="wow" size={24} /></span>
-        <span className="g-opt-txt"><b>Who Said It</b><span>{people < 3 ? 'Needs 3 or more people in this chat.' : 'Everyone answers a prompt about each other. Then guess who wrote what about you. No camera needed.'}</span></span>
-        <span className="g-opt-n">3 to 6</span>
-      </button>
-      <span className="lbl g-play-lbl">Quick games</span>
-      <button className="g-opt game" onClick={() => onRound('words')} disabled={people < 2}>
-        <span className="g-opt-ic pass"><Icon name="letters" size={24} /></span>
-        <span className="g-opt-txt"><b>Seven Letters</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Same seven letters for everyone. Make as many words as you can before the clock runs out.'}</span></span>
-        <span className="g-opt-n">2 to 5</span>
-      </button>
-      <button className="g-opt game" onClick={() => onRound('trivia')} disabled={people < 2}>
-        <span className="g-opt-ic pass"><Icon name="quiz" size={24} /></span>
-        <span className="g-opt-txt"><b>Trivia</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Ten questions, fifteen seconds each. Same questions for everyone. Faster scores more.'}</span></span>
-        <span className="g-opt-n">2 to 5</span>
-      </button>
-      <span className="lbl g-play-lbl">Board and card games</span>
-      <button className="g-opt game" onClick={() => onRound('lastcard')} disabled={people < 2}>
-        <span className="g-opt-ic pass"><Icon name="cards" size={24} /></span>
-        <span className="g-opt-txt"><b>Last Card</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Match by color or number, hit them with Skips and Draw Twos, and get rid of every card first.'}</span></span>
-        <span className="g-opt-n">2 to 6</span>
-      </button>
-      <button className="g-opt game" onClick={() => onRound('checkers')} disabled={people < 2}>
-        <span className="g-opt-ic pass"><Icon name="board" size={24} /></span>
-        <span className="g-opt-txt"><b>Checkers</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Classic checkers, one move at a time. Jumps are a must.'}</span></span>
-        <span className="g-opt-n">2</span>
-      </button>
-      <button className="g-opt game" onClick={() => onRound('ttt')} disabled={people < 2}>
-        <span className="g-opt-ic pass"><Icon name="grid" size={24} /></span>
-        <span className="g-opt-txt"><b>Tic-Tac-Toe</b><span>{people < 2 ? 'Needs 2 or more people in this chat.' : 'Three in a row. Quick, and always good for a rematch.'}</span></span>
-        <span className="g-opt-n">2</span>
-      </button>
-      <p className="g-later">Coming next: The Long Game.</p>
+      {GROUPS.map(gr => (
+        <div key={gr}>
+          <span className="lbl g-play-lbl">{GROUP_LABEL[gr]}</span>
+          <div className="g-grid">
+            {CATALOG.filter(c => c.group === gr).map(c => {
+              const short = people < c.min;
+              return (
+                <button key={c.kind} className="g-opt g-tile" disabled={short} onClick={() => (c.kind === 'passiton' ? onPassItOn() : onRound(c.kind as Parameters<typeof onRound>[0]))}>
+                  <span className="g-opt-ic"><Icon name={c.icon} size={22} /></span>
+                  <b>{GAME_NAME[c.kind]}</b>
+                  <em>{short ? `Needs ${c.min}` : countLine(c)}</em>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </Sheet>
   );
 }

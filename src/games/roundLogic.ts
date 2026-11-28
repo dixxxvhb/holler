@@ -71,6 +71,8 @@ export function charadesScores(g: Game): Record<string, number> {
 export const first = (p?: Person | null) => (p?.name || 'Someone').split(' ')[0];
 export const personIn = (chat: ChatFull, me: Person) => (id: string) => (id === me.id ? me : chat.members.find(m => m.id === id));
 export const owes = (g: Game, me: string) => g.status === 'playing' && (isTurns(g) ? g.turnPerson === me : (g.todo || []).includes(me));
+/** Is it this person's go (Pass It On: playing and it is their clip; the rest: they owe a move)? */
+export const myGo = (g: Game, me: string) => g.status === 'playing' && (g.kind === 'passiton' ? g.turnPerson === me : owes(g, me));
 /** Has this person done their part for now (for the little faces on a tile)? */
 export const doneFor = (g: Game, id: string) => g.status !== 'playing' || (isTurns(g) ? g.turnPerson !== id
   : isQuick(g) || g.kind === 'spot' ? (g.played || []).includes(id)
@@ -78,7 +80,7 @@ export const doneFor = (g: Game, id: string) => g.status !== 'playing' || (isTur
   : g.kind === 'poker' ? (g.phase === 'vote' || (g.recorded || []).includes(id)) : (g.acted || []).includes(id));
 
 /** The line under a round game's tile in the strip. */
-export function tileLine(g: Game, me: Person, chat: ChatFull): string {
+export function tileLine(g: Game, me: Person, chat: { members: Person[] }): string {
   const n = g.order.length;
   if (isTurns(g)) {
     if (g.status !== 'playing') return g.result === 'draw' ? 'A draw' : g.result === 'idle' ? 'Ended' : g.winner === me.id ? 'You won' : g.winner ? `${first(chat.members.find(m => m.id === g.winner))} won` : 'Over';

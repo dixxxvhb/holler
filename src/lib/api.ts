@@ -167,6 +167,7 @@ export const api = {
   gameGuess: (id: string, actor: string, text: string, t: number) =>
     rpc<{ ok: boolean; tries: number; done: boolean; word: string | null; game: Game }>('holler_game_guess', { p_game: id, p_actor: actor, p_text: text, p_t: t }),
   game: (id: string) => rpc<Game>('holler_game', { p_game: id }),
+  games: () => rpc<{ games: Game[] }>('holler_games'),
   gameMove: (id: string, version: number, move: { cell: number } | { path: number[] }) =>
     rpc<Game>('holler_game_move', { p_game: id, p_version: version, p_move: move }),
   gameLaughed: (id: string, actor: string, cracked: number | null) =>

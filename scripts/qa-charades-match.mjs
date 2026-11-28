@@ -6,6 +6,9 @@
 // Usage: PW_CHANNEL=chrome node scripts/qa-charades-match.mjs [baseUrl]  -> shots/charades/*.png
 // Then ALWAYS clean the QA people (the batched cleaner).
 import { chromium } from 'playwright';
+// the room opens on its thread (11-27): the camera opens from the live tile. camFirst opens it before a step
+// that uses the camera's own controls (the record button, the rail); it does nothing when the camera is already open.
+const camFirst = async p => { if (await p.locator('.chat.in-thread .rec.live-tile').count()) { await p.locator('.rec.live-tile').click(); await p.waitForSelector('.chat.cam-open'); } };
 import { mkdirSync, readFileSync } from 'fs';
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const OUT = 'shots/charades'; mkdirSync(OUT, { recursive: true });
@@ -64,7 +67,7 @@ try {
   await A.click('.g-play-tile'); await A.click('.g-opt:has-text("Charades Relay")');
   await A.click('.g-seg button:has-text("10 sec")'); await A.waitForTimeout(450);
   await A.click('.btn.g-go:has-text("Start")');
-  const act = async p => { await p.waitForSelector('.g-word'); await p.click('.rec'); await p.waitForTimeout(12000); await p.waitForTimeout(5000); };
+  const act = async p => { await p.waitForSelector('.g-word'); await camFirst(p); await p.click('.rec'); await p.waitForTimeout(12000); await p.waitForTimeout(5000); };
   await act(A);
   const gid = (await rpc('holler_chat', { p_token: tok.A, p_chat: chat })).games.find(g => g.kind === 'charades').id;
   for (const p of [B, C]) {

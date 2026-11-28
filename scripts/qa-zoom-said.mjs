@@ -60,7 +60,7 @@ try {
   const tok = {}; for (const [k, p] of [['A', A], ['B', B], ['C', C]]) tok[k] = await p.evaluate(() => localStorage.getItem('holler.token'));
   const home = await rpc('holler_home', { p_token: tok.A }); const chat = home.chats[0].id;
   const ids = {}; for (const k of ['A', 'B', 'C']) ids[k] = (await rpc('holler_home', { p_token: tok[k] })).me.id;
-  check(await C.isVisible('.notes-mode'), 'C is a Notes-mode phone');
+  check(!(await C.isVisible('.notes-mode')) && await C.isVisible('.rec.note-only'), 'C is a Notes-mode phone');   // 11-27: notes mode is the thread with the big Note button, no wall
   await A.waitForTimeout(2500);
 
   // ================= Zoom In =================

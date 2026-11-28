@@ -3,6 +3,9 @@
 // (three acts, a wrong guess, right guesses, final scores). Then ALWAYS clean up: node scripts/clean-qa-remote.mjs
 // Usage: PW_CHANNEL=chrome node scripts/qa-rounds.mjs [baseUrl]
 import { chromium } from 'playwright';
+// the room opens on its thread (11-27): the camera opens from the live tile. camFirst opens it before a step
+// that uses the camera's own controls (the record button, the rail); it does nothing when the camera is already open.
+const camFirst = async p => { if (await p.locator('.chat.in-thread .rec.live-tile').count()) { await p.locator('.rec.live-tile').click(); await p.waitForSelector('.chat.cam-open'); } };
 import { mkdirSync } from 'node:fs';
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const OUT = 'shots/rounds'; mkdirSync(OUT, { recursive: true });
@@ -45,7 +48,7 @@ try {
     await p.waitForSelector('.g-banner'); await p.waitForTimeout(600);
     const truth = await p.locator('.g-secret-mini').count() === 1; if (truth) truthCount++;
     await shot(p, `03-${N[i]}-poker-turn`);
-    await p.click('.rec'); await p.waitForTimeout(2600); await p.click('.rec'); await p.waitForTimeout(7000);
+    await camFirst(p); await p.click('.rec'); await p.waitForTimeout(2600); await camFirst(p); await p.click('.rec'); await p.waitForTimeout(7000);
   };
   await answer(A, 0);
   for (const [p, i] of [[B, 1], [C, 2]]) {
@@ -93,7 +96,7 @@ try {
   const actIt = async (p, i) => {
     await p.waitForSelector('.g-word'); await p.click('.g-word .chip'); await p.waitForTimeout(300);
     words[i] = (await p.textContent('.g-word p')).trim(); await shot(p, `11-${N[i]}-act-banner`);
-    await p.click('.rec'); await p.waitForTimeout(1500);
+    await camFirst(p); await p.click('.rec'); await p.waitForTimeout(1500);
     check(await p.locator('.g-word .chip').count() === 0, `${N[i]}: no Another word while recording`);
     await p.waitForTimeout(10500);
     check(await p.locator('.g-banner').count() === 0, `${N[i]}: act sent itself at 10 seconds`);

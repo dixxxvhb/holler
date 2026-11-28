@@ -87,14 +87,50 @@ export function HomeScreen() {
     catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };
 
+  const block = (c: (typeof home.chats)[number], person: boolean) => {
+    const others = c.members.filter(m => m.id !== me.id);
+    const pres = presenceOf(c.id);
+    const recording = others.find(o => pres[o.id] === 'recording');
+    const here = others.filter(o => pres[o.id]);
+    const lastBy = c.members.find(m => m.id === c.last?.author);
+    const from = lastBy && lastBy.id !== me.id && c.last ? `new from ${lastBy.name.split(' ')[0]} · ${ago(c.last.at)}` : `new ${c.unread === 1 ? 'holler' : 'hollers'}`;
+    return (
+      <li key={c.id} className={c.unread ? 'is-unread' : recording ? 'is-live' : ''}>
+        <button className={`chat-card ${person ? 'person' : ''} ${c.unread ? 'unread' : ''} ${recording ? 'live' : ''}`} data-room={c.theme || 'ember'} onClick={e => go(c.unread && (e.target as Element).closest('.cc-thumb') && !(e.target as Element).closest('.badge') ? `/c/${c.id}/watch` : `/c/${c.id}`)}>
+          {person && <span className="cc-av"><Avatar p={others[0]} size={60} /></span>}
+          <div className="cc-thumb">
+            {c.last?.thumb ? <img src={publicUrl(c.last.thumb)} alt="" loading="lazy" /> : c.last?.kind === 'text' ? <span className="cc-text" style={{ background: tone(lastBy?.color), color: 'var(--on-color)' }}>{c.last.body}</span> : c.last?.kind === 'audio' ? <Icon name="wave" size={28} /> : <Icon name="camera" size={26} />}
+            {c.unread > 0 && <span className="cc-play" aria-hidden="true"><Icon name="play" size={20} fill="currentColor" /></span>}
+            {c.unread > 0 && <span className="badge">{c.unread}</span>}
+          </div>
+          <div className="cc-body">
+            <div className="cc-title">{chatTitle(c, me.id)}</div>
+            {c.yourTurn ? <span className="turn-tag">{c.yourTurn > 1 ? `${c.yourTurn} games waiting on you` : 'A game is waiting on you'}</span> : null}
+            <div className="cc-sub">
+              {recording ? <span className="live-txt">{recording.name.split(' ')[0]} is recording</span>
+                : c.unread ? <span className="hot">{from}</span>
+                : c.last ? <span>{lastBy?.id === me.id ? 'You' : lastBy?.name.split(' ')[0]} · {ago(c.last.at)}{lastBy?.id === me.id && others.length > 0 ? <> · <span className={c.last.seen?.length ? 'seen-txt' : ''}>{seenLine(c.last.seen || [], others)}</span></> : null}</span>
+                : <span>No hollers yet</span>}
+              {here.length > 0 && !recording && <span className="here-dot" title="Here now" />}
+            </div>
+          </div>
+          {!person && <AvatarStack people={others.length ? others : c.members} size={30} max={3} />}
+          {c.muted && <Icon name="bellOff" size={16} className="muted" />}
+        </button>
+      </li>
+    );
+  };
+  // People = chats with exactly two members; Groups = everything else. Most recent activity first; a chat does not jump up for being unread.
+  const recent = (a: { lastPoloAt: string; id: string }, b: { lastPoloAt: string; id: string }) => (b.lastPoloAt || '').localeCompare(a.lastPoloAt || '') || a.id.localeCompare(b.id);
+  const people = home.chats.filter(c => c.members.length === 2).sort(recent);
+  const groups = home.chats.filter(c => c.members.length !== 2).sort(recent);
+  const sections = [{ id: 'people', label: 'People', list: people, person: true }, { id: 'groups', label: 'Groups', list: groups, person: false }].filter(x => x.list.length);
+
   return (
     <div className="home">
       <header className="home-top">
         <h1 className="wordmark sm">holler</h1>
-        <div className="row gap">
-          <button className="icon-btn" onClick={() => go('/saved')} aria-label="Saved"><Icon name="bookmark" /></button>
-          <button className="me-btn" onClick={() => go('/settings')} aria-label="Settings"><Avatar p={me} size={36} /></button>
-        </div>
+        <button className="new-chat-btn" onClick={openNew} aria-label="New chat"><Icon name="plus" size={22} /></button>
       </header>
 
       <InstallHint />
@@ -110,46 +146,13 @@ export function HomeScreen() {
           </div>
         </div>
       ) : (
-        <ul className="chats">
-          {home.chats.map(c => {
-            const others = c.members.filter(m => m.id !== me.id);
-            const pres = presenceOf(c.id);
-            const recording = others.find(o => pres[o.id] === 'recording');
-            const here = others.filter(o => pres[o.id]);
-            const lastBy = c.members.find(m => m.id === c.last?.author);
-            const from = lastBy && lastBy.id !== me.id && c.last ? `new from ${lastBy.name.split(' ')[0]} · ${ago(c.last.at)}` : `new ${c.unread === 1 ? 'holler' : 'hollers'}`;
-            return (
-              <li key={c.id} className={c.unread ? 'is-unread' : recording ? 'is-live' : ''}>
-                <button className={`chat-card ${c.unread ? 'unread' : ''} ${recording ? 'live' : ''}`} data-room={c.theme || 'ember'} onClick={e => go(c.unread && (e.target as Element).closest('.cc-thumb') && !(e.target as Element).closest('.badge') ? `/c/${c.id}/watch` : `/c/${c.id}`)}>
-                  <div className="cc-thumb">
-                    {c.last?.thumb ? <img src={publicUrl(c.last.thumb)} alt="" loading="lazy" /> : c.last?.kind === 'text' ? <span className="cc-text" style={{ background: tone(lastBy?.color), color: 'var(--on-color)' }}>{c.last.body}</span> : c.last?.kind === 'audio' ? <Icon name="wave" size={28} /> : <Icon name="camera" size={26} />}
-                    {c.unread > 0 && <span className="cc-play" aria-hidden="true"><Icon name="play" size={20} fill="currentColor" /></span>}
-                    {c.unread > 0 && <span className="badge">{c.unread}</span>}
-                  </div>
-                  <div className="cc-body">
-                    <div className="cc-title">{chatTitle(c, me.id)}</div>
-                    {c.yourTurn ? <span className="turn-tag">{c.yourTurn > 1 ? `${c.yourTurn} games waiting on you` : 'A game is waiting on you'}</span> : null}
-                    <div className="cc-sub">
-                      {recording ? <span className="live-txt">{recording.name.split(' ')[0]} is recording</span>
-                        : c.unread ? <span className="hot">{from}</span>
-                        : c.last ? <span>{lastBy?.id === me.id ? 'You' : lastBy?.name.split(' ')[0]} · {ago(c.last.at)}{lastBy?.id === me.id && others.length > 0 ? <> · <span className={c.last.seen?.length ? 'seen-txt' : ''}>{seenLine(c.last.seen || [], others)}</span></> : null}</span>
-                        : <span>No hollers yet</span>}
-                      {here.length > 0 && !recording && <span className="here-dot" title="Here now" />}
-                    </div>
-                  </div>
-                  <AvatarStack people={others.length ? others : c.members} size={30} max={3} />
-                  {c.muted && <Icon name="bellOff" size={16} className="muted" />}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {home.chats.length > 0 && (
-        <div className="fab-row">
-          <button className="btn" onClick={openJoin}>Join with code</button>
-          <button className="btn primary" onClick={openNew}><Icon name="plus" size={18} /> New chat</button>
+        <div className="chat-sections">
+          {sections.map(x => (
+            <section key={x.id} className="chat-sec" style={{ ['--n' as string]: x.list.length }} aria-label={x.label}>
+              {sections.length > 1 && <div className="sec-lbl">{x.label}</div>}
+              <ul className={`chats ${home.chats.length === 1 ? 'solo' : ''}`}>{x.list.map(c => block(c, x.person))}</ul>
+            </section>
+          ))}
         </div>
       )}
 
@@ -162,6 +165,7 @@ export function HomeScreen() {
         </div>
         <p className="fine">Next you'll get a link to send to the people you want in it.</p>
         <button className="btn primary wide" disabled={busy} onClick={() => void create()}>Make it</button>
+        <button className="link-btn sheet-link" onClick={openJoin}>Have a code? Join a chat</button>
       </Sheet>
       <Sheet open={sheet === 'join'} onClose={() => setSheet(null)} title="Join a chat">
         <label className="lbl center" htmlFor="jc">Invite code</label>

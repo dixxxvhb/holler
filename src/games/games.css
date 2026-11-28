@@ -25,6 +25,17 @@
 .g-opt-txt b { font: 400 24px/1.02 var(--display); }
 .g-opt-txt span { font-size: 14px; font-weight: 500; color: var(--on-color-2); line-height: 1.35; }
 .g-opt-n { flex: none; align-self: flex-start; font: 700 12px/1 var(--mono); padding: 5px 7px; border-radius: 6px; background: var(--on-color); color: var(--chalk); }
+.g-opt.g-card { margin-bottom: 0; min-height: 84px; }
+/* the Play sheet's catalog: a grid of small tiles, three across. (Saved's .g-tile and the strip's .tile.g-tile are other things; these are scoped to .g-opt.) */
+.g-grid { display: grid; grid-template-columns: repeat(3, 1fr); margin: 0 -20px; }
+.g-opt.g-tile { position: static; aspect-ratio: auto; overflow: visible; width: auto; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px; min-height: 90px; padding: 10px 4px 8px;
+  border-radius: 0; background: none; color: var(--chalk); text-align: center; box-shadow: none; }
+.g-opt.g-tile + .g-opt.g-tile { margin-top: 0; }
+.g-opt.g-tile:active:not(:disabled) { background: var(--surface-2); transform: scale(.96); }
+.g-opt.g-tile .g-opt-ic { width: 40px; height: 40px; background: var(--surface-2); color: var(--chalk); }
+.g-opt.g-tile b { font: 400 14px/1.05 var(--display); color: var(--chalk); }
+.g-opt.g-tile em { font: 700 11px/1 var(--mono); font-style: normal; color: var(--chalk-3); }
+.g-opt.g-tile:disabled { opacity: .42; }
 .g-later { font-size: 13px; color: var(--chalk-3); margin: 14px 0 0; }
 .g-warn { font-size: 14px; font-weight: 700; color: var(--danger); margin: 10px 0 0; }
 

@@ -1,6 +1,9 @@
 // 11-27 polish checks: game dock, moving in Tic-Tac-Toe while a holler records, voice-only and notes-only phones, profiles.
 // Usage: PW_CHANNEL=chrome node scripts/qa-polish.mjs [baseUrl]  -> shots/polish/*.png ; then node scripts/clean-qa.mjs
 import { chromium } from 'playwright';
+// the room opens on its thread (11-27): the camera opens from the live tile. camFirst opens it before a step
+// that uses the camera's own controls (the record button, the rail); it does nothing when the camera is already open.
+const camFirst = async p => { if (await p.locator('.chat.in-thread .rec.live-tile').count()) { await p.locator('.rec.live-tile').click(); await p.waitForSelector('.chat.cam-open'); } };
 import { mkdirSync, readFileSync } from 'fs';
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const env = Object.fromEntries(readFileSync('.env.local', 'utf8').trim().split(/\r?\n/).map(l => l.split('=')));
@@ -56,11 +59,11 @@ check('mic never muted or unmuted leaving and reopening a chat', (await A.evalua
 await A.waitForSelector('.g-dock .g-chip', { timeout: 10000 });
 check('dock shows the game', await A.isVisible('.g-dock .g-chip'));
 check('dock marks Avery to move', await A.isVisible('.g-chip.turn'));
-check('games are not in the strip any more', (await A.locator('.strip .g-tile').count()) === 0);
+check('games are not in the strip any more', (await A.locator('.thread .g-tile').count()) === 0);
 await shot(A, '01-dock');
 
 // record, move while talking, send
-await A.click('button.rec'); await A.waitForTimeout(1200);
+await camFirst(A); await A.click('button.rec'); await A.waitForTimeout(1200);
 check('chip says move while you talk', (await A.textContent('.g-chip.turn em'))?.includes('Move while you talk'));
 await A.click('.g-chip.turn'); await A.waitForSelector('.g-page.float', { timeout: 8000 });
 await A.waitForTimeout(500); await shot(A, '02-float-board-while-recording');
@@ -86,17 +89,19 @@ await shot(B, '03-home-your-move');
 await B.evaluate(() => localStorage.setItem('holler.cam', 'voice'));
 await B.evaluate(c => { location.hash = '#/c/' + c; }, chat);
 await B.reload(); await B.waitForSelector('.chat-top'); await B.waitForTimeout(2500);
+await camFirst(B); await B.waitForTimeout(600);
 check('voice mode shows voice screen', await B.isVisible('.audio-mode'));
 check('voice mode asked for no camera', await B.evaluate(() => !document.querySelector('.rail button[aria-label="Flip camera"]')));
 await shot(B, '04-voice-only');
-await B.click('button.rec'); await B.waitForTimeout(2000); await B.click('button.rec'); await B.waitForTimeout(6500);
+await camFirst(B); await B.click('button.rec'); await B.waitForTimeout(2000); await B.click('button.rec'); await B.waitForTimeout(6500);
 const chatB = await rpc('holler_chat', { p_token: tB, p_chat: chat });
 check('voice holler landed as audio', chatB.polos.some(p => p.author === idB && p.kind === 'audio'));
 
 // B: notes and games only
 await B.evaluate(() => localStorage.setItem('holler.cam', 'off'));
 await B.reload(); await B.waitForSelector('.chat-top'); await B.waitForTimeout(1500);
-check('notes mode shows its screen', await B.isVisible('.notes-mode'));
+// 11-27: a notes-only phone gets the thread with the big Note button, no wall
+check('notes mode shows the thread, no wall', !(await B.isVisible('.notes-mode')) && await B.isVisible('.thread') && await B.isVisible('.rec.note-only'));
 await shot(B, '05-notes-only');
 await B.click('.rec.note-only'); await B.fill('.sheet textarea', 'No camera, still here'); await B.click('.sheet .btn.primary'); await B.waitForTimeout(1500);
 const chatB2 = await rpc('holler_chat', { p_token: tB, p_chat: chat });
@@ -108,7 +113,9 @@ const chatB3 = await rpc('holler_chat', { p_token: tB, p_chat: chat });
 check('no-camera phone moved in the game', chatB3.games.find(g => g.kind === 'ttt')?.turnPerson === idA);
 await B.click('.g-page .g-back');
 // the camera sheet
-await B.click('.notes-mode .btn'); await B.waitForSelector('.cam-opt'); await shot(B, '06-camera-sheet'); await B.click('.sheet-head .icon-btn');
+// (the wall's Change button is gone; a game that needs more than notes offers Change, as does You)
+await B.click('.g-play-tile'); await B.click('.g-opt:has-text("Give me a card")'); await B.click('.toast button:has-text("Change")'); await B.waitForSelector('.cam-opt'); await shot(B, '06-camera-sheet');
+await B.locator('.sheet-head .icon-btn').last().click(); await B.waitForTimeout(400); await B.keyboard.press('Escape'); await B.waitForTimeout(400);   // the camera sheet, then the Play sheet under it
 
 // profiles
 await A.click('.chat-title'); await A.waitForSelector('.person-row');

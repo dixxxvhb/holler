@@ -1,5 +1,8 @@
 // Seen receipts: A sends, B hasn't watched (check), B watches, A sees B's face, time, and "Seen by" on home.
 import { chromium } from 'playwright';
+// the room opens on its thread (11-27): the camera opens from the live tile. camFirst opens it before a step
+// that uses the camera's own controls (the record button, the rail); it does nothing when the camera is already open.
+const camFirst = async p => { if (await p.locator('.chat.in-thread .rec.live-tile').count()) { await p.locator('.rec.live-tile').click(); await p.waitForSelector('.chat.cam-open'); } };
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const b = await chromium.launch({ channel: process.env.PW_CHANNEL || undefined, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
 const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, permissions: ['camera', 'microphone'] };
@@ -12,8 +15,8 @@ await A.waitForSelector('.code-big'); const code = (await A.textContent('.code-b
 await B.goto(BASE + '#/join/' + code); await B.fill('#nm', 'Blake QA'); await B.click('text=Join the chat');
 await B.waitForSelector('.chat-top', { timeout: 15000 }); await B.click('.chat-top .icon-btn'); await B.waitForSelector('.chat-card');
 await A.waitForTimeout(2500);
-await A.click('.rec'); await A.waitForTimeout(2000); await A.click('.rec');
-for (let i = 0; i < 60; i++) { if (await A.locator('.strip .tile:not(.pending)').count()) break; await A.waitForTimeout(500); }
+await camFirst(A); await A.click('.rec'); await A.waitForTimeout(2000); await camFirst(A); await A.click('.rec');
+for (let i = 0; i < 60; i++) { if (await A.locator('.thread .tile:not(.pending)').count()) break; await A.waitForTimeout(500); }
 await A.waitForTimeout(800);
 out.beforeTile = await A.locator('.tile-seen.none').count();
 await A.click('.chat-top .icon-btn'); await A.waitForSelector('.chat-card'); await A.waitForTimeout(800);
@@ -25,7 +28,7 @@ await B.click('.new-pill', { force: true }); await B.waitForTimeout(3000);
 if (await B.locator('.p-top .icon-btn').count()) await B.click('.p-top .icon-btn'); await B.waitForTimeout(2500);
 out.afterTile = await A.locator('.tile-seen:not(.none)').count();
 out.afterTitle = await A.getAttribute('.tile-seen', 'title');
-await A.click('.strip .tile:not(.pending)'); await A.waitForTimeout(1500);
+await A.click('.thread .tile:not(.pending)'); await A.waitForTimeout(1500);
 out.receipts = await A.locator('.rcpt').allTextContents();
 await A.screenshot({ path: 'shots/50-receipts.png' });
 await A.click('.p-top .icon-btn'); await A.waitForTimeout(500);

@@ -2,7 +2,10 @@
 // look + text + voice filter, the other sees it arrive, watches, reacts; a text note; saved.
 // Usage: node scripts/qa.mjs [baseUrl]
 import { chromium } from 'playwright';
-const openMore = async p => { if (!(await p.locator('.rail-btn[aria-expanded="true"]').count())) await p.click('.rail-btn[aria-label="More tools"]'); };
+// the room opens on its thread (11-27): the camera opens from the live tile. camFirst opens it before a step
+// that uses the camera's own controls (the record button, the rail); it does nothing when the camera is already open.
+const camFirst = async p => { if (await p.locator('.chat.in-thread .rec.live-tile').count()) { await p.locator('.rec.live-tile').click(); await p.waitForSelector('.chat.cam-open'); } };
+const openMore = async p => { await camFirst(p); if (!(await p.locator('.rail-btn[aria-expanded="true"]').count())) await p.click('.rail-btn[aria-label="More tools"]'); };
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const OUT = 'shots';
 const b = await chromium.launch({ channel: process.env.PW_CHANNEL || undefined, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
@@ -48,27 +51,27 @@ await shot(B, '04-B-in-chat');
 
 step('A records with a look, text and voice');
 await A.waitForTimeout(1500);
-await A.click('.rail-btn:has-text("Looks")');
+await camFirst(A); await A.click('.rail-btn:has-text("Looks")');
 await A.click('.chip:has-text("Film")');
 await shot(A, '05-looks');
-await A.click('.rail-btn:has-text("Voice")');
+await camFirst(A); await A.click('.rail-btn:has-text("Voice")');
 await A.click('.chip:has-text("Chipmunk")');
-await A.click('.rail-btn:has-text("Text")');
+await camFirst(A); await A.click('.rail-btn:has-text("Text")');
 await A.fill('.tools .field', 'Hello from the QA bot');
 await A.click('.chip.on:has-text("Done")');
-await A.click('.rail-btn:has-text("Draw")');
+await camFirst(A); await A.click('.rail-btn:has-text("Draw")');
 const box = await A.locator('.preview').boundingBox();
 await A.mouse.move(box.x + 100, box.y + 300); await A.mouse.down();
 for (let i = 0; i < 12; i++) await A.mouse.move(box.x + 100 + i * 15, box.y + 300 + Math.sin(i) * 40);
 await A.mouse.up();
 await A.click('.chip.on:has-text("Done")');
-await A.click('.rec');
+await camFirst(A); await A.click('.rec');
 await A.waitForTimeout(2200);
 const bRec = await B.locator('.rec-banner').count();
 await shot(A, '06-A-recording');
 await shot(B, '07-B-sees-recording');
 await A.waitForTimeout(1200);
-await A.click('.rec');
+await camFirst(A); await A.click('.rec');
 await A.waitForTimeout(400);
 await shot(A, '08-A-sending');
 await A.waitForSelector('.tile:not(.pending)', { timeout: 30000 });
@@ -89,6 +92,10 @@ await B.click('.pill-btn:has-text("Save")');
 await B.click('.pill-btn:has-text("1x")');
 await B.waitForTimeout(500);
 await B.click('.pill-btn.reply');
+// Reply closes the player and opens the camera, ready to answer; this run answers with a note instead
+await B.waitForSelector('.chat.cam-open');
+await B.click('.side-btn[aria-label="Back to the chat"]');
+await B.waitForSelector('.chat.in-thread');
 
 step('B sends a text note');
 await B.click('.side-btn[aria-label="Send a text"]');
@@ -98,8 +105,8 @@ await B.waitForTimeout(1500);
 await shot(B, '12-B-after-text');
 
 step('A sends a voice-only holler, B plays it');
-await openMore(A); await A.click('.rail-btn:has-text("Voice only")');
-await A.click('.rec'); await A.waitForTimeout(2200); await A.click('.rec');
+await openMore(A); await camFirst(A); await A.click('.rail-btn:has-text("Voice only")');
+await camFirst(A); await A.click('.rec'); await A.waitForTimeout(2200); await camFirst(A); await A.click('.rec');
 await A.waitForTimeout(6000);
 await B.waitForSelector('.new-pill', { timeout: 20000 });
 await B.click('.new-pill', { force: true });
@@ -109,11 +116,11 @@ const aud = await B.evaluate(() => { const v = document.querySelector('.p-video'
 console.log('B voice', JSON.stringify(aud));
 await shot(B, '12b-B-voice');
 await B.keyboard.press('Escape');
-await openMore(A); await A.click('.rail-btn:has-text("Voice only")');
+await openMore(A); await camFirst(A); await A.click('.rail-btn:has-text("Voice only")');
 
 step('A records, closes the app mid-send, reopens: it still sends');
 const bBefore = await B.locator('.tile').count();
-await A.click('.rec'); await A.waitForTimeout(1800); await A.click('.rec');
+await camFirst(A); await A.click('.rec'); await A.waitForTimeout(1800); await camFirst(A); await A.click('.rec');
 await A.waitForTimeout(700);
 await A.reload();
 await A.waitForTimeout(12000);

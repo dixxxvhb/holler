@@ -14,8 +14,8 @@ import { Icon, REACTIONS } from './icons';
 
 const SPEEDS = [1, 1.5, 2];
 
-export function Player({ chat, list, start, me, onClose, onChanged, standalone, studio, onAnswerCard }: {
-  chat: ChatFull | null; list: Polo[]; start: number; me: Person; onClose: () => void; onChanged?: () => void; standalone?: boolean;
+export function Player({ chat, list, start, me, onClose, onReply, onChanged, standalone, studio, onAnswerCard }: {
+  chat: ChatFull | null; list: Polo[]; start: number; me: Person; onClose: () => void; /** Reply: close and get ready to answer (the room opens its camera) */ onReply?: () => void; onChanged?: () => void; standalone?: boolean;
   studio?: Studio | null; onAnswerCard?: (cardId: string) => void;
 }) {
   const [idx, setIdx] = useState(Math.max(0, start));
@@ -360,7 +360,7 @@ export function Player({ chat, list, start, me, onClose, onChanged, standalone, 
         <div className="reacts">
           {REACTIONS.map(r => <button key={r.id} onClick={() => void react(r.id)} aria-label={r.label}><Icon name={r.id} size={26} /></button>)}
         </div>
-        {!standalone && <button className="pill-btn reply" onClick={close}>Reply</button>}
+        {!standalone && <button className="pill-btn reply" onClick={() => { const next = onReply || onClose; if (filming) void stopFilm(next); else next(); }}>Reply</button>}
         {segs.length > 0 && cc && <details className="transcript"><summary>Full transcript</summary><p>{segs.map(s => s.text).join(' ')}</p></details>}
       </div>
       {review && <ReactionReview r={review} onDone={closeReview} />}

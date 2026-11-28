@@ -9,6 +9,9 @@ import { HomeScreen } from './ui/HomeScreen';
 import { ChatScreen } from './ui/ChatScreen';
 import { Settings } from './ui/Settings';
 import { Saved } from './ui/Saved';
+import { PlayScreen } from './ui/PlayScreen';
+import { Tabs, type TabId } from './ui/Tabs';
+import './ui/shell.css';
 import { UpdateCard } from './ui/Update';
 import { ding } from './lib/sound';
 
@@ -150,11 +153,15 @@ export default function App() {
   else if (route[0] === 'c' && route[1]) screen = <ChatScreen key={route[1]} chatId={route[1]} />;
   else if (route[0] === 'settings') screen = <Settings onSignOut={() => { setToken(null); setSignedIn(false); setHome(null); go('/'); }} />;
   else if (route[0] === 'saved') screen = <Saved />;
+  else if (route[0] === 'play') screen = <PlayScreen />;
   else screen = <HomeScreen />;
+  // the three places carry the tab bar; rooms, Saved and the signed-out screens do not
+  const tab: TabId | null = !signedIn || !home ? null : route[0] === 'c' && route[1] ? null : route[0] === 'settings' ? 'you' : route[0] === 'saved' ? null : route[0] === 'play' ? 'play' : 'chats';
 
   return (
     <AppCtx.Provider value={ctx}>
       {screen}
+      {tab && <Tabs on={tab} />}
       {offline && <div className="net-off" role="status">No connection. Holler will catch up when you're back.</div>}
       {!offline && sendingBig && <div className="net-off sending" role="status">Keep Holler open till it sends</div>}
       <UpdateCard />

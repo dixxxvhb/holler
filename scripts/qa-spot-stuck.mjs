@@ -4,6 +4,9 @@
 // a double tap on an answer must not flip the camera, and a recorder that dies mid-take must still send.
 // Usage: PW_CHANNEL=chrome node scripts/qa-spot-stuck.mjs [baseUrl] ; then clean the QA people
 import { chromium } from 'playwright';
+// the room opens on its thread (11-27): the camera opens from the live tile. camFirst opens it before a step
+// that uses the camera's own controls (the record button, the rail); it does nothing when the camera is already open.
+const camFirst = async p => { if (await p.locator('.chat.in-thread .rec.live-tile').count()) { await p.locator('.rec.live-tile').click(); await p.waitForSelector('.chat.cam-open'); } };
 import { mkdirSync, readFileSync } from 'node:fs';
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const env = Object.fromEntries(readFileSync('.env.local', 'utf8').trim().split(/\r?\n/).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
@@ -38,7 +41,7 @@ const home = await rpc('holler_home', { p_token: tA }); const chat = home.chats[
 await A.click('.g-play-tile'); await A.waitForSelector('.g-opt'); await A.waitForTimeout(450);
 await A.click('.g-opt:has-text("On The Spot")'); await A.waitForTimeout(400); await A.click('.btn.g-go:has-text("Start")');
 await A.waitForSelector('.g-banner:has-text("Three questions")');
-await A.click('.rec'); await A.waitForSelector('.spot-opt', { timeout: 15000 }); await A.waitForTimeout(800);
+await camFirst(A); await A.click('.rec'); await A.waitForSelector('.spot-opt', { timeout: 15000 }); await A.waitForTimeout(800);
 const gum0 = await A.evaluate(() => window.__gum);
 // a quick double tap on an answer (what a thumb does when the first tap feels slow)
 await A.locator('.spot-opt').nth(0).dblclick(); await A.waitForTimeout(1600);

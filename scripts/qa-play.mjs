@@ -3,6 +3,9 @@
 // guess, reveal, save). Then ALWAYS clean up: node scripts/clean-qa.mjs on the PC, or clean-qa-remote.mjs anywhere.
 // Usage: node scripts/qa-play.mjs [baseUrl]
 import { chromium } from 'playwright';
+// the room opens on its thread (11-27): the camera opens from the live tile. camFirst opens it before a step
+// that uses the camera's own controls (the record button, the rail); it does nothing when the camera is already open.
+const camFirst = async p => { if (await p.locator('.chat.in-thread .rec.live-tile').count()) { await p.locator('.rec.live-tile').click(); await p.waitForSelector('.chat.cam-open'); } };
 import { mkdirSync } from 'node:fs';
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const OUT = 'shots/play'; mkdirSync(OUT, { recursive: true });
@@ -18,7 +21,7 @@ const shot = (p, name) => p.screenshot({ path: `${OUT}/${name}.png` });
 const step = s => console.log('--', s);
 const checks = [];
 const check = (ok, what) => { checks.push([ok, what]); console.log(ok ? '  ok ' : '  FAIL', what); };
-const send = async (p, ms = 2200) => { await p.click('.rec'); await p.waitForTimeout(ms); await p.click('.rec'); };
+const send = async (p, ms = 2200) => { await camFirst(p); await p.click('.rec'); await p.waitForTimeout(ms); await camFirst(p); await p.click('.rec'); };
 
 try {
   step('three people, one chat');
@@ -71,7 +74,7 @@ try {
   await A.waitForSelector('.g-secret'); await A.click('.g-seg button:has-text("5 sec")'); await A.waitForTimeout(450); await shot(A, '12-start-sheet');
   await A.click('.btn.g-go:has-text("Start")'); await A.waitForSelector('.g-banner'); await shot(A, '13-A-turn');
   check(await A.locator('.g-secret-mini').count() === 1, 'starter sees the phrase over the camera');
-  await A.click('.rec'); await A.waitForTimeout(2500); await shot(A, '14-A-acting');
+  await camFirst(A); await A.click('.rec'); await A.waitForTimeout(2500); await shot(A, '14-A-acting');
   await A.waitForTimeout(5000);
   check(await A.locator('.g-banner').count() === 0, 'turn sent itself at 5 seconds');
   await A.waitForTimeout(6000); await shot(A, '15-A-after-turn');
@@ -92,7 +95,7 @@ try {
     await p.click('.g-page .btn.g-go'); await p.waitForSelector('.g-look-card'); await p.waitForTimeout(450); await shot(p, `18-${n}-one-look`);
     await p.click('.g-bigplay'); await p.waitForTimeout(1200); await shot(p, `18b-${n}-looking`);
     await p.waitForSelector('.g-banner', { timeout: 30000 }); await shot(p, `18c-${n}-copy-banner`);
-    await p.click('.rec'); await p.waitForTimeout(6500);
+    await camFirst(p); await p.click('.rec'); await p.waitForTimeout(6500);
     if (role === 'guess') {
       await p.waitForSelector('#g-guess'); await p.fill('#g-guess', 'a ghost buying jeans'); await shot(p, `19-${n}-guess`);
       await p.click('.btn.g-go:has-text("Send guess")');

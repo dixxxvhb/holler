@@ -71,9 +71,8 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
   const pct = Math.min(100, (used / LIMIT) * 100);
 
   return (
-    <div className="page" data-you="" style={{ ['--room' as string]: tone(me.color) }}>
+    <div className="page has-tabs" data-you="" style={{ ['--room' as string]: tone(me.color) }}>
       <header className="page-top">
-        <button className="icon-btn" onClick={() => go('/')} aria-label="Back"><Icon name="back" /></button>
         <h1>You</h1><span />
       </header>
 
@@ -88,6 +87,8 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
         </div>
         {me.avatar && <button className="link-btn" onClick={() => void removePhoto()}>Remove photo</button>}
       </section>
+
+      <button className="srow-link" onClick={() => go('/saved')}><b>Saved hollers</b><Icon name="back" size={18} className="chev" /></button>
 
       <h3 className="sec">Profile</h3>
       <section className="card prof-edit">

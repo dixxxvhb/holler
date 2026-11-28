@@ -2,6 +2,9 @@
 // Logs every holler RPC so we can see what reaches the server. Then ALWAYS: node scripts/clean-qa-remote.mjs
 // Usage: PW_CHANNEL=chrome node scripts/qa-after-act.mjs [baseUrl]
 import { chromium, webkit } from 'playwright';
+// the room opens on its thread (11-27): the camera opens from the live tile. camFirst opens it before a step
+// that uses the camera's own controls (the record button, the rail); it does nothing when the camera is already open.
+const camFirst = async p => { if (await p.locator('.chat.in-thread .rec.live-tile').count()) { await p.locator('.rec.live-tile').click(); await p.waitForSelector('.chat.cam-open'); } };
 import { mkdirSync } from 'node:fs';
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const OUT = 'shots/after-act'; mkdirSync(OUT, { recursive: true });
@@ -24,12 +27,12 @@ try {
   await A.click('.g-seg button:has-text("10 sec")'); await A.waitForTimeout(400);
   await A.click('.btn.g-go:has-text("Start")'); await A.waitForSelector('.g-banner'); await A.waitForTimeout(800);
   // draw on it
-  await A.click('.rail-btn:has-text("Draw")');
+  await camFirst(A); await A.click('.rail-btn:has-text("Draw")');
   const box = await A.locator('.preview').boundingBox();
   await A.mouse.move(box.x + 100, box.y + 300); await A.mouse.down(); await A.mouse.move(box.x + 250, box.y + 380, { steps: 8 }); await A.mouse.up();
   await shot(A, '01-drawn');
   await A.click('.chip.done:has-text("Done")'); await A.waitForTimeout(300);
-  await A.click('.rec');
+  await camFirst(A); await A.click('.rec');
   if (process.env.TAP_AT_END) {
     // tap the button again right as the act sends itself, like a person tapping 'done' at the end of the ring
     await A.waitForFunction(() => /0:(09|10)/.test(document.querySelector('.timer')?.textContent || ''), null, { timeout: 15000, polling: 20 });
@@ -39,12 +42,12 @@ try {
   await A.waitForTimeout(13000); await shot(A, '02-after-act');
   { const t1 = await A.locator('.timer').textContent().catch(() => null); await A.waitForTimeout(2100); const t2 = await A.locator('.timer').textContent().catch(() => null);
     check(!t1 || t1 !== t2, `no frozen phantom recording after the act (${t1} -> ${t2})`);
-    if (t2) { await A.click('.rec'); await A.waitForTimeout(6000); } }
+    if (t2) { await camFirst(A); await A.click('.rec'); await A.waitForTimeout(6000); } }
   console.log('state after act:', await A.evaluate(() => ({ timer: document.querySelector('.timer')?.textContent || null, rec: document.querySelector('.rec')?.className })));
   check(!(await A.locator('.g-banner').count()), 'turn banner gone after the act');
   const before = rpcs.length;
   // regular holler
-  await A.click('.rec'); await A.waitForTimeout(2600); await A.click('.rec'); await A.waitForTimeout(7000); await shot(A, '03-after-holler');
+  await camFirst(A); await A.click('.rec'); await A.waitForTimeout(2600); await camFirst(A); await A.click('.rec'); await A.waitForTimeout(7000); await shot(A, '03-after-holler');
   console.log('rpcs after holler', rpcs.slice(before));
   check(rpcs.slice(before).includes('holler_finish_polo'), 'regular holler finished on the server');
   // text

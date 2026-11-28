@@ -4,6 +4,9 @@
 // a straight face to the end, and the scores and faces show. Then ALWAYS: node scripts/clean-qa-remote.mjs
 // Usage: PW_CHANNEL=chrome node scripts/qa-faces.mjs [baseUrl]
 import { chromium } from 'playwright';
+// the room opens on its thread (11-27): the camera opens from the live tile. camFirst opens it before a step
+// that uses the camera's own controls (the record button, the rail); it does nothing when the camera is already open.
+const camFirst = async p => { if (await p.locator('.chat.in-thread .rec.live-tile').count()) { await p.locator('.rec.live-tile').click(); await p.waitForSelector('.chat.cam-open'); } };
 import { mkdirSync } from 'node:fs';
 const BASE = process.argv[2] || 'http://localhost:5190/';
 const OUT = 'shots/faces'; mkdirSync(OUT, { recursive: true });
@@ -27,7 +30,7 @@ const play = async (p, name) => { await back(p); await p.click('.g-play-tile'); 
 const spotGo = async (p, i) => {
   await p.waitForSelector('.g-banner:has-text("Three questions")'); await shot(p, `02-${N[i]}-spot-ready`);
   check(await p.locator('.spot-opt').count() === 0, `${N[i]}: no question before recording`);
-  await p.click('.rec');
+  await camFirst(p); await p.click('.rec');
   await p.waitForSelector('.spot-opt', { timeout: 15000 }); await p.waitForTimeout(1200); await shot(p, `03-${N[i]}-spot-q1`);
   for (let k = 0; k < 3; k++) {
     await p.waitForSelector('.spot-opt:not([disabled])', { timeout: 15000 });
@@ -70,10 +73,10 @@ try {
   await play(A, 'Don\'t Laugh'); await A.click('.seg button:has-text("10 sec")'); await shot(A, '08-laugh-start');
   await A.click('.btn.g-go:has-text("Start")');
   await A.waitForSelector('.g-banner:has-text("Make them laugh")'); await shot(A, '09-A-laugh-turn');
-  await A.click('.rec'); await A.waitForTimeout(13000);
+  await camFirst(A); await A.click('.rec'); await A.waitForTimeout(13000);
   await B.waitForSelector('.g-chip.turn:has-text("Don\'t Laugh")', { timeout: 25000 });
   await openTile(B, 'Don\'t Laugh'); await B.click('.btn.g-go:has-text("Record mine")');
-  await B.waitForSelector('.g-banner:has-text("Make them laugh")'); await B.click('.rec'); await B.waitForTimeout(13000);
+  await B.waitForSelector('.g-banner:has-text("Make them laugh")'); await camFirst(B); await B.click('.rec'); await B.waitForTimeout(13000);
   await openTile(B, 'Don\'t Laugh'); await shot(B, '10-B-laugh-page');
   step('B watches A\'s and holds it');
   await B.locator('.g-row:has-text("ZZTestAvery") .btn:has-text("Watch")').click();

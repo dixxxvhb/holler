@@ -1,17 +1,19 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../App';
-import { api, peekChat, prefetch, publicUrl, type ChatFull, type Game, type Person, type Polo } from '../lib/api';
+import { api, peekChat, prefetch, type ChatFull, type Game, type Person, type Polo } from '../lib/api';
 import { onLive, onPresence, onReconnect, presenceOf, send as liveSend, setStatus } from '../lib/live';
-import { onOutbox, outgoing, retry, discard, sendRecording, sendText, undo, UNDO_MS } from '../lib/outbox';
+import { onOutbox, outgoing, sendRecording, sendText, undo, UNDO_MS } from '../lib/outbox';
 import { Studio, probeFile, releaseMedia, type Recording, type Stroke } from '../lib/studio';
 import { KINDS, LOOKS, lookOf, type LookId, type LookKind } from '../lib/looks';
 import { VOICES, type VoiceId } from '../lib/voice';
 import { Captioner, isIOS, speechSupported, type Seg } from '../lib/speech';
 import { pop, recStart, recStop } from '../lib/sound';
-import { Avatar, Sheet, ago, ask, chatTitle, clock, dayLabel, toast, tone } from './bits';
+import { Avatar, Sheet, ask, chatTitle, clock, toast, tone } from './bits';
 import { Icon } from './icons';
 import { isSimple, setSimple, routeInMemory, camMode, setCamMode, type CamMode } from '../lib/device';
 import { Player } from './Player';
+import { Thread } from './Thread';
+import './thread.css';
 import { ChatInfo } from './ChatInfo';
 import { TILE_NAME, isDuel, isQuick, isTurns, markUsed, owes, roleOf, tileLine, usedIn } from '../games/roundLogic';
 import type { CharadesAct } from '../lib/api';
@@ -68,7 +70,6 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const [review, setReview] = useState<{ rec: Recording; segs: Seg[]; url: string } | null>(null);
   const captioner = useRef<Captioner | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const stripRef = useRef<HTMLDivElement>(null);
   const tickRef = useRef(0);
   const [paused, setPaused] = useState(false);
   const local = (k: string, d: string) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
@@ -102,14 +103,23 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const [deck, setDeck] = useState<Deck>('say');
   const [dealt, setDealt] = useState<Card[]>([]);
   const [cardI, setCardI] = useState(0);
+  // ---- two states, one flag: the thread (default) or the camera, full screen ----
+  // the camera is open while a turn, a take, a countdown, a tool panel or the review is on; it folds back into the
+  // thread once a holler is handed to the outbox, a turn is left, or the person goes back to the chat
+  const [camOpenS, setCamOpen] = useState(route[2] === 'cam' && camMode() !== 'off');
+  const camBusy = !!turn || recording || countdown > 0 || !!panel || !!review;
+  const camOpen = camOpenS || camBusy;
+  useEffect(() => { if (camBusy) setCamOpen(true); }, [camBusy]);
   const chatRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   // the side rail always stops above whatever the bottom area is showing (tiles, a panel, the record button)
   useEffect(() => {
     const el = bottomRef.current, root = chatRef.current; if (!el || !root || typeof ResizeObserver === 'undefined') return;
     // also on the page root, so toasts can sit just above the deck
-    const ro = new ResizeObserver(() => { const h = `${el.offsetHeight}px`; root.style.setProperty('--bottom-h', h); document.documentElement.style.setProperty('--bottom-h', h); });
-    ro.observe(el); return () => { ro.disconnect(); document.documentElement.style.removeProperty('--bottom-h'); };
+    const ro = new ResizeObserver(() => { const h = `${el.offsetHeight}px`; root.style.setProperty('--bottom-h', h); document.documentElement.style.setProperty('--bottom-h', h); placeTile(root); });
+    const onResize = () => placeTile(root);
+    ro.observe(el); window.addEventListener('resize', onResize);
+    return () => { ro.disconnect(); window.removeEventListener('resize', onResize); document.documentElement.style.removeProperty('--bottom-h'); };
   }, []);
   useEffect(() => { if (recording) setPanel(p => (p === 'more' ? null : p)); }, [recording]);
   const [kind, setKind] = useState<LookKind>(() => lookOf((prefs.look as string) || 'none').kind);
@@ -229,10 +239,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     s.markDirty();
   }, [card, camState, turn]);
 
-  // scroll strip to the end on new polos
   const polos = useMemo(() => chat?.polos || [], [chat]);
   const pend = outgoing(chatId);
-  useEffect(() => { const el = stripRef.current; if (el) el.scrollLeft = el.scrollWidth; }, [polos.length, pend.length]);
 
   const unread = polos.filter(p => p.author !== me.id && !p.views.some(v => v.who === me.id));
   // warm the hollers you haven't watched yet, oldest first, so tapping one plays at once (they'd be downloaded on watch anyway)
@@ -241,16 +249,6 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     const paths = unread.filter(p => p.kind !== 'text' && p.path).map(p => p.path as string);
     if (paths.length) prefetch(paths);
   }, [unreadKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const { dayStarts, manyDays } = useMemo(() => {
-    const starts = new Set<string>(); const stacked = new Set<string>(); let lastDay = '';
-    for (const p of polos) {
-      const cid = typeof p.effects?.cardId === 'string' ? (p.effects.cardId as string) : null;
-      if (cid && polos.filter(x => x.effects?.cardId === cid).length > 1) { if (stacked.has(cid)) continue; stacked.add(cid); }
-      const d = new Date(p.at).toDateString();
-      if (d !== lastDay) { starts.add(p.id); lastDay = d; }
-    }
-    return { dayStarts: starts, manyDays: starts.size > 1 };
-  }, [polos]);
   const others = shell ? shell.members.filter(m => m.id !== me.id) : [];
   const pres = presenceOf(chatId);
   const maxSec = turn ? (turn.kind === 'poker' ? 45 : turn.kind === 'spot' ? 40 : turn.turnSec) : hd ? MAX_SEC.hd : MAX_SEC.sd;
@@ -266,7 +264,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     setDeck(d); setDealt(list); setCardI(i); setCard(list[i] || null);
   };
   const nextCard = () => { if (!dealt.length) return; const i = (cardI + 1) % dealt.length; setCardI(i); setCard(dealt[i]); };
-  const answerCard = (id: string) => { const d = id.split(':')[0] as Deck; void deal(d, id); setPanel(null); toast('Same card is on. Record your answer.'); };
+  const answerCard = (id: string) => { const d = id.split(':')[0] as Deck; void deal(d, id); setPanel(null); setCamOpen(true); toast('Same card is on. Record your answer.'); };
   const wordsKey = `holler.words.${chatId}`;
   // word: what a Zoom In clip is (typed on its game page; it rides in effects.game.word and the server keeps it secret)
   const takeTurn = (g: Game, word?: string) => {
@@ -356,6 +354,21 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     await beginP.current;
     if (long && studio.current?.recording && studio.current.elapsed() >= 1.5) void finish();
   };
+  // the live tile in the thread: a tap opens the camera; a hold (350 ms) opens it and starts recording at once, and
+  // letting go then sends by the round button's own hold rules (the same button element carries on in the camera)
+  const holdT = useRef(0);
+  const recDownRef = useRef(onRecDown); recDownRef.current = onRecDown;
+  const onTileDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* */ }
+    clearTimeout(holdT.current);
+    holdT.current = window.setTimeout(() => { holdT.current = -1; setCamOpen(true); recDownRef.current(e); }, 350);
+  };
+  const onTileUp = () => {
+    if (holdT.current === -1) { holdT.current = 0; void onRecUp(); return; }
+    if (holdT.current) { clearTimeout(holdT.current); holdT.current = 0; setCamOpen(true); }
+  };
+  useEffect(() => () => clearTimeout(holdT.current), []);
   useEffect(() => {
     if (!recording) { setHeld(false); return; }
     const t = setTimeout(() => { if (pressAt.current) setHeld(true); }, 1500);
@@ -423,6 +436,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       const key = sendRecording(chatId, me.id, rec, segs.length ? JSON.stringify(segs) : null, () => { void load(); void refresh(); });
       toast('Sending', { label: 'Undo', run: () => undo(key) }, UNDO_MS);
       nudgeMove();
+      fold();
     }
     clearInk();
   };
@@ -464,6 +478,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       toast(roleOf(g) === 'guess' ? 'Guess sent. The reveal is ready in a moment.' : `Your turn is in. ${nextP ? nextP.name.split(' ')[0] + ' is up.' : ''}`);
     }
     setTurn(null); setGuessRec(null); setTurnWord(null); setZoomTake(null);
+    fold();
   };
   const anotherWord = () => {
     if (!turn) return; const list = G?.charadesWords(turn.deck || 'mixed', usedIn(wordsKey)) || [];
@@ -477,6 +492,17 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     studio.current?.cancel(); captioner.current?.stop(); captioner.current = null;
     setPaused(false);
     setRecording(false); setCaption(''); toast('Discarded');
+  };
+
+  // the camera folds back into the thread (a holler went to the outbox, a turn was left, or the person went back)
+  const fold = () => {
+    if (countRef.current) { clearInterval(countRef.current); countRef.current = 0; setCountdown(0); }
+    setPanel(null); setCamOpen(false);
+  };
+  const backToChat = async () => {
+    if (recording && !(await ask({ title: 'Still recording', body: 'Leave and throw this one away?', yes: 'Throw it away', no: 'Keep recording', danger: true }))) return;
+    if (studio.current?.recording) cancelRec();
+    fold();
   };
 
   // ---- flip (also mid-recording, and by double-tapping the picture) ----
@@ -554,6 +580,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       const blob = f.type ? f : new Blob([f], { type: mime }); // storage only takes video, audio and image types
       const key = sendRecording(chatId, me.id, { blob, mime, ext, duration: meta.duration, w: meta.w, h: meta.h, thumb: meta.thumb, kind: isAudio ? 'audio' : 'video', effects: { uploaded: true } }, null, () => { void load(); void refresh(); });
       toast('Sending your video', { label: 'Undo', run: () => undo(key) }, UNDO_MS);
+      fold();
     } catch (e) { toast((e as Error).message); }
   };
 
@@ -583,6 +610,32 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   };
 
   const toggle = (p: Panel) => setPanel(cur => (cur === p ? null : p));
+  // the picture sits over the live tile while the thread shows
+  useLayoutEffect(() => { if (!camOpen && chatRef.current) placeTile(chatRef.current); });
+
+  // ---- the Play sheet's choices (also reached by /c/<id>/start/<kind>) ----
+  type RoundKind = Exclude<Game['kind'], 'passiton'>;
+  const pickCard = () => { if (camBlocked('card')) return; setPlayOpen(false); void deal(deck); setPanel('card'); };
+  const pickPassItOn = () => { if (camBlocked('passiton')) return; setPlayOpen(false); setStartOpen(true); };
+  const pickRound = (k: RoundKind) => { if (k !== 'lastcard' && k !== 'zoom' && k !== 'said' && camBlocked(k)) return; setPlayOpen(false); if (k === 'lastcard') setCardsOpen(true); else if (k === 'ttt' || k === 'checkers') setDuelKind(k); else if (k === 'words' || k === 'trivia') setQuickKind(k); else if (k === 'spot' || k === 'laugh' || k === 'zoom' || k === 'said') setFaceKind(k); else setRoundKind(k); };
+
+  // ---- deep links: /c/<id>/cam, /c/<id>/g/<gameId>, /c/<id>/start/<kind> (the tail leaves the address once handled) ----
+  const linkDone = useRef('');
+  const linkKey = route.join('/');
+  const tail = route[2] === 'cam' || route[2] === 'g' || route[2] === 'start' ? route[2] : '';
+  useEffect(() => { if ((tail === 'g' || tail === 'start') && !G) loadG(); }, [tail, G, loadG]);
+  useEffect(() => {
+    if (!tail || linkDone.current === linkKey) return;
+    if (tail !== 'cam' && !(chat && G)) return;
+    linkDone.current = linkKey;
+    const v = route[3] || '';
+    if (tail === 'cam') { if (cam !== 'off') setCamOpen(true); }
+    else if (tail === 'g') { const g = (chat?.games || []).find(x => x.id === v); if (g) openDock(g); }
+    else if (v === 'card') pickCard();
+    else if (v === 'passiton') pickPassItOn();
+    else if ((['poker', 'charades', 'ttt', 'checkers', 'words', 'trivia', 'spot', 'laugh', 'lastcard', 'zoom', 'said'] as string[]).includes(v)) pickRound(v as RoundKind);
+    if (!routeInMemory) history.replaceState(null, '', `${location.pathname}#/c/${chatId}`);
+  }, [linkKey, chat, G]); // eslint-disable-line react-hooks/exhaustive-deps
   const camLive = camState === 'on' && cam === 'on';
 
   if (err && !chat) return (
@@ -590,7 +643,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   );
 
   return (
-    <div className={`chat ${panel ? 'panel-open' : ''} ${recording ? 'is-rec' : ''} ${turn ? ((turn.kind === 'passiton' ? roleOf(turn) === 'act' : turn.kind === 'charades' || turn.kind === 'laugh' || turn.kind === 'zoom') ? 'g-in-turn g-acting' : 'g-in-turn') : ''}`} ref={chatRef} data-room={shell?.theme || 'ember'}>
+    <div className={`chat ${camOpen ? 'cam-open' : 'in-thread'} ${cam !== 'off' ? 'has-tile' : ''} ${panel ? 'panel-open' : ''} ${recording ? 'is-rec' : ''} ${turn ? ((turn.kind === 'passiton' ? roleOf(turn) === 'act' : turn.kind === 'charades' || turn.kind === 'laugh' || turn.kind === 'zoom') ? 'g-in-turn g-acting' : 'g-in-turn') : ''}`} ref={chatRef} data-room={shell?.theme || 'ember'}>
       <div className="preview" ref={previewRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => onUp()}>
         <canvas ref={canvasRef} className={`cam ${aOnly ? 'dim' : ''}`} />
         {camState === 'denied' && cam !== 'off' && (
@@ -630,7 +683,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
 
       <header className="chat-top">
         {turn
-          ? <button className="icon-btn glass" onClick={() => { if (recording) cancelRec(); setTurn(null); }} aria-label="Leave this turn for now"><Icon name="close" /></button>
+          ? <button className="icon-btn glass" onClick={() => { if (recording) cancelRec(); setTurn(null); fold(); }} aria-label="Leave this turn for now"><Icon name="close" /></button>
+          : camOpen ? <button className="icon-btn glass" onClick={() => void backToChat()} aria-label="Back to the chat"><Icon name="back" className="ic-down" /></button>
           : <button className="icon-btn glass" onClick={() => void leave()} aria-label="Back"><Icon name="back" /></button>}
         <button className="chat-title glass" onClick={() => setInfo(true)}>
           <span className="t">{shell ? chatTitle(shell, me.id) : ' '}</span>
@@ -641,13 +695,6 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         </button>
         <button className="icon-btn glass" onClick={() => setInfo(true)} aria-label="Chat info"><Icon name="info" /></button>
       </header>
-
-      {!others.some(o => pres[o.id] === 'recording') && others.filter(o => pres[o.id] === 'watching').slice(0, 1).map(o => (
-        <div key={o.id} className="rec-banner watch"><Avatar p={o} size={26} /> <b>{o.name.split(' ')[0]}</b> is watching</div>
-      ))}
-      {others.filter(o => pres[o.id] === 'recording').map(o => (
-        <div key={o.id} className="rec-banner"><Avatar p={o} size={26} /> <b>{o.name.split(' ')[0]}</b> is recording<span className="dots"><i /><i /><i /></span></div>
-      ))}
 
       <aside className={`rail ${recording ? 'live' : ''}`}>
         {cam === 'on' && (!recording || (!aOnly && studio.current?.canFlipLive)) && <button className="rail-btn" onClick={() => void flip()} aria-label="Flip camera"><Icon name="flip" /><span>Flip</span></button>}
@@ -663,6 +710,11 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         {recording && !aOnly && <button className={`rail-btn ${ring ? 'set' : ''}`} onClick={() => { const v = !ring; setRing(v); keep('holler.ring', v ? '1' : '0'); if (v && !recording) toast('Light on. Turn your screen brightness up for the most glow.'); }}><Icon name="light" /><span>Light</span></button>}
         <input ref={fileRef} type="file" accept="video/*,audio/*" hidden onChange={e => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
       </aside>
+
+      <Thread chat={chat} me={me} polos={polos} pend={pend} others={others}
+        recordingNow={others.filter(o => pres[o.id] === 'recording')}
+        watchingNow={others.some(o => pres[o.id] === 'recording') ? null : others.find(o => pres[o.id] === 'watching') || null}
+        unreadCount={unread.length} onOpen={openPlayer} onWatchNew={() => openPlayer(polos, polos.indexOf(unread[0]))} />
 
       <div className="bottom" ref={bottomRef}>
         {panel === 'looks' && (
@@ -739,13 +791,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           </div>
         )}
 
-        {unread.length > 0 && !recording && !panel && !turn && (
-          <button className="new-pill" onClick={() => openPlayer(polos, polos.indexOf(unread[0]))}>
-            <Icon name="play" size={16} fill="currentColor" /> Watch {unread.length} new
-          </button>
-        )}
-
-        {!panel && dock.length > 0 && (
+        {!panel && dock.length > 0 && (!camOpen || recording) && (
           <div className={`g-dock ${recording ? 'during-rec' : ''}`} aria-label="Games in this chat">
             {dock.map(g => {
               const mine = myGo(g);
@@ -760,88 +806,40 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           </div>
         )}
 
-        {!panel && (
-          <div className="strip" ref={stripRef}>
-            {!chat && pend.length === 0 && [0, 1, 2, 3].map(i => <span key={i} className="tile-sk" aria-hidden="true" />)}
-            {chat && polos.length === 0 && pend.length === 0 && <div className="strip-empty">{others.length ? 'No hollers yet. Say hi.' : 'Invite your people, then say hi.'}</div>}
-            {polos.map((p, i) => {
-              const day = manyDays && dayStarts.has(p.id) ? <span className="strip-day" aria-hidden="true"><i>{dayLabel(p.at)}</i></span> : null;
-              const cid = typeof p.effects?.cardId === 'string' ? p.effects.cardId as string : null;
-              const stack = cid ? polos.filter(x => x.effects?.cardId === cid) : [];
-              if (cid && stack.length > 1) {
-                if (stack[0].id !== p.id) return null;
-                const unseen = stack.some(x => x.author !== me.id && !x.views.some(v => v.who === me.id));
-                return (
-                  <Fragment key={p.id}>{day}
-                  <button className={`tile g-stack ${unseen ? 'new' : ''} ${p.author === me.id ? 'mine' : ''}`} onClick={() => openPlayer(stack, 0)}>
-                    <b>{String(p.effects?.card || 'Card')}</b>
-                    <span className="g-stack-faces">{stack.slice(0, 4).map(x => <Avatar key={x.id} p={chat!.members.find(m => m.id === x.author)} size={15} />)}</span>
-                  </button>
-                  </Fragment>
-                );
-              }
-              const author = chat!.members.find(m => m.id === p.author);
-              const orig = p.reactTo ? polos.find(x => x.id === p.reactTo) : undefined;
-              const seen = p.author === me.id || p.views.some(v => v.who === me.id);
-              return (
-                <Fragment key={p.id}>{day}
-                <button className={`tile ${seen ? '' : 'new'} ${p.author === me.id ? 'mine' : ''}`} style={{ ['--c' as string]: tone(author?.color) }} onClick={() => openPlayer(polos, i)}
-                  aria-label={`${p.author === me.id ? 'Your' : `${author?.name.split(' ')[0] || 'Someone'}'s`} ${p.kind === 'text' ? 'note' : p.kind === 'audio' ? 'voice holler' : 'holler'}, ${ago(p.at)}${seen ? '' : ', new'}`}>
-                  {orig?.thumb && <span className="g-tile-pip"><img src={publicUrl(orig.thumb)} alt="" loading="lazy" /></span>}
-                  {p.kind === 'video' && p.thumb ? <img src={publicUrl(p.thumb)} alt="" loading="lazy" />
-                    : p.kind === 'text' ? <span className="tile-text">{p.body}</span>
-                    : <span className="tile-audio"><Avatar p={author} size={34} /><Icon name="wave" size={16} /></span>}
-                  <span className="tile-av"><Avatar p={author} size={20} /></span>
-                  {p.duration ? <span className="tile-dur">{clock(p.duration)}</span> : null}
-                  {p.savedBy.includes(me.id) && <span className="tile-star"><Icon name="bookmark" size={12} fill="currentColor" /></span>}
-                  {p.author === me.id && others.length > 0 && (() => {
-                    const seenBy = others.filter(o => p.views.some(v => v.who === o.id));
-                    return seenBy.length
-                      ? <span className={`tile-seen ${seenBy.length === others.length ? 'all' : ''}`} title={`Seen by ${seenBy.map(o => o.name.split(' ')[0]).join(', ')}`}>{seenBy.slice(0, 3).map(o => <Avatar key={o.id} p={o} size={16} />)}</span>
-                      : <span className="tile-seen none" title="Not watched yet"><Icon name="check" size={12} stroke={3} /></span>;
-                  })()}
-                </button>
-                </Fragment>
-              );
-            })}
-            {pend.filter(o => !o.polo.effects?.game || o.error).map(o => (
-              <div key={o.key} className={`tile mine pending ${o.error ? 'failed' : ''}`} style={{ ['--c' as string]: tone(me.color) }}>
-                {o.polo.pending?.thumbUrl ? <img src={o.polo.pending.thumbUrl} alt="" /> : <span className="tile-audio"><Icon name="wave" /></span>}
-                {o.error ? (
-                  <span className="tile-fail">
-                    <button onClick={() => retry(o.key)}>Retry</button>
-                    <button onClick={() => discard(o.key)}>Delete</button>
-                  </span>
-                ) : <span className="tile-prog"><i style={{ width: `${Math.round(o.progress * 100)}%` }} /></span>}
-              </div>
-            ))}
-          </div>
-        )}
-
         <div className="rec-row">
           {cam === 'off' ? <div className="side-btn ghost" /> : recording ? (
             <button className="side-btn" onClick={cancelRec} aria-label="Discard recording"><Icon name="trash" /><span className="sb-lb">Discard</span></button>
+          ) : camOpen ? (turn ? <div className="side-btn ghost" />
+            : <button className="side-btn" onClick={() => void backToChat()} aria-label="Back to the chat"><Icon name="back" className="ic-down" /><span className="sb-lb">Chat</span></button>
           ) : (
             <button className="side-btn" onClick={() => setTyping(true)} aria-label="Send a text"><Icon name="keyboard" /><span className="sb-lb">Note</span></button>
           )}
           {cam === 'off' ? (
-            <button className="rec note-only" onClick={() => setTyping(true)} aria-label="Write a note"><Icon name="keyboard" size={30} /></button>
-          ) : <button className={`rec ${recording ? 'on' : ''} ${aOnly ? 'audio' : ''} ${paused ? 'is-paused' : ''} ${countdown ? 'counting' : ''}`}
-            onPointerDown={onRecDown} onPointerUp={() => void onRecUp()} onPointerCancel={() => { pressAt.current = 0; }} onContextMenu={e => e.preventDefault()}
-            onClick={e => { if (e.detail === 0) { if (recording) void finish(); else void begin(); } }}
-            aria-label={recording ? 'Stop and send' : countdown ? 'Cancel timer' : 'Record'}>
-            <svg viewBox="0 0 100 100" className="rec-ring">
-              <circle cx="50" cy="50" r="46" />
-              {recording && <circle cx="50" cy="50" r="46" className="prog" style={{ strokeDashoffset: 289 - (289 * elapsed) / maxSec }} />}
-            </svg>
-            <span className="rec-core" style={recording ? { transform: `scale(${paused ? 0.55 : 0.55 + level * 0.25})` } : undefined} />
+            <button className="rec note-only" onClick={() => setTyping(true)} aria-label="Write a note"><Icon name="keyboard" size={30} /><span className="sb-lb">Note</span></button>
+          ) : <button className={camOpen ? `rec ${recording ? 'on' : ''} ${aOnly ? 'audio' : ''} ${paused ? 'is-paused' : ''} ${countdown ? 'counting' : ''}` : `rec live-tile ${aOnly ? 'voice' : camState === 'on' ? 'live' : 'blocked'}`}
+            onPointerDown={e => (camOpen ? onRecDown(e) : onTileDown(e))} onPointerUp={() => (camOpen ? void onRecUp() : onTileUp())}
+            onPointerCancel={() => { pressAt.current = 0; clearTimeout(holdT.current); holdT.current = 0; }} onContextMenu={e => e.preventDefault()}
+            onClick={e => { if (e.detail === 0) { if (!camOpen) setCamOpen(true); else if (recording) void finish(); else void begin(); } }}
+            aria-label={!camOpen ? 'Open camera' : recording ? 'Stop and send' : countdown ? 'Cancel timer' : 'Record'}>
+            {camOpen ? <>
+              <svg viewBox="0 0 100 100" className="rec-ring">
+                <circle cx="50" cy="50" r="46" />
+                {recording && <circle cx="50" cy="50" r="46" className="prog" style={{ strokeDashoffset: 289 - (289 * elapsed) / maxSec }} />}
+              </svg>
+              <span className="rec-core" style={recording ? { transform: `scale(${paused ? 0.55 : 0.55 + level * 0.25})` } : undefined} />
+            </> : <>
+              {aOnly ? <span className="lt-face"><Avatar p={me} size={44} /><Icon name="mic" size={16} /></span>
+                : camState !== 'on' ? <span className="lt-face"><Icon name="camera" size={30} /></span> : null}
+              <span className="sb-lb">Holler</span>
+            </>}
           </button>}
           {recording ? <div className="timer">{clock(elapsed)}</div>
-            : turn || !chat ? <div className="side-btn ghost" />
+            : camOpen || !chat ? <div className="side-btn ghost" />
             : <button className="side-btn g-play-tile" onClick={() => { setPlayOpen(true); if (!G) loadG(); }} aria-label="Play a game"><Icon name="cards" /><span className="sb-lb">Play</span></button>}
         </div>
         {recording && <div className="rec-hint">{turn?.kind === 'zoom' ? `Stops at ${turn.turnSec} seconds` : fixedTurn && turn ? `Sends itself at ${turn.turnSec} seconds` : turn?.kind === 'spot' ? 'Tap your answers. It sends itself after the third.' : turn ? 'Tap to send your answer' : held ? 'Let go to send' : paused ? 'Paused. Tap Resume to keep going, or tap to send.' : 'Tap to send'}</div>}
         {turn && !recording && <div className="rec-hint">{turn.kind === 'poker' ? 'Tap record and give your answer' : turn.kind === 'spot' ? 'Tap record. Your first question shows right away.' : turn.kind === 'laugh' ? 'Tap record and make them laugh' : turn.kind === 'zoom' ? 'Tap record. It stops at 5 seconds.' : turn.kind === 'charades' || roleOf(turn) === 'act' ? 'Tap record and act it out' : roleOf(turn) === 'guess' ? 'Tap record and say your guess' : 'Tap record and copy it'}</div>}
+        {camOpen && !turn && !recording && !countdown && cam !== 'off' && <div className="rec-hint">Tap to record. Hold to record and let go to send.</div>}
         {countdown > 0 && <div className="rec-hint">Tap to call it off</div>}
       </div>
 
@@ -853,19 +851,18 @@ export function ChatScreen({ chatId }: { chatId: string }) {
             <button className="btn primary" onClick={() => {
               sendRecording(chatId, me.id, review.rec, review.segs.length ? JSON.stringify(review.segs) : null, () => { void load(); void refresh(); });
               const url = review.url; setReview(null); toast('Sending'); setTimeout(() => URL.revokeObjectURL(url), 1000);
+              fold();
             }}><Icon name="send" size={18} /> Send</button>
           </div>
         </div>
       )}
       {player && chat && (
-        <Player chat={chat} list={player.list} start={player.start} me={me} onClose={closePlayer} onChanged={() => void load()}
+        <Player chat={chat} list={player.list} start={player.start} me={me} onClose={closePlayer} onReply={() => { closePlayer(); if (cam === 'off') setTyping(true); else setCamOpen(true); }} onChanged={() => void load()}
           studio={camLive ? studio.current : null} onAnswerCard={answerCard} />
       )}
       {chat && G && (<>
         <G.PlaySheet open={playOpen} onClose={() => setPlayOpen(false)} people={chat.members.length}
-          onCard={() => { if (camBlocked('card')) return; setPlayOpen(false); void deal(deck); setPanel('card'); }}
-          onPassItOn={() => { if (camBlocked('passiton')) return; setPlayOpen(false); setStartOpen(true); }}
-          onRound={k => { if (k !== 'lastcard' && k !== 'zoom' && k !== 'said' && camBlocked(k)) return; setPlayOpen(false); if (k === 'lastcard') setCardsOpen(true); else if (k === 'ttt' || k === 'checkers') setDuelKind(k); else if (k === 'words' || k === 'trivia') setQuickKind(k); else if (k === 'spot' || k === 'laugh' || k === 'zoom' || k === 'said') setFaceKind(k); else setRoundKind(k); }} />
+          onCard={pickCard} onPassItOn={pickPassItOn} onRound={pickRound} />
         {faceKind === 'zoom' && <G.ZoomStart open onClose={() => setFaceKind(null)} chat={chat} me={me} canFilm={cam === 'on'}
           onStarted={g => { setFaceKind(null); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); setGameId(g.id); }} />}
         {faceKind === 'said' && <G.SaidStart open onClose={() => setFaceKind(null)} chat={chat} me={me}
@@ -918,6 +915,15 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       </Sheet>
     </div>
   );
+}
+
+/** Lays the camera picture over the live tile in the thread's deck (the tile is the record button in that state). */
+function placeTile(root: HTMLElement) {
+  const t = root.querySelector<HTMLElement>('.rec.live-tile');
+  if (!t) { root.style.setProperty('--lt-w', '0px'); root.style.setProperty('--lt-h', '0px'); return; }
+  const r = t.getBoundingClientRect(), o = root.getBoundingClientRect();
+  root.style.setProperty('--lt-x', `${r.left - o.left}px`); root.style.setProperty('--lt-y', `${r.top - o.top}px`);
+  root.style.setProperty('--lt-w', `${r.width}px`); root.style.setProperty('--lt-h', `${r.height}px`);
 }
 
 const GAME_ICON: Record<Game['kind'], string> = {
