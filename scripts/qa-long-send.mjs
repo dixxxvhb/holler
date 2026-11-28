@@ -4,6 +4,9 @@
 import { chromium } from 'playwright';
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const b = await chromium.launch({ channel: process.env.PW_CHANNEL || undefined });
+// one browser plays every person here and they share one fake camera, which sends no frames to anyone while another
+// person's sleeping camera still holds it: each page lets go of the camera fast (a test hook; phones wait 90 s)
+{ const nc = b.newContext.bind(b); b.newContext = async (...a) => { const c = await nc(...a); await c.addInitScript(() => { try { localStorage.setItem('holler.releaseMs', '300'); } catch { /* */ } }); return c; }; }
 const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
 const P = await ctx.newPage();
 const log = [];

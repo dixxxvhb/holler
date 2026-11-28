@@ -12,8 +12,10 @@ import './games.css';
 
 const first = (p?: Person | null) => (p?.name || 'Someone').split(' ')[0];
 
-export function Reveal({ game: g0, chat, me, studio, onClose, onChanged, onPlayAgain }: {
+export function Reveal({ game: g0, chat, me, studio, onCamWanted, onClose, onChanged, onPlayAgain }: {
   game: Game; chat: ChatFull; me: Person; studio: Studio | null; onClose: () => void; onChanged: (g: Game) => void; onPlayAgain: () => void;
+  /** asks the room for the camera (it sleeps unless something uses it); resolves true once it is on */
+  onCamWanted?: (on: boolean) => Promise<boolean>;
 }) {
   const [game, setGame] = useState(g0);
   const turns = useMemo(() => (game.clips || []).filter(c => c.gameTurn != null).sort((a, b) => (a.gameTurn ?? 0) - (b.gameTurn ?? 0)), [game.clips]);
@@ -23,8 +25,16 @@ export function Reveal({ game: g0, chat, me, studio, onClose, onChanged, onPlayA
   const [needTap, setNeedTap] = useState(false);
   const [t, setT] = useState(0);
   const iFilmed = faces.some(f => f.author === me.id);
-  const canFilm = !!studio?.stream && !iFilmed;
+  const canFilm = !!onCamWanted && !iFilmed;
   const [film, setFilm] = useState(canFilm);
+  // with the switch on, ask the room for the camera while the reveal is open; give it back when it closes
+  useEffect(() => {
+    if (!film || !canFilm || !onCamWanted) return;
+    let gone = false;
+    void onCamWanted(true).then(ok => { if (!ok && !gone) { toast('Could not start the camera'); setFilm(false); } });
+    return () => { gone = true; void onCamWanted(false); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [film, canFilm]);
   const [rec, setRec] = useState<Recording | null>(null);
   const [face, setFace] = useState<Polo | null>(null);
   const vid = useRef<HTMLVideoElement>(null);
@@ -53,6 +63,8 @@ export function Reveal({ game: g0, chat, me, studio, onClose, onChanged, onPlayA
     if (!film || filming.current || !studio?.stream || studio.recording) return;
     try { filming.current = true; await studio.start('video', { videoBits: 500_000 }); setIsFilming(true); } catch { filming.current = false; }
   };
+  // the camera came on while a clip is already playing: start filming now
+  useEffect(() => { const v = vid.current; if (studio && film && phase === 'reel' && v && !v.paused) void startFilm(); }, [studio]); // eslint-disable-line react-hooks/exhaustive-deps
   const stopFilm = async () => {
     if (!filming.current || !studio) return;
     filming.current = false; setIsFilming(false);

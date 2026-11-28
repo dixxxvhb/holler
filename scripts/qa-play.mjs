@@ -5,11 +5,15 @@
 import { chromium } from 'playwright';
 // the room opens on its thread (11-27): the camera opens from the live tile. camFirst opens it before a step
 // that uses the camera's own controls (the record button, the rail); it does nothing when the camera is already open.
-const camFirst = async p => { if (await p.locator('.chat.in-thread .rec.live-tile').count()) { await p.locator('.rec.live-tile').click(); await p.waitForSelector('.chat.cam-open'); } };
+const camFirst = async p => { if (await p.locator('.chat.in-thread .rec.live-tile').count()) { await p.locator('.rec.live-tile').click(); await p.waitForSelector('.chat.cam-open'); }
+  await p.waitForSelector('.chat.cam-live', { timeout: 15000 }).catch(() => {}); };   // round two: the camera sleeps until it opens, so wait for it to be on
 import { mkdirSync } from 'node:fs';
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const OUT = 'shots/play'; mkdirSync(OUT, { recursive: true });
 const b = await chromium.launch({ channel: process.env.PW_CHANNEL || undefined, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
+// one browser plays every person here and they share one fake camera, which sends no frames to anyone while another
+// person's sleeping camera still holds it: each page lets go of the camera fast (a test hook; phones wait 90 s)
+{ const nc = b.newContext.bind(b); b.newContext = async (...a) => { const c = await nc(...a); await c.addInitScript(() => { try { localStorage.setItem('holler.releaseMs', '300'); } catch { /* */ } }); return c; }; }
 const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, permissions: ['camera', 'microphone'] };
 const [A, B, C] = await Promise.all([0, 1, 2].map(async () => (await b.newContext(phone)).newPage()));
 const errs = [];
@@ -56,7 +60,7 @@ try {
   step('C films a reaction to A\'s card holler');
   await C.waitForSelector('.new-pill', { timeout: 20000 }); await C.click('.new-pill', { force: true });
   await C.waitForSelector('.g-film'); await C.click('.g-film');
-  await C.waitForTimeout(1200); await shot(C, '07-C-filming');
+  await C.waitForSelector('.g-face', { timeout: 15000 }).catch(() => {}); await C.waitForTimeout(600);   // the camera wakes first await shot(C, '07-C-filming');
   check(await C.locator('.g-face').count() === 1, 'live face shows while filming');
   await C.waitForSelector('.g-after', { timeout: 20000 }); await shot(C, '08-C-after-end');
   await C.click('.g-after .btn'); await C.waitForSelector('.g-review'); await C.waitForTimeout(800); await shot(C, '09-C-review');

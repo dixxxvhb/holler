@@ -82,3 +82,14 @@
 @media (prefers-reduced-motion: reduce) {
   .chat .preview { transition: none !important; }
 }
+
+/* ---- the camera sleeps unless it is in use (11-27 round two) ---- */
+/* a sleeping camera shows no picture: the canvas keeps its last frame, so it is see-through until the camera is on */
+.chat:not(.cam-live) .preview > :is(.cam, .raw-video) { opacity: 0; }
+.chat.in-thread.has-tile:not(.cam-live) .preview::after { content: none; }
+/* asleep: your own face on the room's wall, with the record dot */
+.rec.live-tile .lt-dot { position: absolute; left: 50%; bottom: 8px; width: 24px; height: 24px; margin-left: -12px; border-radius: 50%; background: var(--rec); box-shadow: 0 0 0 3px var(--on-color), 0 0 0 5px var(--chalk); }
+.rec.live-tile.asleep .lt-face .av { box-shadow: 0 0 0 3px var(--on-color); }
+/* waking: a quiet line in the middle of the picture, and the record button waits */
+.cam-starting { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); z-index: var(--z-banner); padding: 8px 14px; border-radius: var(--r-pill); background: var(--puck); color: var(--chalk-2); font-size: 14px; font-weight: 700; white-space: nowrap; pointer-events: none; }
+.rec.waiting { opacity: .5; }

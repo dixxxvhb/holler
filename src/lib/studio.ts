@@ -539,6 +539,7 @@ const camConstraints = (facing: string, hd: boolean): MediaTrackConstraints =>
 const micConstraints: MediaTrackConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
 
 async function acquire(facing: string, hd: boolean, forceCam = false) {
+  cancelRelease();
   const camOk = live(shared.cam) && shared.facing === facing && shared.hd === hd && !forceCam;
   if (camOk && live(shared.mic)) { shared.cam!.enabled = true; return; }
   if (live(shared.mic)) {
@@ -559,6 +560,7 @@ async function acquire(facing: string, hd: boolean, forceCam = false) {
 
 /** Mic only (voice-only mode): asks for the mic alone, and never for the camera. */
 async function acquireMic() {
+  cancelRelease();
   if (live(shared.mic)) return;
   shared.mic?.stop(); shared.mic = null;
   const s = await navigator.mediaDevices.getUserMedia({ audio: micConstraints });
@@ -567,6 +569,27 @@ async function acquireMic() {
 
 /** Let go of the camera and mic altogether (notes-only mode). Stopping is not muting, so no mute sound. */
 export function releaseMedia() { shared.cam?.stop(); shared.mic?.stop(); shared.cam = shared.mic = null; shared.facing = ''; }
+
+// ---- letting go after a quiet spell (11-27 round two) ----
+// Stopping both tracks puts the mic dot out, but the next ask after that prompts again on iPhone. So the app lets
+// go only once the camera has slept for a while: a wake (acquire) before then cancels it. The timer lives here, not
+// in a room, so it outlives the room. It never lets go while anything registered with holdWhile says it is busy
+// (an open camera, a take): it waits another spell and checks again.
+let relT = 0;
+const busy = new Set<() => boolean>();
+/** Register a check that holds the tracks while it returns true. Returns the unregister. */
+export function holdWhile(fn: () => boolean): () => void { busy.add(fn); return () => { busy.delete(fn); }; }
+export function cancelRelease() { if (relT) clearTimeout(relT); relT = 0; }
+/** Stop both tracks after ms of quiet, unless a wake cancels it first. */
+export function releaseSoon(ms: number) {
+  cancelRelease();
+  const fire = () => {
+    relT = 0;
+    if ([...busy].some(f => { try { return f(); } catch { return false; } })) { relT = window.setTimeout(fire, ms); return; }
+    releaseMedia();
+  };
+  relT = window.setTimeout(fire, ms);
+}
 
 /** Camera light off, permission kept. The mic is left alone (see above): nothing records unless a take is running. */
 export function pauseMedia() { if (shared.cam) shared.cam.enabled = false; }

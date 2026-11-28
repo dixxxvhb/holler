@@ -65,8 +65,10 @@ export function LaughBanner({ game }: { game: Game }) {
 }
 
 // ---------------------------------------------------------------- the game page
-export function LaughPage({ game, chat, me, studio, onClose, onTakeTurn, onChanged }: {
+export function LaughPage({ game, chat, me, studio, onCamWanted, onClose, onTakeTurn, onChanged }: {
   game: Game; chat: ChatFull; me: Person; studio: Studio | null; onClose: () => void; onTakeTurn: (g: Game) => void; onChanged: (g: Game) => void;
+  /** asks the room for the camera (it sleeps unless something uses it); resolves true once it is on */
+  onCamWanted?: (on: boolean) => Promise<boolean>;
 }) {
   const person = personIn(chat, me);
   const playing = game.status === 'playing';
@@ -82,7 +84,7 @@ export function LaughPage({ game, chat, me, studio, onClose, onTakeTurn, onChang
   const board = standings(scores);
   const allTied = board.length > 1 && board.every(r => r.place === 1);
   const waiting = (game.todo || []).filter(id => id !== me.id);
-  if (watch) return <LaughWatch act={watch} game={game} chat={chat} me={me} studio={studio} onClose={g => { if (g) onChanged(g); setWatch(null); }} />;
+  if (watch) return <LaughWatch act={watch} game={game} chat={chat} me={me} studio={studio} onCamWanted={onCamWanted} onClose={g => { if (g) onChanged(g); setWatch(null); }} />;
   if (view) return <ClipView polo={view.polo} title={view.title} onClose={() => setView(null)} />;
   return (
     <div className="g-page">
@@ -178,8 +180,9 @@ function ClipView({ polo, title, onClose }: { polo: Polo; title: string; onClose
 }
 
 // ---------------------------------------------------------------- watch theirs with a straight face
-function LaughWatch({ act, game, chat, me, studio, onClose }: {
+function LaughWatch({ act, game, chat, me, studio, onCamWanted, onClose }: {
   act: LaughAct; game: Game; chat: ChatFull; me: Person; studio: Studio | null; onClose: (g?: Game) => void;
+  onCamWanted?: (on: boolean) => Promise<boolean>;
 }) {
   const person = personIn(chat, me);
   const vid = useRef<HTMLVideoElement>(null);
@@ -192,7 +195,20 @@ function LaughWatch({ act, game, chat, me, studio, onClose }: {
   const raf = useRef(0);
   const filming = useRef(false);
   const over = useRef(false);
-  const camOk = !!studio?.stream;
+  // the camera sleeps unless something uses it: ask for it as soon as the watch opens, so it is on before the clip
+  // plays, and give it back when the watch closes. No camera: the I laughed button still works.
+  const studioRef = useRef(studio); studioRef.current = studio;
+  const ready = useRef<Promise<boolean>>(Promise.resolve(false));
+  const [camFail, setCamFail] = useState(false);
+  useEffect(() => {
+    if (!onCamWanted) return;
+    let gone = false;
+    ready.current = onCamWanted(true);
+    void ready.current.then(ok => { if (!ok && !gone) setCamFail(true); });
+    return () => { gone = true; void onCamWanted(false); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const camOk = !!onCamWanted && !camFail;
   useEffect(() => { if (act.clip?.path) void mediaUrl(act.clip.path).then(setSrc); }, [act.clip?.path]);
   useEffect(() => () => { cancelAnimationFrame(raf.current); if (filming.current && studio?.recording) studio.cancel(); }, [studio]);
 
@@ -207,9 +223,10 @@ function LaughWatch({ act, game, chat, me, studio, onClose }: {
     let g: Game | undefined;
     try { g = await api.gameLaughed(game.id, act.who, cracked); liveSend(chat.id, 'chat', { game: game.id }); }
     catch (e) { toast((e as Error).message); }
-    if (filming.current && studio) {
+    const st = studioRef.current;
+    if (filming.current && st) {
       filming.current = false;
-      const rec = await studio.stop().catch(() => null);
+      const rec = await st.stop().catch(() => null);
       if (rec && rec.duration >= 1 && rec.blob.size >= 1000 && act.clip) {
         rec.effects = { ...rec.effects, reactTo: act.clip.id, sync: [{ r: 0, o: 0, rate: 1, playing: true }], game: { id: game.id, of: act.who } };
         sendRecording(chat.id, me.id, rec, null);
@@ -228,20 +245,22 @@ function LaughWatch({ act, game, chat, me, studio, onClose }: {
     if (v.getAttribute('src') !== src) v.src = src;
     try { await v.play(); } catch { setStage('ready'); toast('Tap Start again to play it'); return; }
     v.pause(); v.currentTime = 0;
-    if (camOk && studio && !studio.recording) {
+    const camOn = camOk && await Promise.race([ready.current, new Promise<boolean>(r => setTimeout(() => r(false), 10000))]);
+    const st = studioRef.current;
+    if (camOn && st?.stream && !st.recording) {
       const lm = await loadFace();
       if (lm) { watcher.current = new SmileWatch(); setFaceOn(true); }
-      try { await studio.start('video', { videoBits: 500_000 }); filming.current = true; } catch { /* plays on without filming */ }
+      try { await st.start('video', { videoBits: 500_000 }); filming.current = true; } catch { /* plays on without filming */ }
     }
     try { await v.play(); } catch {
-      if (filming.current && studio?.recording) studio.cancel();
+      if (filming.current && st?.recording) st.cancel();
       filming.current = false; setStage('ready'); toast('Tap Start again to play it'); return;
     }
     setStage('watching');
     const loop = () => {
-      const w = watcher.current;
-      if (w && studio) {
-        if (w.tick(studio.video)) { void finish(Math.round(v.currentTime * 10) / 10); return; }
+      const w = watcher.current; const s2 = studioRef.current;
+      if (w && s2) {
+        if (w.tick(s2.video)) { void finish(Math.round(v.currentTime * 10) / 10); return; }
         setSmile(w.seen ? Math.min(1, w.smile / w.line) : 0);
       }
       raf.current = requestAnimationFrame(loop);
@@ -258,7 +277,7 @@ function LaughWatch({ act, game, chat, me, studio, onClose }: {
         <span className="g-rv-who"><b>Don't Laugh</b><span>{actor}'s clip</span></span>
         {stage !== 'watching' && <button className="icon-btn glass" onClick={() => onClose(final || undefined)} aria-label="Close"><Icon name="close" /></button>}
       </div>
-      {stage === 'watching' && camOk && <div className="l-me"><LiveFace studio={studio} className="l-me-vid" />
+      {stage === 'watching' && camOk && studio && <div className="l-me"><LiveFace studio={studio} className="l-me-vid" />
         {faceOn && <span className="l-meter"><i style={{ height: `${Math.round(smile * 100)}%` }} /></span>}</div>}
       {stage === 'watching' && <button className="g-rv-skip l-gave" onClick={() => void finish(Math.round((vid.current?.currentTime || 0) * 10) / 10)}>I laughed</button>}
       {(stage === 'ready' || stage === 'loading') && (

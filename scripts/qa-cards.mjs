@@ -8,6 +8,9 @@ const BASE = process.argv[2] || 'http://localhost:5188/';
 const OUT = 'shots/cards'; mkdirSync(OUT, { recursive: true });
 
 const b = await chromium.launch({ channel: process.env.PW_CHANNEL || undefined, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
+// one browser plays every person here and they share one fake camera, which sends no frames to anyone while another
+// person's sleeping camera still holds it: each page lets go of the camera fast (a test hook; phones wait 90 s)
+{ const nc = b.newContext.bind(b); b.newContext = async (...a) => { const c = await nc(...a); await c.addInitScript(() => { try { localStorage.setItem('holler.releaseMs', '300'); } catch { /* */ } }); return c; }; }
 const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, permissions: ['camera', 'microphone'] };
 const P = await Promise.all([0, 1, 2].map(async () => (await b.newContext(phone)).newPage()));
 const [A, B, C] = P; const N = ['A', 'B', 'C'];

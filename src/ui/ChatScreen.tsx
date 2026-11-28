@@ -3,7 +3,7 @@ import { useApp } from '../App';
 import { api, peekChat, prefetch, type ChatFull, type Game, type Person, type Polo } from '../lib/api';
 import { onLive, onPresence, onReconnect, presenceOf, send as liveSend, setStatus } from '../lib/live';
 import { onOutbox, outgoing, sendRecording, sendText, undo, UNDO_MS } from '../lib/outbox';
-import { Studio, probeFile, releaseMedia, type Recording, type Stroke } from '../lib/studio';
+import { Studio, cancelRelease, holdWhile, probeFile, releaseMedia, releaseSoon, type Recording, type Stroke } from '../lib/studio';
 import { KINDS, LOOKS, lookOf, type LookId, type LookKind } from '../lib/looks';
 import { VOICES, type VoiceId } from '../lib/voice';
 import { Captioner, isIOS, speechSupported, type Seg } from '../lib/speech';
@@ -154,10 +154,22 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   useEffect(() => { setStatus(chatId, 'here'); return () => setStatus(null); }, [chatId]);
   useEffect(() => { if (chat && !player) setStatus(chatId, recording ? 'recording' : 'here'); }, [recording, player, chat, chatId]);
 
+  // ---- the camera sleeps unless it is in use (11-27 round two) ----
+  // Nothing is asked for until the camera is wanted: the room's camera is open, or a feature that films you (Film my
+  // reaction, Don't Laugh, the reveal) has asked for it. Not wanted: the camera closes (light off, mic still held), and
+  // after a quiet spell studio.ts lets both tracks go, so the mic dot goes out. A wake before then makes no new ask.
+  const [camAsks, setCamAsks] = useState(0);
+  const camWanted = cam !== 'off' && (camOpen || camAsks > 0);
+  const wantedRef = useRef(camWanted); wantedRef.current = camWanted;
+  const camStateRef = useRef(camState); camStateRef.current = camState;
+  const starting = useRef(false);
+  const camWaiters = useRef<((ok: boolean) => void)[]>([]);
+
   // camera
   const startCam = useCallback(async () => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current || starting.current) return;
     if (cam === 'off') { studio.current?.close(); setCamState('off'); return; }
+    starting.current = true;
     setCamState('starting');
     try {
       if (!studio.current) studio.current = new Studio(canvasRef.current);
@@ -167,49 +179,78 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       s.setLook(look);
       s.onLevel = v => setLevel(v);
       if (!s.glOk && !s.noCam && previewRef.current && !previewRef.current.contains(s.video)) { s.video.className = `raw-video ${s.facing === 'user' ? 'mirror' : ''}`; previewRef.current.appendChild(s.video); }
-      setCamState('on');
-      // once per device: make sure effects actually record; if not, quietly use the plain camera
+      // once per device: make sure effects actually record; if not, quietly use the plain camera. The camera only
+      // wakes when someone is about to use it now, so the test runs before it counts as on (the record button and
+      // the features that film you wait for it), never under a take that is starting
       let tested = ''; try { tested = localStorage.getItem('holler.camtest2') || ''; } catch { /* */ }
       if ((tested === '' || tested.startsWith('unsure')) && s.glOk && !s.noCam) {
-        setTimeout(async () => {
-          if (!studio.current || studio.current.recording) return;
-          const ok = await studio.current.selfTest();
-          const tries = Number(tested.split(':')[1] || 0) + 1;
-          // can't tell three times running: leave effects on
-          const verdict = ok === true ? 'ok' : ok === false ? 'simple' : tries >= 3 ? 'ok' : `unsure:${tries}`;
-          try { localStorage.setItem('holler.camtest2', verdict); } catch { /* */ }
-          if (verdict === 'simple') {
-            const st = studio.current; st.goSimple();
-            if (previewRef.current && !previewRef.current.contains(st.video)) { st.video.className = `raw-video ${st.facing === 'user' ? 'mirror' : ''}`; previewRef.current.appendChild(st.video); }
-            setLook('none'); setText(''); st.strokes = [];
-            setSimple(true); bump(x => x + 1); toast('Your phone records best with Simple camera, so it is on. Change it in Settings.', undefined, 7000); }
-        }, 1500);
+        await new Promise(r => setTimeout(r, 1500));
+        const ran = !!s.stream && !s.recording;   // went back to sleep first: test again next time it wakes
+        const ok = ran ? await s.selfTest() : null;
+        const tries = Number(tested.split(':')[1] || 0) + 1;
+        // can't tell three times running: leave effects on
+        const verdict = ok === true ? 'ok' : ok === false ? 'simple' : tries >= 3 ? 'ok' : `unsure:${tries}`;
+        if (ran) try { localStorage.setItem('holler.camtest2', verdict); } catch { /* */ }
+        if (ran && verdict === 'simple') {
+          s.goSimple();
+          if (previewRef.current && !previewRef.current.contains(s.video)) { s.video.className = `raw-video ${s.facing === 'user' ? 'mirror' : ''}`; previewRef.current.appendChild(s.video); }
+          setLook('none'); setText(''); s.strokes = [];
+          setSimple(true); bump(x => x + 1); toast('Your phone records best with Simple camera, so it is on. Change it in Settings.', undefined, 7000); }
       }
+      starting.current = false;
+      setCamState('on');
     } catch (e) {
+      starting.current = false;
       console.warn(e); setCamState('denied');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hd, look, voice, cam]);
 
   const startRef = useRef(startCam); startRef.current = startCam;
+  // the one place the camera wakes and sleeps
   useEffect(() => {
-    void startCam();
-    let closedByHide = false;
+    if (cam === 'off' || document.hidden) return;
+    if (camWanted) { cancelRelease(); if (camState === 'off') void startRef.current(); }
+    else if (camState === 'on' && !studio.current?.recording) { studio.current?.close(); setCamState('off'); releaseSoon(releaseMs()); }
+  }, [camWanted, camState, cam]);
+  // a feature that films you asks here; the answer comes once the camera is on (true) or could not start (false)
+  const askCam = useCallback((on: boolean): Promise<boolean> => {
+    setCamAsks(n => Math.max(0, n + (on ? 1 : -1)));
+    if (!on) return Promise.resolve(false);
+    if (camStateRef.current === 'on') return Promise.resolve(true);
+    if (camStateRef.current === 'denied') void startRef.current();
+    return new Promise(res => { camWaiters.current.push(res); });
+  }, []);
+  useEffect(() => {
+    if (camState !== 'on' && camState !== 'denied') return;
+    const w = camWaiters.current.splice(0); w.forEach(f => f(camState === 'on'));
+  }, [camState]);
+  useEffect(() => {
+    // the tracks are never let go while this room's camera is open or a take is on
+    const unhold = holdWhile(() => !!studio.current?.stream || !!studio.current?.recording);
     const vis = () => {
-      if (document.hidden && !studio.current?.recording) { studio.current?.close(); closedByHide = true; setCamState('off'); }
-      else if (!document.hidden && closedByHide) { closedByHide = false; void startRef.current(); }
+      if (document.hidden) {
+        if (studio.current?.recording) return;
+        if (studio.current?.stream) { studio.current.close(); setCamState('off'); }
+        if (camMode() !== 'off') releaseSoon(releaseMs());
+      } else if (wantedRef.current && camStateRef.current === 'off') void startRef.current();
     };
     document.addEventListener('visibilitychange', vis);
-    return () => { document.removeEventListener('visibilitychange', vis); studio.current?.dispose(); studio.current = null; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      document.removeEventListener('visibilitychange', vis);
+      const wasOn = !!studio.current?.stream;
+      studio.current?.dispose(); studio.current = null; unhold();
+      if (wasOn) releaseSoon(releaseMs());   // the quiet spell outlives the room
+      camWaiters.current.splice(0).forEach(f => f(false));
+    };
   }, []);
 
   // switching how this phone takes part restarts the camera side in the new mode
   const camFirst = useRef(true);
   useEffect(() => {
     if (camFirst.current) { camFirst.current = false; return; }
-    if (cam === 'off') releaseMedia();
-    void startRef.current();
+    if (cam === 'off') { studio.current?.close(); setCamState('off'); cancelRelease(); releaseMedia(); return; }
+    if (wantedRef.current) void startRef.current();
   }, [cam]);
   const pickCam = (m: CamMode) => {
     setCamSheet(false);
@@ -358,12 +399,23 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   // letting go then sends by the round button's own hold rules (the same button element carries on in the camera)
   const holdT = useRef(0);
   const recDownRef = useRef(onRecDown); recDownRef.current = onRecDown;
+  // a hold from a sleeping camera opens it, and records once it is on if the finger is still down
+  const tileDown = useRef(false);
+  const holdWait = useRef(false);
   const onTileDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* */ }
-    clearTimeout(holdT.current);
-    holdT.current = window.setTimeout(() => { holdT.current = -1; setCamOpen(true); recDownRef.current(e); }, 350);
+    clearTimeout(holdT.current); tileDown.current = true;
+    holdT.current = window.setTimeout(() => {
+      holdT.current = -1; setCamOpen(true);
+      if (camStateRef.current === 'on') recDownRef.current(e); else holdWait.current = true;
+    }, 350);
   };
+  useEffect(() => {
+    if (camState !== 'on' || !holdWait.current) return;
+    holdWait.current = false;
+    if (tileDown.current) recDownRef.current({ button: 0 } as React.PointerEvent);
+  }, [camState]);
   const onTileUp = () => {
     if (holdT.current === -1) { holdT.current = 0; void onRecUp(); return; }
     if (holdT.current) { clearTimeout(holdT.current); holdT.current = 0; setCamOpen(true); }
@@ -643,7 +695,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   );
 
   return (
-    <div className={`chat ${camOpen ? 'cam-open' : 'in-thread'} ${cam !== 'off' ? 'has-tile' : ''} ${panel ? 'panel-open' : ''} ${recording ? 'is-rec' : ''} ${turn ? ((turn.kind === 'passiton' ? roleOf(turn) === 'act' : turn.kind === 'charades' || turn.kind === 'laugh' || turn.kind === 'zoom') ? 'g-in-turn g-acting' : 'g-in-turn') : ''}`} ref={chatRef} data-room={shell?.theme || 'ember'}>
+    <div className={`chat ${camOpen ? 'cam-open' : 'in-thread'} ${cam !== 'off' ? 'has-tile' : ''} ${camState === 'on' ? 'cam-live' : ''} ${panel ? 'panel-open' : ''} ${recording ? 'is-rec' : ''} ${turn ? ((turn.kind === 'passiton' ? roleOf(turn) === 'act' : turn.kind === 'charades' || turn.kind === 'laugh' || turn.kind === 'zoom') ? 'g-in-turn g-acting' : 'g-in-turn') : ''}`} ref={chatRef} data-room={shell?.theme || 'ember'}>
       <div className="preview" ref={previewRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => onUp()}>
         <canvas ref={canvasRef} className={`cam ${aOnly ? 'dim' : ''}`} />
         {camState === 'denied' && cam !== 'off' && (
@@ -656,7 +708,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
             <p className="fine">If you said no before, allow {cam === 'voice' ? 'the mic' : 'camera and mic'} for Holler in your phone's settings.</p>
           </div>
         )}
-        {camState === 'off' && cam !== 'off' && <div className="cam-off"><button className="btn primary" onClick={() => void startCam()}>Turn on camera</button></div>}
+        {(camState === 'off' || camState === 'starting') && cam !== 'off' && <div className="cam-starting">Starting the camera</div>}
         {cam === 'off' && (
           <div className="cam-off notes-mode">
             <Avatar p={me} size={96} />
@@ -816,9 +868,10 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           )}
           {cam === 'off' ? (
             <button className="rec note-only" onClick={() => setTyping(true)} aria-label="Write a note"><Icon name="keyboard" size={30} /><span className="sb-lb">Note</span></button>
-          ) : <button className={camOpen ? `rec ${recording ? 'on' : ''} ${aOnly ? 'audio' : ''} ${paused ? 'is-paused' : ''} ${countdown ? 'counting' : ''}` : `rec live-tile ${aOnly ? 'voice' : camState === 'on' ? 'live' : 'blocked'}`}
-            onPointerDown={e => (camOpen ? onRecDown(e) : onTileDown(e))} onPointerUp={() => (camOpen ? void onRecUp() : onTileUp())}
-            onPointerCancel={() => { pressAt.current = 0; clearTimeout(holdT.current); holdT.current = 0; }} onContextMenu={e => e.preventDefault()}
+          ) : <button className={camOpen ? `rec ${recording ? 'on' : ''} ${aOnly ? 'audio' : ''} ${paused ? 'is-paused' : ''} ${countdown ? 'counting' : ''} ${camState !== 'on' && !recording ? 'waiting' : ''}` : `rec live-tile ${camState === 'on' ? 'live' : 'asleep'} ${aOnly ? 'voice' : ''} ${camState === 'denied' ? 'blocked' : ''}`}
+            onPointerDown={e => (camOpen ? onRecDown(e) : onTileDown(e))}
+            onPointerUp={() => { tileDown.current = false; holdWait.current = false; if (camOpen) void onRecUp(); else onTileUp(); }}
+            onPointerCancel={() => { pressAt.current = 0; clearTimeout(holdT.current); holdT.current = 0; tileDown.current = false; holdWait.current = false; }} onContextMenu={e => e.preventDefault()}
             onClick={e => { if (e.detail === 0) { if (!camOpen) setCamOpen(true); else if (recording) void finish(); else void begin(); } }}
             aria-label={!camOpen ? 'Open camera' : recording ? 'Stop and send' : countdown ? 'Cancel timer' : 'Record'}>
             {camOpen ? <>
@@ -829,7 +882,9 @@ export function ChatScreen({ chatId }: { chatId: string }) {
               <span className="rec-core" style={recording ? { transform: `scale(${paused ? 0.55 : 0.55 + level * 0.25})` } : undefined} />
             </> : <>
               {aOnly ? <span className="lt-face"><Avatar p={me} size={44} /><Icon name="mic" size={16} /></span>
-                : camState !== 'on' ? <span className="lt-face"><Icon name="camera" size={30} /></span> : null}
+                : camState === 'denied' ? <span className="lt-face"><Icon name="camera" size={30} /></span>
+                : camState !== 'on' ? <span className="lt-face"><Avatar p={me} size={44} /></span> : null}
+              {camState !== 'on' && <i className="lt-dot" aria-hidden="true" />}
               <span className="sb-lb">Holler</span>
             </>}
           </button>}
@@ -858,7 +913,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       )}
       {player && chat && (
         <Player chat={chat} list={player.list} start={player.start} me={me} onClose={closePlayer} onReply={() => { closePlayer(); if (cam === 'off') setTyping(true); else setCamOpen(true); }} onChanged={() => void load()}
-          studio={camLive ? studio.current : null} onAnswerCard={answerCard} />
+          studio={camLive ? studio.current : null} onCamWanted={cam === 'on' ? askCam : undefined} onAnswerCard={answerCard} />
       )}
       {chat && G && (<>
         <G.PlaySheet open={playOpen} onClose={() => setPlayOpen(false)} people={chat.members.length}
@@ -875,7 +930,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         {faceKind === 'laugh' && <G.LaughStart open onClose={() => setFaceKind(null)} chat={chat} me={me}
           onStarted={g => { setFaceKind(null); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); takeTurn(g); }} />}
         {openGame && openGame.kind === 'spot' && <G.SpotPage game={openGame} chat={chat} me={me} onClose={() => setGameId(null)} onTakeTurn={takeTurn} onChanged={gameChanged} />}
-        {openGame && openGame.kind === 'laugh' && <G.LaughPage game={openGame} chat={chat} me={me} studio={camLive ? studio.current : null}
+        {openGame && openGame.kind === 'laugh' && <G.LaughPage game={openGame} chat={chat} me={me} studio={camLive ? studio.current : null} onCamWanted={cam === 'on' ? askCam : undefined}
           onClose={() => setGameId(null)} onTakeTurn={takeTurn} onChanged={gameChanged} />}
         <G.CardStart open={cardsOpen} onClose={() => setCardsOpen(false)} chat={chat} me={me}
           onStarted={g => { setCardsOpen(false); setChat(c => (c ? { ...c, games: [...(c.games || []), g] } : c)); setGameId(g.id); }} />
@@ -899,7 +954,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
         {openGame && openGame.kind === 'passiton' && <G.GamePage game={openGame} chat={chat} me={me} onClose={() => setGameId(null)} onTakeTurn={takeTurn}
           onReveal={g => { setGameId(null); setReveal(g); }} onChanged={gameChanged} />}
         {lookAt && <G.LookScreen game={lookAt} chat={chat} me={me} onClose={() => setLookAt(null)} onCopy={g => { setLookAt(null); gameChanged(g); setTurn(g); setCard(null); setAudioOnly(false); }} />}
-        {reveal && <G.Reveal game={reveal} chat={chat} me={me} studio={camLive ? studio.current : null} onClose={() => { setReveal(null); void load(); }}
+        {reveal && <G.Reveal game={reveal} chat={chat} me={me} studio={camLive ? studio.current : null} onCamWanted={cam === 'on' ? askCam : undefined} onClose={() => { setReveal(null); void load(); }}
           onChanged={gameChanged} onPlayAgain={() => { setReveal(null); setStartOpen(true); }} />}
         <G.GuessSheet open={!!guessRec} initial={guessRec?.text || ''} onRetake={() => setGuessRec(null)}
           onSend={gv => { if (turn && guessRec) sendTurn(turn, guessRec.rec, guessRec.segs, gv); }} />
@@ -916,6 +971,9 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     </div>
   );
 }
+
+/** How long the tracks stay held after the camera sleeps (localStorage holler.releaseMs is a test hook). */
+function releaseMs() { try { return Number(localStorage.getItem('holler.releaseMs')) || 90_000; } catch { return 90_000; } }
 
 /** Lays the camera picture over the live tile in the thread's deck (the tile is the record button in that state). */
 function placeTile(root: HTMLElement) {

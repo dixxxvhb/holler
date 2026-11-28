@@ -11,6 +11,9 @@ const DICT = readFileSync('src/games/content/dict.ts', 'utf8').match(/DICT = "([
 const fits = (w, rack) => { const l = [...rack]; for (const c of w) { const i = l.indexOf(c); if (i < 0) return false; l.splice(i, 1); } return true; };
 
 const b = await chromium.launch({ channel: process.env.PW_CHANNEL || undefined, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
+// one browser plays every person here and they share one fake camera, which sends no frames to anyone while another
+// person's sleeping camera still holds it: each page lets go of the camera fast (a test hook; phones wait 90 s)
+{ const nc = b.newContext.bind(b); b.newContext = async (...a) => { const c = await nc(...a); await c.addInitScript(() => { try { localStorage.setItem('holler.releaseMs', '300'); } catch { /* */ } }); return c; }; }
 const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, permissions: ['camera', 'microphone'] };
 const P = await Promise.all([0, 1].map(async () => (await b.newContext(phone)).newPage()));
 const [A, B] = P; const N = ['A', 'B'];

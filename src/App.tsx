@@ -14,6 +14,7 @@ import { Tabs, type TabId } from './ui/Tabs';
 import './ui/shell.css';
 import { UpdateCard } from './ui/Update';
 import { ding } from './lib/sound';
+import { startAwake } from './lib/awake';
 
 type Ctx = { home: Home | null; refresh: () => Promise<void>; go: (h: string) => void; route: string[] };
 const AppCtx = createContext<Ctx>(null as unknown as Ctx);
@@ -28,6 +29,8 @@ export default function App() {
   const [home, setHome] = useState<Home | null>(() => (getToken() ? cachedHome() : null));
   useEffect(() => { if (home) { setMe(home.me.id); syncChats(home.chats.map(c => c.id)); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (home && getToken()) saveHome(home); }, [home]);
+  // the screen stays on while Holler is open and in front (it lets go after 5 quiet minutes)
+  useEffect(() => { startAwake(); }, []);
   const lastRefresh = useRef(0);
   const [loadErr, setLoadErr] = useState('');
   const routeRef = useRef(route); routeRef.current = route;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, mediaUrl, prefetch, publicUrl, type ChatFull, type Person, type Polo } from '../lib/api';
 import { send as liveSend } from '../lib/live';
 import { removeMine, sendRecording } from '../lib/outbox';
@@ -14,9 +14,11 @@ import { Icon, REACTIONS } from './icons';
 
 const SPEEDS = [1, 1.5, 2];
 
-export function Player({ chat, list, start, me, onClose, onReply, onChanged, standalone, studio, onAnswerCard }: {
+export function Player({ chat, list, start, me, onClose, onReply, onChanged, standalone, studio, onCamWanted, onAnswerCard }: {
   chat: ChatFull | null; list: Polo[]; start: number; me: Person; onClose: () => void; /** Reply: close and get ready to answer (the room opens its camera) */ onReply?: () => void; onChanged?: () => void; standalone?: boolean;
   studio?: Studio | null; onAnswerCard?: (cardId: string) => void;
+  /** asks the room for the camera (it sleeps unless something uses it); resolves true once it is on */
+  onCamWanted?: (on: boolean) => Promise<boolean>;
 }) {
   const [idx, setIdx] = useState(Math.max(0, start));
   const [items, setItems] = useState(list);
@@ -54,8 +56,22 @@ export function Player({ chat, list, start, me, onClose, onReply, onChanged, sta
   useEffect(() => { setSwap(false); setOrigSrc(null); if (orig?.path) void mediaUrl(orig.path).then(setOrigSrc); }, [orig?.id, orig?.path]);
   const mainEl = useCallback(() => vid.current, []);
   // ---- Film my reaction ----
-  const canFilm = !!studio?.stream && !standalone && !!polo && polo.author !== me.id && polo.kind !== 'text' && !!chat;
+  const canFilm = !!onCamWanted && !standalone && !!polo && polo.author !== me.id && polo.kind !== 'text' && !!chat;
   const [film, setFilmS] = useState(() => (chat ? filmOn(chat.id) : false));
+  // the camera sleeps unless something uses it: with the switch on, ask for it while this player is open (only when
+  // there is someone else's holler here to react to), and give it back when the switch goes off or the player closes
+  const anyFilmable = useMemo(() => list.some(p => p.author !== me.id && p.kind !== 'text'), [list, me.id]);
+  const wantCam = film && anyFilmable && !!onCamWanted && !standalone && !!chat;
+  useEffect(() => {
+    if (!wantCam || !onCamWanted) return;
+    let gone = false;
+    void onCamWanted(true).then(ok => {
+      if (ok || gone) return;
+      toast('Could not start the camera'); setFilmS(false); if (chat) setFilm(chat.id, false);
+    });
+    return () => { gone = true; void onCamWanted(false); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantCam]);
   const [filming, setFilming] = useState(false);
   const [afterEnd, setAfterEnd] = useState(false);
   const [review, setReview] = useState<{ rec: Recording; url: string; sync: SyncPoint[]; of: Polo; origUrl: string | null } | null>(null);
@@ -97,6 +113,8 @@ export function Player({ chat, list, start, me, onClose, onReply, onChanged, sta
     const a = then.current; then.current = null; (a || next)();
   };
   useEffect(() => () => { if (studio?.recording) studio.cancel(); }, [studio]);
+  // the camera came on while a holler is already playing: start filming now
+  useEffect(() => { const e = vid.current; if (studio && film && e && !e.paused) void startFilm(true); }, [studio]); // eslint-disable-line react-hooks/exhaustive-deps
   // ---- cards ----
   const cardId = typeof polo?.effects?.cardId === 'string' ? (polo.effects.cardId as string) : null;
   const [card, setCard] = useState<Card | undefined>();

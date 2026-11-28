@@ -4,12 +4,16 @@
 import { chromium, webkit } from 'playwright';
 // the room opens on its thread (11-27): the camera opens from the live tile. camFirst opens it before a step
 // that uses the camera's own controls (the record button, the rail); it does nothing when the camera is already open.
-const camFirst = async p => { if (await p.locator('.chat.in-thread .rec.live-tile').count()) { await p.locator('.rec.live-tile').click(); await p.waitForSelector('.chat.cam-open'); } };
+const camFirst = async p => { if (await p.locator('.chat.in-thread .rec.live-tile').count()) { await p.locator('.rec.live-tile').click(); await p.waitForSelector('.chat.cam-open'); }
+  await p.waitForSelector('.chat.cam-live', { timeout: 15000 }).catch(() => {}); };   // round two: the camera sleeps until it opens, so wait for it to be on
 import { mkdirSync } from 'node:fs';
 const BASE = process.argv[2] || 'http://localhost:5188/';
 const OUT = 'shots/after-act'; mkdirSync(OUT, { recursive: true });
 const b = process.env.PW_WEBKIT ? await webkit.launch() : await chromium.launch({ channel: process.env.PW_CHANNEL || undefined, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
 const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, ...(process.env.PW_WEBKIT ? {} : { permissions: ['camera', 'microphone'] }), hasTouch: true };
+// one browser plays every person here and they share one fake camera, which sends no frames to anyone while another
+// person's sleeping camera still holds it: each page lets go of the camera fast (a test hook; phones wait 90 s)
+{ const nc = b.newContext.bind(b); b.newContext = async (...a) => { const c = await nc(...a); await c.addInitScript(() => { try { localStorage.setItem('holler.releaseMs', '300'); } catch { /* */ } }); return c; }; }
 const [A, B] = await Promise.all([0, 1].map(async () => (await b.newContext(phone)).newPage()));
 const rpcs = [];
 A.on('request', r => { const m = r.url().match(/rpc\/(holler_\w+)/); if (m) rpcs.push(m[1]); });
