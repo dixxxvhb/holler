@@ -80,8 +80,9 @@ try {
   check(await A.isVisible('.g-banner:has-text("Next you pick how close they start")') && await A.isVisible('.g-secret-mini:has-text("the kettle")'), 'recorder shows the new line and your secret');
   check(await A.locator('.z-target').count() === 0, 'no centre box on the recorder');
   await shotF(A, '01-recorder');
+  await A.waitForSelector('.chat.cam-live', { timeout: 15000 });   // the camera wakes when the turn opens: record waits for it
   await A.click('button.rec'); await A.waitForTimeout(1500);
-  check(await A.isVisible('.rec-hint:has-text("Stops at 5 seconds")'), 'fixed 5 second take');
+  check(await A.isVisible('.chat.is-rec') && await A.isVisible('.rec-hint:text-is("Stops at 5 seconds")'), 'fixed 5 second take');
 
   step('Pick where they start: default, slider, Retake');
   await A.waitForSelector('.z-pick', { timeout: 20000 }); await A.waitForTimeout(1500);
@@ -96,7 +97,7 @@ try {
   await A.click('.z-pick .btn:has-text("Retake")'); await A.waitForTimeout(800);
   check(await A.locator('.z-pick').count() === 0 && await A.isVisible('button.rec') && await A.isVisible('.g-secret-mini:has-text("the kettle")'), 'Retake: back to ready, same word');
   check(!(await rpc('holler_game', { p_token: tok.A, p_game: zid })).filmed?.includes(ids.A), 'Retake threw the take away');
-  await A.click('button.rec');
+  await A.waitForSelector('.chat.cam-live', { timeout: 15000 }); await A.click('button.rec');
   await A.waitForSelector('.z-pick', { timeout: 20000 }); await A.waitForTimeout(1500);
   await A.fill('#z-zoom', '5'); await A.waitForTimeout(200);
   const fr = await A.locator('.z-pick-frame').boundingBox();
@@ -122,7 +123,7 @@ try {
   check(await B.locator('.g-chip.turn:has-text("Zoom In") em:has-text("Film yours")').count() === 1, 'Blake\'s dock says Film yours');
   await openChip(B, 'Zoom In');
   await B.fill('#z-word', 'my left shoe'); await B.click('.z-film .btn.g-go'); await B.waitForSelector('.g-banner:has-text("Film it")');
-  await B.click('button.rec');
+  await B.waitForSelector('.chat.cam-live', { timeout: 15000 }); await B.click('button.rec');
   await B.waitForSelector('.z-pick', { timeout: 20000 }); await B.waitForTimeout(800); await B.click('.z-pick .btn.g-go:has-text("Send it")');
   check(await until(async () => (await rpc('holler_game', { p_token: tok.B, p_game: zid })).filmed?.includes(ids.B), 40000), 'Blake\'s clip landed');
   // make Blake's an old clip, like Dixon's live one: no focus in state at all (QA rows only)
