@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { publicUrl, type ChatFull, type Person, type Polo } from '../lib/api';
 import { isIPhone, keptIds, saveToPhone } from '../lib/keep';
 import { Avatar, Sheet, clock, toast } from './bits';
@@ -53,7 +54,8 @@ export function Leaving({ chat, me, onWatch, openNow }: { chat: ChatFull; me: Pe
       <button className="leaving-bar" onClick={() => setOpen(true)} aria-haspopup="dialog">
         <Icon name="timer" size={18} /><b>{line}</b><span>Save them</span>
       </button>
-      <Sheet open={open} onClose={() => setOpen(false)} title="Leaving soon" room={chat.theme || 'ember'} className="leaving-sheet">
+      {/* the list opens over the whole room, like every other sheet, not inside the thread's own box */}
+      {createPortal(<Sheet open={open} onClose={() => setOpen(false)} title="Leaving soon" room={chat.theme || 'ember'} className="leaving-sheet">
         <p className="leaving-why">This chat keeps its newest {mins} minutes of video and voice. These are past that. Save any you want to your camera roll before they go.</p>
         <ul className="leaving-list">
           {list.map(p => {
@@ -77,7 +79,7 @@ export function Leaving({ chat, me, onWatch, openNow }: { chat: ChatFull; me: Pe
           })}
         </ul>
         <p className="fine">{isIPhone() ? 'On iPhone, tap the button, then Save Video. ' : ''}Notes stay. A saved copy lives on your phone, not in Holler.</p>
-      </Sheet>
+      </Sheet>, document.querySelector('.chat') || document.body)}
     </>
   );
 }
