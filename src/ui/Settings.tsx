@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../App';
 import { api, cacheBytes, clearCache, rid, upload, type Prefs } from '../lib/api';
 import { LOOKS } from '../lib/studio';
+import { lookId } from '../lib/looks';
 import { VOICES } from '../lib/voice';
 import { speechSupported, isIOS } from '../lib/speech';
 import { enablePush, pushState } from '../lib/push';
@@ -109,11 +110,10 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
           <div className="seg">{([['on', 'Camera'], ['voice', 'Voice only'], ['off', 'Notes']] as [CamMode, string][]).map(([k, l]) => <button key={k} className={cam === k ? 'on' : ''} onClick={() => { setCamMode(k); setCam(k); }}>{l}</button>)}</div>
         </Row>
         <p className="fine">{cam === 'on' ? 'Camera and mic, the full Holler.' : cam === 'voice' ? "No camera on this phone: voice hollers, notes and the games that don't need a camera." : 'No camera or mic on this phone: notes, watching, and board, card and quiz games.'}</p>
-        <Toggle label="HD video" hint="Sharper, about 2.5x the size. Up to 2.5 minutes." on={!!prefs.hd} set={v => void set({ hd: v })} />
         <Toggle label="Live captions" hint={speechSupported() && !isIOS() ? 'Writes down what you say so others can read along and search.' : 'Not available in this browser. Works in Chrome on Android and computers.'} on={prefs.captions !== false} set={v => void set({ captions: v })} disabled={!speechSupported() || isIOS()} />
         <Toggle label="Look before sending" hint="See your holler and choose Send or Retake. Off means it sends the moment you stop, with a few seconds to undo." on={!!prefs.review} set={v => void set({ review: v })} />
         <Toggle label="Simple camera" hint="Turns off looks, drawing and text on video, on this device only. Use it if recordings come out black or choppy." on={simple} set={v => { setSimple(v); setSimpleS(v); }} />
-        <Row label="Default look"><select className="field sel" value={prefs.look || 'none'} onChange={e => void set({ look: e.target.value })}>{LOOKS.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}</select></Row>
+        <Row label="Default look"><select className="field sel" value={lookId(prefs.look)} onChange={e => void set({ look: e.target.value })}>{LOOKS.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}</select></Row>
         <Row label="Default voice"><select className="field sel" value={prefs.voice || 'none'} onChange={e => void set({ voice: e.target.value })}>{VOICES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}</select></Row>
       </section>
 

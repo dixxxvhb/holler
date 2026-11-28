@@ -3,8 +3,8 @@ import { useApp } from '../App';
 import { api, peekChat, prefetch, type ChatFull, type Game, type Person, type Polo } from '../lib/api';
 import { onLive, onPresence, onReconnect, presenceOf, send as liveSend, setStatus } from '../lib/live';
 import { onOutbox, outgoing, sendRecording, sendText, undo, UNDO_MS } from '../lib/outbox';
-import { Studio, cancelRelease, holdWhile, probeFile, releaseMedia, releaseSoon, type Recording, type Stroke } from '../lib/studio';
-import { KINDS, LOOKS, lookOf, type LookId, type LookKind } from '../lib/looks';
+import { Studio, MAX_BYTES, MAX_SEC, cancelRelease, holdWhile, probeFile, releaseMedia, releaseSoon, type Recording, type Stroke } from '../lib/studio';
+import { KINDS, LOOKS, lookId, lookOf, type LookId, type LookKind } from '../lib/looks';
 import { VOICES, type VoiceId } from '../lib/voice';
 import { Captioner, isIOS, speechSupported, type Seg } from '../lib/speech';
 import { pop, recStart, recStop } from '../lib/sound';
@@ -21,7 +21,6 @@ import { DECKS, type Card, type Deck } from '../games/content/cardDecks';
 import { loadGames, useGames } from '../games/load';
 import '../games/games.css';
 
-const MAX_SEC = { sd: 300, hd: 150 };
 const INK = ['#ffffff', '#111111', '#ff6a3d', '#ffb02e', '#c6f432', '#4fd1a5', '#4cb3ff', '#9b7bff', '#ff7aa2'];
 
 type Panel = null | 'looks' | 'voice' | 'draw' | 'text' | 'more' | 'card';
@@ -44,9 +43,8 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const studio = useRef<Studio | null>(null);
   const [camState, setCamState] = useState<'off' | 'starting' | 'on' | 'denied'>('off');
   const [panel, setPanel] = useState<Panel>(null);
-  const [look, setLook] = useState<LookId>((prefs.look as LookId) || 'none');
+  const [look, setLook] = useState<LookId>(lookId(prefs.look));
   const [voice, setVoice] = useState<VoiceId>((prefs.voice as VoiceId) || 'none');
-  const [hd, setHd] = useState(!!prefs.hd);
   // how this phone takes part: camera, voice only, or notes and games (a camera that won't behave shouldn't lock anyone out)
   const [cam, setCam] = useState<CamMode>(camMode());
   const [camSheet, setCamSheet] = useState(false);
@@ -122,7 +120,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     return () => { ro.disconnect(); window.removeEventListener('resize', onResize); document.documentElement.style.removeProperty('--bottom-h'); };
   }, []);
   useEffect(() => { if (recording) setPanel(p => (p === 'more' ? null : p)); }, [recording]);
-  const [kind, setKind] = useState<LookKind>(() => lookOf((prefs.look as string) || 'none').kind);
+  const [kind, setKind] = useState<LookKind>(() => lookOf(lookId(prefs.look)).kind);
   const [amts, setAmts] = useState<Record<string, number>>(() => { try { return JSON.parse(local('holler.amt', '{}')); } catch { return {}; } });
   const amt = amts[look] ?? lookOf(look).amt;
   const setAmt = (v: number) => { const n = { ...amts, [look]: v }; setAmts(n); keep('holler.amt', JSON.stringify(n)); };
@@ -175,7 +173,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       if (!studio.current) studio.current = new Studio(canvasRef.current);
       const s = studio.current; s.voice = voice; s.simple = isSimple(); s.amt = amt;
       s.onCutout = st => { setCut(st); if (st === 'failed') toast('Background looks could not load here. Try again on wifi, or on a newer phone.'); };
-      await s.open({ hd, noCam: cam === 'voice' });
+      await s.open({ noCam: cam === 'voice' });
       s.setLook(look);
       s.onLevel = v => setLevel(v);
       if (!s.glOk && !s.noCam && previewRef.current && !previewRef.current.contains(s.video)) { s.video.className = `raw-video ${s.facing === 'user' ? 'mirror' : ''}`; previewRef.current.appendChild(s.video); }
@@ -204,7 +202,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       console.warn(e); setCamState('denied');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hd, look, voice, cam]);
+  }, [look, voice, cam]);
 
   const startRef = useRef(startCam); startRef.current = startCam;
   // the one place the camera wakes and sleeps
@@ -292,7 +290,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   }, [unreadKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const others = shell ? shell.members.filter(m => m.id !== me.id) : [];
   const pres = presenceOf(chatId);
-  const maxSec = turn ? (turn.kind === 'poker' ? 45 : turn.kind === 'spot' ? 40 : turn.turnSec) : hd ? MAX_SEC.hd : MAX_SEC.sd;
+  const maxSec = turn ? (turn.kind === 'poker' ? 45 : turn.kind === 'spot' ? 40 : turn.turnSec) : MAX_SEC;
   const fixedTurn = !!turn && turn.kind !== 'poker' && turn.kind !== 'spot';   // Pass It On and Charades turns send themselves at the turn length
   const games = chat?.games || [];
   const openGame = games.find(g => g.id === gameId) || null;
@@ -446,7 +444,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
       clearInterval(tickRef.current);
       tickRef.current = window.setInterval(() => {
         const t = s.elapsed(); setElapsed(t);
-        if (t >= maxSec) void finishRef.current();
+        if (t >= maxSec || s.bytes >= MAX_BYTES) void finishRef.current();
       }, 200);
     } catch (e) { settling.current = false; toast('Could not start recording: ' + (e as Error).message); }
   };
@@ -758,7 +756,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           {cam === 'on' && !(recording && aOnly) && <button className={`rail-btn ${panel === 'text' ? 'on' : ''} ${text ? 'set' : ''}`} onClick={() => toggle('text')}><Icon name="text" /><span>Text</span></button>}
         </>}
         {card && <button className={`rail-btn set ${panel === 'card' ? 'on' : ''}`} onClick={() => toggle('card')}><Icon name="cards" /><span>Card</span></button>}
-        {!recording && <button className={`rail-btn ${panel === 'more' ? 'on' : ''} ${panel !== 'more' && (hd || timer || audioOnly || ring || cam !== 'on') ? 'set' : ''}`} onClick={() => toggle('more')} aria-label={panel === 'more' ? 'Fewer tools' : 'More tools'} aria-expanded={panel === 'more'}><Icon name="more" stroke={3.2} /><span>More</span></button>}
+        {!recording && <button className={`rail-btn ${panel === 'more' ? 'on' : ''} ${panel !== 'more' && (timer || audioOnly || ring || cam !== 'on') ? 'set' : ''}`} onClick={() => toggle('more')} aria-label={panel === 'more' ? 'Fewer tools' : 'More tools'} aria-expanded={panel === 'more'}><Icon name="more" stroke={3.2} /><span>More</span></button>}
         {recording && !aOnly && <button className={`rail-btn ${ring ? 'set' : ''}`} onClick={() => { const v = !ring; setRing(v); keep('holler.ring', v ? '1' : '0'); if (v && !recording) toast('Light on. Turn your screen brightness up for the most glow.'); }}><Icon name="light" /><span>Light</span></button>}
         <input ref={fileRef} type="file" accept="video/*,audio/*" hidden onChange={e => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
       </aside>
@@ -800,12 +798,6 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           <button className={`rail-btn ${cam !== 'on' ? 'set' : ''}`} onClick={() => setCamSheet(true)}><Icon name={cam === 'on' ? 'camera' : cam === 'voice' ? 'mic' : 'keyboard'} /><span>{cam === 'on' ? 'Camera' : cam === 'voice' ? 'Voice' : 'Notes'}</span></button>
           {cam === 'on' && <button className={`rail-btn ${ring ? 'set' : ''}`} onClick={() => { const v = !ring; setRing(v); keep('holler.ring', v ? '1' : '0'); if (v && !recording) toast('Light on. Turn your screen brightness up for the most glow.'); }}><Icon name="light" /><span>Light</span></button>}
           {cam !== 'off' && <button className={`rail-btn ${timer ? 'set' : ''}`} onClick={() => { const v = timer === 0 ? 3 : timer === 3 ? 10 : 0; setTimer(v); keep('holler.timer', String(v)); toast(v ? `${v} second timer: prop your phone up, tap record, step back` : 'Timer off'); }}><Icon name="timer" /><span>{timer ? `${timer}s` : 'Timer'}</span></button>}
-          {cam === 'on' && <button className={`rail-btn ${hd ? 'set' : ''}`} onClick={async () => {
-            const v = !hd; setHd(v);
-            try { await studio.current?.setHD(v); }
-            catch { setHd(!v); if (studio.current) studio.current.hd = !v; void startCam(); toast(v ? 'This camera would not switch to HD.' : 'Could not switch back to SD.'); return; }
-            void api.updateMe({ prefs: { hd: v } }).catch(() => {}); toast(v ? 'HD on: sharper, bigger files' : 'HD off');
-          }}><Icon name="hd" /><span>{hd ? 'HD' : 'SD'}</span></button>}
           {cam === 'on' && <button className={`rail-btn ${audioOnly ? 'set' : ''}`} onClick={() => setAudioOnly(a => !a)}><Icon name="wave" /><span>Voice only</span></button>}
           <button className="rail-btn" onClick={() => fileRef.current?.click()}><Icon name="upload" /><span>Upload</span></button>
           </div>

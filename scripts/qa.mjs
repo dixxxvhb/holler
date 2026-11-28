@@ -56,7 +56,7 @@ await shot(B, '04-B-in-chat');
 step('A records with a look, text and voice');
 await A.waitForTimeout(1500);
 await camFirst(A); await A.click('.rail-btn:has-text("Looks")');
-await A.click('.chip:has-text("Film")');
+await A.click('.chip:has-text("Movie")');
 await shot(A, '05-looks');
 await camFirst(A); await A.click('.rail-btn:has-text("Voice")');
 await A.click('.chip:has-text("Chipmunk")');

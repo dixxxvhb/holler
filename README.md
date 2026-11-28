@@ -14,5 +14,5 @@ Free stack: GitHub Pages (static app) + figgg's free Supabase project, walled in
 - Dev: `npm run dev` (port 5188). Build: `npm run build`. QA: `node scripts/qa.mjs` (two fake users, fake camera).
 
 Limits on the free plan: 1 GB of video total, 5 GB of downloads a month shared with figgg. Watched
-hollers are cached on each device so replays cost nothing. Max file 50 MB (about 5 min SD, 2.5 min HD).
+hollers are cached on each device so replays cost nothing. Max file 50 MB; one picture size (720 wide, about 12 MB a minute on an iPhone), longest holler 3 minutes.
 Never add holler tables to figgg's `public` schema.

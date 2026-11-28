@@ -26,13 +26,30 @@ function pickMime(kind: 'video' | 'audio'): { mime: string; ext: string } {
   return { mime: '', ext: kind === 'video' ? 'mp4' : 'm4a' };
 }
 
+// ---- quality (11-28) ----
+// One tier for everyone: a 720x1280 picture that lands at about 1.5 megabits a second in the file.
+// Measured 11-27 with a real face clip (scripts/measure.mjs, and supabase/limits-survey.sql for what real phones wrote):
+//   Chrome writes what it is asked for: asked 1,500 kbps, got 1,502, 11.7 MB a minute with sound.
+//   Safari and every iPhone browser write about 1.7x what they are asked for (asked 900 at 540 wide, real phones
+//   averaged 1,390 and peaked at 1,640; asked 1,500 at 720 wide, got 2,560). So those are asked for less.
+// MAX_SEC is the longest holler: 3 minutes is about 35 MB, and still under the 50 MB per-file limit on a phone
+// running at its measured worst. MAX_BYTES ends a take early if a recorder ever runs hotter than that, so no
+// holler is too big to send.
+export const TARGET_BITS = 1_500_000;
+const RUNS_OVER = (() => {
+  try { const ua = navigator.userAgent; return /AppleWebKit/.test(ua) && !/Chrome|Chromium|Edg\/|OPR\/|Android/.test(ua) ? 1.7 : 1; } catch { return 1; }
+})();
+export const VIDEO_BITS = Math.round(TARGET_BITS / RUNS_OVER);
+export const AUDIO_BITS = 64_000;
+export const MAX_SEC = 180;
+export const MAX_BYTES = 46_000_000;
+
 export class Studio {
   canvas: HTMLCanvasElement;
   overlay = document.createElement('canvas');
   video = document.createElement('video');
   stream: MediaStream | null = null;
   facing: 'user' | 'environment' = 'user';
-  hd = false;
   look: LookId = 'none';
   voice: VoiceId = 'none';
   strokes: Stroke[] = [];
@@ -80,18 +97,20 @@ export class Studio {
     this.video.muted = true; this.video.playsInline = true; this.video.setAttribute('playsinline', ''); this.video.autoplay = true;
   }
 
-  get size() { return this.hd ? { w: 720, h: 1280 } : { w: 540, h: 960 }; }
+  /** One picture size for everyone (11-28): 720 wide. There is no lower tier; a phone that can't keep up uses Simple camera. */
+  get size() { return { w: 720, h: 1280 }; }
+  /** Bytes the running take has caught so far (the recorder hands over a piece every second). */
+  get bytes() { let n = 0; for (const c of this.chunks) n += c.size; return this.rec ? n : 0; }
 
   /** true when this studio runs on the mic alone (no camera on this device, or the person chose voice only) */
   noCam = false;
 
-  async open(opts: { facing?: 'user' | 'environment'; hd?: boolean; noCam?: boolean } = {}) {
+  async open(opts: { facing?: 'user' | 'environment'; noCam?: boolean } = {}) {
     if (opts.facing) this.facing = opts.facing;
-    if (opts.hd !== undefined) this.hd = opts.hd;
     if (opts.noCam !== undefined) this.noCam = opts.noCam;
     const { w, h } = this.size;
     if (this.noCam) { await acquireMic(); if (shared.cam) shared.cam.enabled = false; }
-    else await acquire(this.facing, this.hd);
+    else await acquire(this.facing);
     this.attach();
     // with no camera there is nothing to play, and play() on an empty video never settles
     if (!this.noCam) await this.video.play().catch(() => { /* iOS needs a gesture sometimes; frames still flow */ });
@@ -119,7 +138,7 @@ export class Studio {
     const next = this.facing === 'user' ? 'environment' : 'user';
     this.swapping = true;
     try {
-      await acquire(next, this.hd, true);
+      await acquire(next, true);
       this.facing = next;
       this.attach();
       await this.video.play().catch(() => {});
@@ -127,12 +146,11 @@ export class Studio {
       return true;
     } catch (e) {
       console.warn('flip failed', e);
-      await acquire(this.facing, this.hd, true).catch(() => {});
+      await acquire(this.facing, true).catch(() => {});
       this.attach(); void this.video.play().catch(() => {});
       return false;
     } finally { this.swapping = false; }
   }
-  async setHD(hd: boolean) { if (hd !== this.hd && !this.recording) { this.hd = hd; await this.open({ hd }); } }
 
   // One small program per look, built the first time it's used. A single program holding every look
   // would make some phones pay for all of them on every frame.
@@ -414,7 +432,7 @@ export class Studio {
     }
     if (audioTrack) tracks.push(audioTrack);
     const { mime, ext } = pickMime(kind);
-    const bits = kind === 'audio' ? { audioBitsPerSecond: 64000 } : { videoBitsPerSecond: opts.videoBits ?? (this.hd ? 2_500_000 : 900_000), audioBitsPerSecond: 64000 };
+    const bits = kind === 'audio' ? { audioBitsPerSecond: AUDIO_BITS } : { videoBitsPerSecond: opts.videoBits ?? VIDEO_BITS, audioBitsPerSecond: AUDIO_BITS };
     const rec = new MediaRecorder(new MediaStream(tracks), mime ? { mimeType: mime, ...bits } : bits);
     // each recorder keeps its own pieces, so one take can never pick up (or wipe) another's
     const chunks: Blob[] = []; this.chunks = chunks; (rec as unknown as { _chunks: Blob[] })._chunks = chunks;
@@ -502,7 +520,7 @@ export class Studio {
     const thumb = await Promise.race([this.thumbP, new Promise<null>(r => setTimeout(() => r(null), 1500))]);
     const { w, h } = this.size;
     return { blob, mime, ext, duration, w, h, thumb, kind: this.recKind,
-      effects: { look: this.look, voice: this.voice, looks: [...this.looksUsed], voices: [...this.voicesUsed], text: this.text?.text || null, card: this.card ? this.card.text : undefined, scribbles: this.strokes.length > 0, hd: this.hd } };
+      effects: { look: this.look, voice: this.voice, looks: [...this.looksUsed], voices: [...this.voicesUsed], text: this.text?.text || null, card: this.card ? this.card.text : undefined, scribbles: this.strokes.length > 0 } };
   }
 
   // the canvas track made for a take; stopped after it so they don't pile up over a session
@@ -532,30 +550,30 @@ export class Studio {
 // which turns the camera light off) when no chat is open. The mic is never switched off and on: on
 // iPhone every mic mute and unmute plays a loud system sound, which rang out each time Holler opened
 // or a chat closed (11-27). Flipping swaps the camera track only.
-const shared: { cam: MediaStreamTrack | null; mic: MediaStreamTrack | null; facing: string; hd: boolean } = { cam: null, mic: null, facing: '', hd: false };
+const shared: { cam: MediaStreamTrack | null; mic: MediaStreamTrack | null; facing: string } = { cam: null, mic: null, facing: '' };
 const live = (t: MediaStreamTrack | null): boolean => !!t && t.readyState === 'live';
-const camConstraints = (facing: string, hd: boolean): MediaTrackConstraints =>
-  ({ facingMode: facing, width: { ideal: hd ? 1280 : 960 }, height: { ideal: hd ? 720 : 540 }, frameRate: { ideal: 30 } });
+const camConstraints = (facing: string): MediaTrackConstraints =>
+  ({ facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } });
 const micConstraints: MediaTrackConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
 
-async function acquire(facing: string, hd: boolean, forceCam = false) {
+async function acquire(facing: string, forceCam = false) {
   cancelRelease();
-  const camOk = live(shared.cam) && shared.facing === facing && shared.hd === hd && !forceCam;
+  const camOk = live(shared.cam) && shared.facing === facing && !forceCam;
   if (camOk && live(shared.mic)) { shared.cam!.enabled = true; return; }
   if (live(shared.mic)) {
     // mic is still held, so this page is still capturing: a camera-only ask doesn't prompt again.
     // Phones can only run one camera at a time, so stop the old one first.
     if (!camOk) {
       shared.cam?.stop(); shared.cam = null;
-      const s = await navigator.mediaDevices.getUserMedia({ video: camConstraints(facing, hd) });
+      const s = await navigator.mediaDevices.getUserMedia({ video: camConstraints(facing) });
       shared.cam = s.getVideoTracks()[0];
     }
-    shared.cam!.enabled = true; shared.facing = facing; shared.hd = hd;
+    shared.cam!.enabled = true; shared.facing = facing;
     return;
   }
   shared.cam?.stop(); shared.mic?.stop(); shared.cam = shared.mic = null;
-  const s = await navigator.mediaDevices.getUserMedia({ video: camConstraints(facing, hd), audio: micConstraints });
-  shared.cam = s.getVideoTracks()[0]; shared.mic = s.getAudioTracks()[0]; shared.facing = facing; shared.hd = hd;
+  const s = await navigator.mediaDevices.getUserMedia({ video: camConstraints(facing), audio: micConstraints });
+  shared.cam = s.getVideoTracks()[0]; shared.mic = s.getAudioTracks()[0]; shared.facing = facing;
 }
 
 /** Mic only (voice-only mode): asks for the mic alone, and never for the camera. */

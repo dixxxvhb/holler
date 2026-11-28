@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../App';
 import { api, type Person, type ProfileStats } from '../lib/api';
-import { lookOf } from '../lib/looks';
+import { lookId, lookOf } from '../lib/looks';
 import { VOICES } from '../lib/voice';
 import { Avatar, Sheet, ago, tone } from './bits';
 import { Icon } from './icons';
@@ -26,7 +26,7 @@ export function ProfileSheet({ person, onClose, status }: { person: Person | nul
   if (!p) return <Sheet open={false} onClose={onClose}>{null}</Sheet>;
   const isMe = p.id === home?.me.id;
   const pr = isMe ? { ...p.profile, ...pick(home!.me.prefs) } : p.profile || {};
-  const look = pr.look && pr.look !== 'none' ? lookOf(pr.look) : null;
+  const look = lookId(pr.look) !== 'none' ? lookOf(lookId(pr.look)) : null;   // a look that no longer exists shows as none
   const voice = pr.voice && pr.voice !== 'none' ? VOICES.find(v => v.id === pr.voice) : null;
   const st = full?.stats;
   const first = p.name.split(' ')[0];
