@@ -40,10 +40,14 @@ Two cheap quality fixes: Blur behind no longer smears the person into a glow rou
 land on you barely count), and Twins folds back at the picture's edge instead of smearing the last column.
 A saved default look or an old holler naming a look that is gone falls back to Natural (`lookId()` in looks.ts).
 
-## 3. Per-chat limit (BUILT, NOT APPLIED, NOT ON: waits for Dixon's yes)
+## 3. Per-chat limit (APPLIED AND TESTED, SWITCHED OFF: the switch waits for Dixon's yes)
 
-Nothing in this section has touched the database. The SQL has only ever run inside `limits-check.sql`, which
-rolls everything back. The app code is on main and does nothing until the server sends the new fields.
+State on 11-28, 3:05am: Dixon said yes to applying with the switch off. `limits.sql` and `limits-key.sql` are
+applied (the three live functions were compared with the repo first and matched: `limits-preflight.sql`).
+`limit_on` is '0', no daily job is scheduled, nothing in a real chat is marked or removed. The full loop ran on QA
+people only (`scripts/qa-limit.mjs`, 28/28): two hollers marked, shown on the bar and list, saved out, taken out,
+and their four files really deleted by storage, while the newer hollers and the note stayed. The app code is live
+(the polish session deployed main at 07:47Z) and shows nothing until something is marked.
 
 The rule and every setting are written at the top of `supabase/limits.sql`. In short: each chat keeps its newest
 12 minutes of video and voice (12 to 15 in practice: a holler stays while everything newer adds up to under 12);
@@ -58,8 +62,8 @@ Reviewed twice by `second-look`. Round one found eight problems (marks never re-
 while off, undo ringing phones, storage not enforcing the hold, silent failures, the test path judging a chat
 by members only, timing, test gaps); all were fixed. Round two: "clean enough to apply with the switch off",
 plus three smaller points, also fixed (the real run refuses a mistyped setting; QA cleanup clears a hold on QA
-files; the ping is tested for real). Not exercised anywhere: `limits-on.sql`, `limits-off.sql`, `limits-undo.sql`
-(read by the reviewer twice, never run).
+files; the ping is tested for real). Still never run: `limits-on.sql`, `limits-off.sql`, `limits-undo.sql`
+(read by the reviewer twice).
 
 Files:
 - `supabase/limits.sql` the columns (`leaves_at`, `removed_at`, `purge_after`), `holler.limit_run(scope)`, the
@@ -72,16 +76,15 @@ Files:
   was taken out while its file still exists.
 - `supabase/limits-status.sql` read-only: switch, numbers, storage used, minutes per chat, last runs (needs limits.sql applied).
 - `supabase/limits-qa-mark.sql`, `limits-qa-due.sql`, `scripts/qa-limit.mjs`: the full loop on QA people, files
-  really deleted. NEVER RUN YET: it needs limits.sql and limits-key.sql applied. It can only reach chats named
+  really deleted. Ran 28/28 on 11-28. It can only reach chats named
   exactly `ZZ limit test` whose every member and every author is a QA person.
 - App: `src/ui/Leaving.tsx` + `src/ui/leaving.css` (bar and list), `src/lib/keep.ts` (share sheet on a phone,
   download elsewhere), the badge in `Thread.tsx`, the chat-info line in `ChatInfo.tsx`, `public/sw.js` (a leaving
   ping does not count on the app icon and opens `/c/<id>/leaving`). Tested with stand-in data, nothing applied:
   `scripts/qa-leaving-ui.mjs` 16/16; screens in `shots/limit/`.
 
-On Dixon's yes, in this order: (1) `holler-sql limits.sql`, (2) `holler-sql limits-key.sql`, (3)
-`PW_CHANNEL=chrome node scripts/qa-limit.mjs` then `node scripts/clean-qa-remote.mjs`, (4) deploy main so phones
-have the bar and list, (5) only then `holler-sql limits-on.sql`, (6) `holler-sql limits-status.sql` the next day.
+What is left is one step, on Dixon's yes to the numbers and words: `holler-sql limits-on.sql`, then
+`holler-sql limits-status.sql` the next day (and `limits-off.sql` / `limits-undo.sql` if anything looks wrong).
 
 Numbers on 11-28, 2:20am: the `holler` bucket held 260 MB of the 1 GB (169 MB three hours earlier); chats at
 15.5, 6.6 and 1.9 minutes. Switched on that day, the first run would mark 16 hollers in the 15.5-minute chat as
