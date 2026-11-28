@@ -58,6 +58,18 @@ language sql stable security definer set search_path = holler as $$
   select coalesce((select case when value ~ '^[0-9]{1,6}$' then value::int end from holler.config where key = p_key), p_default)
 $$;
 
+-- The real run's read of a number: a setting that is there but is not a plain number stops the run, loudly, rather
+-- than quietly becoming the default (someone meant a different number).
+create or replace function holler.limit_int_strict(p_key text, p_default int) returns int
+language plpgsql stable security definer set search_path = holler as $$
+declare v text;
+begin
+  select value into v from holler.config where key = p_key;
+  if v is null then return p_default; end if;
+  if v !~ '^[0-9]{1,6}$' then raise exception 'limit setting % is not a plain number (%): not running', p_key, quote_literal(v); end if;
+  return v::int;
+end $$;
+
 create or replace function holler.limit_is_qa(p_name text) returns boolean
 language sql immutable as $$
   select p_name in ('QA Bot', 'Avery QA', 'Blake QA') or p_name like 'ZZTest%'
@@ -116,9 +128,9 @@ begin
     if p_keep_seconds is not null or p_grace is not null or p_hold is not null then
       raise exception 'the real run takes its numbers from holler.config only';
     end if;
-    keep := holler.limit_int('limit_keep_seconds', 720);
-    grace := make_interval(days => holler.limit_int('limit_grace_days', 3));
-    hold := make_interval(hours => holler.limit_int('limit_hold_hours', 24));
+    keep := holler.limit_int_strict('limit_keep_seconds', 720);
+    grace := make_interval(days => holler.limit_int_strict('limit_grace_days', 3));
+    hold := make_interval(hours => holler.limit_int_strict('limit_hold_hours', 24));
     -- a slipped digit in a setting must not empty a chat: refuse numbers smaller than anyone would mean
     if keep < 300 or grace < interval '1 day' or hold < interval '1 hour' then
       raise exception 'limit settings look wrong (keep % s, grace %, hold %): not running', keep, grace, hold;
@@ -293,7 +305,7 @@ begin
 end $$;
 
 revoke all on function holler.limit_run(text, int, interval, interval), holler.limit_chats(text),
-  holler.limit_setting(text, text), holler.limit_int(text, int), holler.limit_seconds(real), holler.limit_is_qa(text)
+  holler.limit_setting(text, text), holler.limit_int(text, int), holler.limit_int_strict(text, int), holler.limit_seconds(real), holler.limit_is_qa(text)
   from public, anon, authenticated;
 
 -- Storage's own rule for letting go of a file (used by the holler_delete and holler_select_deleted policies in

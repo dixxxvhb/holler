@@ -44,6 +44,8 @@ begin
   insert into holler.tokens (token_hash, person_id) values (encode(extensions.digest(tok, 'sha256'), 'hex'), a);
   insert into holler.people (name, token_hash) values ('ZZTest B', 'zzt-' || gen_random_uuid()) returning id into b;
   insert into holler.people (name, token_hash) values ('Zed Real', 'zzt-' || gen_random_uuid()) returning id into real_p;
+  -- B has notifications on (a made-up subscription; the request it causes is rolled back with everything else)
+  insert into holler.push_subs (endpoint, person_id, sub) values ('https://example.invalid/zzt-' || gen_random_uuid(), b, '{"endpoint": "https://example.invalid/zzt"}');
   cq := pg_temp.chat('ZZ limit test', a, b);            -- in the test's reach
   c_real := pg_temp.chat('ZZ limit test', a, real_p);   -- same name, but a real person is in it: out of reach
   c_other := pg_temp.chat('Some other name', a, b);     -- QA people, wrong name: out of reach
@@ -121,7 +123,10 @@ begin
   assert (select leaves_at is null and status = 'ready' from holler.polos where id = k_playing), 'a game in play keeps its clips';
   assert (select leaves_at is null and status = 'ready' from holler.polos where id = k_fresh), 'a game over for 2 days keeps its clips';
   assert (select count(*) from holler.limit_log) = n + 1, 'the run is written down';
-  assert (rep->>'pinged')::int = 0 and rep->'ping_errors' <> 'null'::jsonb, 'ping outcome is in the report, got ' || rep;
+  assert (rep->>'pinged')::int = 2 and rep->'ping_errors' = '[]'::jsonb, 'one ping for each chat with something newly leaving, no errors, got ' || rep;
+  assert (select count(*) from net.http_request_queue r where r.url like '%/functions/v1/holler-push' and convert_from(r.body, 'UTF8') like '%' || cq || '/leaving%'
+            and convert_from(r.body, 'UTF8') like '%4 hollers leave in 3 days. Open the chat to save any you want to your camera roll.%') = 1,
+         'the ping for the QA chat is queued once, with the count, the days and the link to the list';
 
   -- ---- 3. running again changes nothing ----
   rep := holler.limit_run('qa');
@@ -215,6 +220,9 @@ begin
   assert (public.holler_chat(tok, c_tie)->>'keepSeconds')::int = 720, 'keepSeconds once it is on';
   perform pg_temp.setc('limit_keep_seconds', '720s');
   assert (public.holler_chat(tok, c_tie)->>'keepSeconds')::int = 720, 'a mistyped setting never breaks the chat read';
+  assert pg_temp.err($q$select holler.limit_run('all')$q$) like '%is not a plain number%', 'but the real run refuses a mistyped number instead of guessing';
+  perform pg_temp.setc('limit_keep_seconds', '1200 ');
+  assert pg_temp.err($q$select holler.limit_run('all')$q$) like '%is not a plain number%', 'a trailing space too';
 
   -- ---- 9. the real run refuses numbers nobody would mean, and overrides ----
   perform pg_temp.setc('limit_keep_seconds', '60');

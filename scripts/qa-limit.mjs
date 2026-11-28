@@ -16,7 +16,8 @@ const sql = f => {
   const out = execFileSync('ssh', ['pc', `pwsh -NoProfile -File C:/Users/bowle/bin/pc-run.ps1 holler-sql ${f}`]).toString();
   const body = out.slice(out.indexOf('\n', out.indexOf('started')) + 1, out.lastIndexOf('pc-run:')).trim();
   if (!/^20\d /.test(body)) throw new Error(`${f} failed:\n${out}`);
-  return JSON.parse(body.replace(/^\d+ /, '')).at(-1).report;
+  // a file with two statements can come back as one list of rows or as a list per statement: take the last report
+  return [JSON.parse(body.replace(/^\d+ /, ''))].flat(3).filter(r => r && r.report).at(-1).report;
 };
 let pass = 0, fail = 0;
 const check = (ok, name, extra = '') => { if (ok) pass++; else fail++; console.log(ok ? 'ok  ' : 'FAIL', name, ok ? '' : extra); };
@@ -43,7 +44,7 @@ await B.goto(BASE + '#/join/' + code); await B.fill('#nm', 'Blake QA'); await B.
 
 console.log('-- Avery sends a note and four 3-second hollers');
 await A.waitForTimeout(1500);
-await A.click('.side-btn:has-text("Note")'); await A.fill('textarea.field', 'this note must stay'); await A.click('.sheet .btn.primary');
+await A.click('.side-btn[aria-label="Send a text"]'); await A.fill('textarea', 'this note must stay'); await A.click('.sheet .btn.primary'); await A.waitForTimeout(1500);
 for (let i = 0; i < 4; i++) {
   await camFirst(A); await A.click('.rec'); await A.waitForTimeout(3300); await A.click('.rec');
   let n = 0; for (let k = 0; k < 80 && n < i + 1; k++) { n = await A.locator('.thread .tile:not(.pending)').count(); if (n < i + 1) await A.waitForTimeout(500); }
