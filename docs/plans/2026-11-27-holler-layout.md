@@ -204,3 +204,48 @@ OPEN / BLOCKED: <anything not done, and why>
 
 ## 7. Later rounds (not now)
 Finished games as items in the thread with Rematch; "Holler at one person" (start a two-person chat from a face, needs a server change and Dixon's yes); Catch up (play everything new across chats).
+
+## 8. Round two: the camera and mic sleep unless they are in use (Builder A, added 2026-11-27 night)
+
+Dixon's ask, his words: "find a way to not have to allow camera and mic access every time and also that camera and mic don't need to be on the whole time the app is open especially if we're just gaming."
+
+What is true on an iPhone (checked against WebKit's bug tracker and recent reports, not from memory): a Home Screen web app cannot keep a camera or mic grant between launches, and inside one launch iOS asks again whenever a page that is capturing nothing asks for the camera or mic. Holding a live track is the only thing that stops the second ask. Today Holler therefore grabs both when the first room opens and holds the mic for the life of the page, which is why the mic dot never goes out. Muting and unmuting the mic track plays a loud system sound on iPhone, so that is still never done. Stopping a track makes no sound.
+
+### Decision
+1. **Nothing is asked for or switched on until the camera is actually needed.** Opening a room, reading the thread, watching, notes, board, card, quiz and word games never touch the camera or mic. A launch where you only play or watch never shows a permission ask and never lights a dot.
+2. **The camera wakes** when the room's camera opens (`camOpen` true by any route: tile tap or hold, a turn, `/cam`, Reply, a card, a tool) and for the three features that film you outside it: Film my reaction in the player, Don't Laugh's watch, and reaction filming in the Pass It On reveal.
+3. **The camera sleeps** the moment none of those is on: `studio.close()` as today (picture off, camera light off). The mic is still held at that point.
+4. **Everything is let go after a short quiet spell.** 90 seconds after the camera last slept, with nothing recording and nothing sending from the recorder, stop both tracks (`releaseMedia()`), so the mic dot goes out. Any wake before then cancels the timer, so back-to-back hollers, a reply, or hopping to another chat to answer do not get a second ask. The timer must outlive a room: keep it at module level. Also start the same timer when the app goes to the background.
+5. Rejected: letting go the instant the camera closes (an iPhone would ask before every single holler); holding the mic for the whole launch (today, the thing he is complaining about); muting the mic track (the system sound).
+
+### What you may touch (this round only)
+- `src/lib/studio.ts`: only the shared-media block at the bottom. Add `releaseSoon(ms)` and `cancelRelease()` (module-level timer; `acquire` and `acquireMic` cancel it; `releaseSoon` must never fire while any recorder is running, so check a module-level "a take is on" flag or re-arm). Do not change `open`, `close`, `start`, `stop`, `flip`, the recorder, or the WebGL path.
+- `src/ui/ChatScreen.tsx`, `src/ui/thread.css`, `src/ui/Player.tsx`, `src/games/Laugh.tsx`, `src/games/Reveal.tsx`, `src/games/reaction.tsx`, and the QA scripts.
+
+### Behavior
+- Room mount no longer calls `startCam()`. `camState` starts `'off'`. One effect owns the camera: wanted = `camOpen` or a feature has asked for it; wanted and not on: `startCam()`; not wanted: `studio.current?.close()`, `setCamState('off')`, `releaseSoon(90_000)`. The existing hide/show handler stays, but coming back to the front restarts the camera only if it is wanted.
+- The features that film you get the camera through one small request from ChatScreen (for example a prop `onCamWanted(on: boolean)` plus the `studio` prop they already take, which stays null until the camera is on). Film my reaction: the switch asks for the camera when turned on and waits for it; if the camera cannot start, say so with the existing toast style and turn the switch back off. Don't Laugh: watching asks for the camera before the clip plays; the "I laughed" fallback must still work with no camera. The reveal's reaction filming: same pattern as the player. Each feature gives the camera back when it closes.
+- The live tile no longer shows a picture while asleep: it shows the person's own avatar on the room's patterned wall with the red record dot, label "Holler" (class `live-tile asleep`). Voice-only keeps the mic glyph. When the camera is on but the room is in the thread (the 90 seconds, or a feature is using it), the tile may show the live picture as it does now, or stay as the avatar; pick whichever is simpler and steadier.
+- Opening the camera from asleep: the full camera view shows at once with a quiet "Starting the camera" line until `camState` is `'on'`; the record button waits. Hold on the tile from asleep: open the camera; if the finger is still down when the camera comes on, start recording, otherwise leave it open and idle.
+- Denied or failed: today's wall with its three buttons, inside the camera state. Nothing about a denied camera shows in the thread except the tile's camera icon after a failed try.
+- Notes-only phones: unchanged, nothing is ever asked. Voice-only: the mic is asked for only when the recorder opens, and sleeps and lets go the same way.
+- The once-per-device effects self-test (`holler.camtest2`) still runs the first time the camera comes on.
+- Leaving a room no longer needs the camera light logic it has now, but must still `dispose()` the studio (WebGL context) and leave the 90-second timer running.
+
+### Checks (all true when you report)
+```json
+{
+  "build_passes": false,
+  "pearlfish_count_is_0": false,
+  "room_open_requests_no_media": false,
+  "board_game_from_play_page_requests_no_media": false,
+  "camera_open_then_close_pauses_video_and_keeps_mic": false,
+  "ninety_seconds_later_both_tracks_are_stopped": false,
+  "second_open_inside_90s_makes_no_new_getUserMedia_for_mic": false,
+  "film_my_reaction_wakes_camera_and_still_sends": false,
+  "dont_laugh_watch_wakes_camera": false,
+  "qa_suites_pass_on_prod_build": false,
+  "qa_people_cleaned": false
+}
+```
+Prove the media checks with a new script `scripts/qa-sleep.mjs` that wraps `navigator.mediaDevices.getUserMedia` in an init script to count calls and record each track's `readyState`/`enabled` (use a short release time through a test hook such as `localStorage['holler.releaseMs']` so the script does not wait 90 seconds). Then re-run on a production build, one at a time: qa, qa-simple, qa-play, qa-rounds, qa-faces, qa-after-act, qa-spot-stuck, qa-polish, qa-features, qa-flip, qa-looks, and qa-long-send on dev. Clean up after.
