@@ -142,7 +142,7 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
       <h3 className="sec">Storage</h3>
       <section className="card">
         <div className="meter"><i style={{ width: `${pct}%` }} /></div>
-        <p className="fine">Everyone's hollers use {(used / 1024 ** 2).toFixed(0)} MB of 1 GB ({home!.usage.count} files). History is kept forever; deleting your own hollers frees room.</p>
+        <p className="fine">Everyone's hollers use {(used / 1024 ** 2).toFixed(0)} MB of 1 GB ({home!.usage.count} files). Each chat keeps its newest 12 minutes of video and voice; older ones leave after a 3 day warning.</p>
         <p className="fine">This device keeps {(local / 1024 ** 2).toFixed(0)} MB of watched hollers so replays load instantly and use no data.</p>
         <button className="btn" onClick={async () => { await clearCache(); setLocal(await cacheBytes()); toast('Cleared'); }}>Clear this device's copies</button>
       </section>

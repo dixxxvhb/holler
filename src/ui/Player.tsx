@@ -247,7 +247,7 @@ export function Player({ chat, list, start, me, onClose, onReply, onChanged, sta
     const on = !polo.savedBy.includes(me.id);
     try { await api.save(polo.id, on); } catch (e) { toast((e as Error).message || 'Could not save that'); return; }
     setItems(it => it.map(p => (p.id === polo.id ? { ...p, savedBy: on ? [...p.savedBy, me.id] : p.savedBy.filter(x => x !== me.id) } : p)));
-    toast(on ? 'Saved forever. Find it under Saved.' : 'Removed from Saved'); onChanged?.();
+    toast(on ? 'Saved. Find it under Saved.' : 'Removed from Saved'); onChanged?.();
   };
   const download = async () => {
     if (!polo.path) return;

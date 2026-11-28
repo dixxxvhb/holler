@@ -151,7 +151,7 @@ export function GamePage({ game, chat, me, onClose, onTakeTurn, onReveal, onChan
       <p className="g-foot">
         {game.status === 'playing'
           ? 'Clips stay locked until the last guess. Nobody, you included, can peek at the middle of the chain. Anyone who waits 2 days gets skipped.'
-          : game.savedAt ? 'The reel is saved, so these clips stay.' : game.hidden ? 'These clips are hidden now.' : `Clips hide ${game.hidesAt ? new Date(game.hidesAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'in a week'} unless someone saves the reel.`}
+          : game.savedAt ? 'Saved. A week after the game these clips get 3 days on the leaving list, so you can save them to your camera roll.' : game.hidden ? 'These clips are hidden now.' : `Clips hide ${game.hidesAt ? new Date(game.hidesAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'in a week'} unless someone saves the reel.`}
       </p>
       {game.status === 'playing' && game.createdBy === me.id && (
         <button className="link-btn g-endgame" onClick={() => void act(() => api.gameEnd(game.id), 'Game ended')}>End this game</button>

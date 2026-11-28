@@ -145,13 +145,13 @@ export function RoundPage({ game, chat, me, onClose, onTakeTurn, onWatch, onGues
         </button>
       )}
       {!playing && !game.hidden && (
-        <button className={`btn wide ${game.savedAt ? '' : 'g-go'}`} onClick={() => void act(() => api.gameSave(game.id, !game.savedAt), game.savedAt ? 'Not saved' : 'Saved. These clips stay.')}>
+        <button className={`btn wide ${game.savedAt ? '' : 'g-go'}`} onClick={() => void act(() => api.gameSave(game.id, !game.savedAt), game.savedAt ? 'Not saved' : 'Saved')}>
           <Icon name="star" size={18} fill={game.savedAt ? 'currentColor' : undefined} /> {game.savedAt ? 'Saved' : 'Save these clips'}
         </button>
       )}
       <p className="g-foot">{playing
         ? 'Anyone who waits 2 days gets passed by, so a game never stalls.'
-        : game.savedAt ? 'Saved, so these clips stay.' : game.hidden ? 'These clips are hidden now.' : `Clips hide ${game.hidesAt ? new Date(game.hidesAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'in a week'} unless someone saves them.`}</p>
+        : game.savedAt ? 'Saved. A week after the game these clips get 3 days on the leaving list, so you can save them to your camera roll.' : game.hidden ? 'These clips are hidden now.' : `Clips hide ${game.hidesAt ? new Date(game.hidesAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'in a week'} unless someone saves them.`}</p>
       {playing && game.createdBy === me.id && <button className="link-btn g-endgame" onClick={() => void act(() => api.gameEnd(game.id), 'Game ended')}>End this game</button>}
     </div>
   );

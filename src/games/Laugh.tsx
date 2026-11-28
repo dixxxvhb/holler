@@ -147,11 +147,11 @@ export function LaughPage({ game, chat, me, studio, onCamWanted, onClose, onTake
         </button>
       )}
       {!playing && !game.hidden && acts.length > 0 && (
-        <button className={`btn wide ${game.savedAt ? '' : 'g-go'}`} onClick={() => void act(() => api.gameSave(game.id, !game.savedAt), game.savedAt ? 'Not saved' : 'Saved. These clips stay.')}>
+        <button className={`btn wide ${game.savedAt ? '' : 'g-go'}`} onClick={() => void act(() => api.gameSave(game.id, !game.savedAt), game.savedAt ? 'Not saved' : 'Saved')}>
           <Icon name="star" size={18} fill={game.savedAt ? 'currentColor' : undefined} /> {game.savedAt ? 'Saved' : 'Save these clips'}
         </button>
       )}
-      <p className="g-foot">{playing ? 'You see everyone\'s faces for a clip once you\'ve watched it yourself. Anyone who waits 2 days gets passed by.' : game.savedAt ? 'Saved, so these clips stay.' : 'Clips hide a week after the game unless someone saves them.'}</p>
+      <p className="g-foot">{playing ? 'You see everyone\'s faces for a clip once you\'ve watched it yourself. Anyone who waits 2 days gets passed by.' : game.savedAt ? 'Saved. A week after the game these clips get 3 days on the leaving list, so you can save them to your camera roll.' : 'Clips hide a week after the game unless someone saves them.'}</p>
       {playing && game.createdBy === me.id && <button className="link-btn g-endgame" onClick={() => void act(() => api.gameEnd(game.id), 'Game ended')}>End this game</button>}
     </div>
   );

@@ -81,7 +81,7 @@ export function Reveal({ game: g0, chat, me, studio, onCamWanted, onClose, onCha
     setRec(null); toast('Your reaction joins the reel');
   };
   const save = async () => {
-    try { const g = await api.gameSave(game.id, !game.savedAt); setGame(g); onChanged(g); liveSend(chat.id, 'chat', { game: g.id }); toast(g.savedAt ? 'Reel saved. These clips stay.' : 'Reel not saved'); }
+    try { const g = await api.gameSave(game.id, !game.savedAt); setGame(g); onChanged(g); liveSend(chat.id, 'chat', { game: g.id }); toast(g.savedAt ? 'Reel saved' : 'Reel not saved'); }
     catch (e) { toast((e as Error).message); }
   };
 
@@ -152,7 +152,7 @@ export function Reveal({ game: g0, chat, me, studio, onCamWanted, onClose, onCha
           </button>
           {turns.length > 0 && <button className="btn wide" onClick={() => { setI(0); setPhase('reel'); }}><Icon name="play" size={16} fill="currentColor" /> Watch it again</button>}
           <button className="btn wide" onClick={onPlayAgain}>Play again</button>
-          <p className="g-fine">{game.savedAt ? 'Saved, so these clips stay.' : `Not saved yet. These clips hide on ${game.hidesAt ? new Date(game.hidesAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'in a week'}.`}</p>
+          <p className="g-fine">{game.savedAt ? 'Saved. A week after the game these clips get 3 days on the leaving list, so you can save them to your camera roll.' : `Not saved yet. These clips hide on ${game.hidesAt ? new Date(game.hidesAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'in a week'}.`}</p>
         </div>
       )}
     </div>
