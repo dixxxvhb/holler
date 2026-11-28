@@ -40,7 +40,17 @@ Two cheap quality fixes: Blur behind no longer smears the person into a glow rou
 land on you barely count), and Twins folds back at the picture's edge instead of smearing the last column.
 A saved default look or an old holler naming a look that is gone falls back to Natural (`lookId()` in looks.ts).
 
-## 3. Per-chat limit (APPLIED AND TESTED, SWITCHED OFF: the switch waits for Dixon's yes)
+## 3. Per-chat limit (ON since 11-28, 3:32am Eastern)
+
+SWITCHED ON with Dixon's yes ("Yes, switch on", as built: 12 minutes, 3 days, Saved follows the same rule).
+`limits-on.sql` ran: `limit_on = '1'`, daily job `holler-limit` at 17:00 UTC (noon Eastern in winter). First run:
+11-28 at noon. Expected then: about 16 hollers in the 15-minute chat marked as leaving, one ping to that chat;
+they leave the chat on 12-01 at noon and their files go on 12-02. Check with `holler-sql limits-status.sql`
+(`last_runs`, `leaving_now`, `files_due_or_overdue`). If anything looks wrong: `limits-off.sql` stops it and
+clears every mark; `limits-undo.sql` puts back anything already taken out while its file is still held (24 hours).
+The wording that promised forever was changed and deployed the same night (Saved screen, player, games, the
+storage line in You). The paragraph below is the state just before the switch.
+
 
 State on 11-28, 3:05am: Dixon said yes to applying with the switch off. `limits.sql` and `limits-key.sql` are
 applied (the three live functions were compared with the repo first and matched: `limits-preflight.sql`).
