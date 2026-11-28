@@ -3,6 +3,7 @@ import { publicUrl, type ChatFull, type Person, type Polo } from '../lib/api';
 import { isIPhone, keptIds, saveToPhone } from '../lib/keep';
 import { Avatar, Sheet, clock, toast } from './bits';
 import { Icon } from './icons';
+import './leaving.css';
 
 /** "today", "tomorrow", or the day's name: when a holler is taken out of its chat. */
 function leaveDay(iso: string) {
