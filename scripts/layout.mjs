@@ -47,7 +47,10 @@ const token = await A.evaluate(() => localStorage.getItem('holler.token'));
 const chatId = await A.evaluate(() => location.hash.split('/')[2] || '');
 await A.context().close(); await B.context().close();
 
+// LAYOUT_ONLY=i15,se shoots only those sizes (a faster round while iterating)
+const ONLY = (process.env.LAYOUT_ONLY || '').split(',').filter(Boolean);
 for (const d of DEVICES) {
+  if (ONLY.length && !ONLY.includes(d.n)) continue;
   for (const sa of [true, false]) {
     if (!sa && d.n !== 'i15') continue;
     const p = await (await mk(d, sa)).newPage();
@@ -100,12 +103,14 @@ for (const d of DEVICES) {
     await fakeHome(j => {
       const c = j.chats[0]; if (!c) return; const mk = (o) => ({ ...c, ...o });
       const t = new Date(Date.now() - 7200e3).toISOString();
-      j.chats = [mk({ id: 'f1' }), mk({ id: 'f2', name: 'Besties', theme: 'sky', unread: 0 }), mk({ id: 'f3', name: 'Grandma, Grandpa and all the cousins in Ohio', theme: 'lime', unread: 0, last: { ...c.last, author: j.me.id, at: t, seen: c.members.map(m => m.id) } }),
-        mk({ id: 'f4', name: 'Nan', theme: 'violet', unread: 0, muted: true, last: { ...c.last, kind: 'text', thumb: null, body: 'Call you after class' } }), mk({ id: 'f5', name: 'Sunday crew', theme: 'sun', unread: 0, last: null })];
+      // a group (three people), a game waiting with something new (a pill) and without (the status line), so every card state shows
+      const third = { ...c.members[0], id: 'fake-third', name: 'Dee QA', color: '#4fd1a5', avatar: null };
+      j.chats = [mk({ id: 'f1', yourTurn: 1 }), mk({ id: 'f2', name: 'Besties', theme: 'sky', unread: 0 }), mk({ id: 'f3', name: 'Grandma, Grandpa and all the cousins in Ohio', theme: 'lime', unread: 2, yourTurn: 1, members: [...c.members, third], last: { ...c.last, author: j.me.id, at: t, seen: c.members.map(m => m.id) } }),
+        mk({ id: 'f4', name: 'Nan', theme: 'violet', unread: 0, muted: true, last: { ...c.last, kind: 'text', thumb: null, body: 'Call you after class' } }), mk({ id: 'f5', name: 'Sunday crew', theme: 'sun', unread: 0, yourTurn: 2, members: [...c.members, third], last: null })];
     });
     await p.goto(BASE); await p.waitForSelector('.chat-card'); await p.waitForTimeout(600);
     await p.evaluate(() => { const li = document.querySelectorAll('.chats li')[1]; li.classList.add('is-live'); li.querySelector('.chat-card').classList.add('live'); li.querySelector('.cc-sub').innerHTML = '<span class="live-txt">Blake is recording</span>'; });
-    await shot('18many'); await p.evaluate(() => document.querySelector('.chats').scrollIntoView({ block: 'end' })); await p.evaluate(() => window.scrollTo(0, 99999)); await shot('18bmany-bottom');
+    await shot('18many'); await p.evaluate(() => document.querySelector('.chats').scrollIntoView({ block: 'end' })); await p.evaluate(() => { window.scrollTo(0, 99999); document.querySelector('.home')?.scrollTo(0, 99999); }); await p.waitForTimeout(300); await shot('18bmany-bottom');
     await fakeHome(j => { j.chats = []; });
     await p.goto(BASE); await p.waitForSelector('.empty'); await p.waitForTimeout(500); await shot('19empty');
     await p.unroute('**/rpc/holler_home');

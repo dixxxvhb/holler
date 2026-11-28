@@ -133,26 +133,39 @@ export function Thread({ chat, me, polos, pend, others, recordingNow, watchingNo
     <div className="thread" ref={ref} onScroll={onScroll}>
       {!chat && shownPend.length === 0 && <div className="run-row">{[0, 1, 2, 3].map(i => <span key={i} className="tile-sk" aria-hidden="true" />)}</div>}
       {chat && items.length === 0 && shownPend.length === 0 && <div className="thread-empty">{others.length ? 'No hollers yet. Say hi.' : 'Invite your people, then say hi.'}</div>}
-      {blocks.map(b => {
-        if (b.t === 'day') return <div key={b.key} className="thread-day">{b.label}</div>;
-        if (b.t === 'new') return (
-          <div key={b.key} className="thread-new">
-            <button className="new-pill" onClick={onWatchNew}><Icon name="play" size={16} fill="currentColor" /> Watch {unreadCount} new</button>
+      {(() => {
+        // each day is its own set, so its marker sticks at the top only while that day is on screen
+        const sets: { key: string; day?: string; list: Block[] }[] = [];
+        for (const b of blocks) {
+          if (b.t === 'day' || !sets.length) sets.push({ key: b.key, day: b.t === 'day' ? b.label : undefined, list: [] });
+          if (b.t !== 'day') sets[sets.length - 1].list.push(b);
+        }
+        return sets.map(set => (
+          <div key={set.key} className="thread-set">
+            {set.day && <div className="thread-day"><span>{set.day}</span></div>}
+            {set.list.map(b => {
+              if (b.t === 'new') return (
+                <div key={b.key} className="thread-new">
+                  <button className="new-pill" onClick={onWatchNew}><Icon name="play" size={16} fill="currentColor" /> Watch {unreadCount} new</button>
+                </div>
+              );
+              if (b.t !== 'run') return null;
+              const mine = b.author === me.id;
+              const named = group && !mine;
+              const author = who(b.author);
+              return (
+                <div key={b.key} className={`run ${mine ? 'mine' : 'theirs'} ${named ? 'named' : ''}`}>
+                  {named && <div className="run-name">{author?.name.split(' ')[0] || 'Someone'}</div>}
+                  <div className="run-body">
+                    {named && <span className="run-av"><Avatar p={author} size={28} /></span>}
+                    <div className="run-lines">{lines(b.items)}</div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        );
-        const mine = b.author === me.id;
-        const named = group && !mine;
-        const author = who(b.author);
-        return (
-          <div key={b.key} className={`run ${mine ? 'mine' : 'theirs'} ${named ? 'named' : ''}`}>
-            {named && <div className="run-name">{author?.name.split(' ')[0] || 'Someone'}</div>}
-            <div className="run-body">
-              {named && <span className="run-av"><Avatar p={author} size={28} /></span>}
-              <div className="run-lines">{lines(b.items)}</div>
-            </div>
-          </div>
-        );
-      })}
+        ));
+      })()}
       {shownPend.length > 0 && (
         <div className="run mine"><div className="run-body"><div className="run-lines"><div className="run-row">
           {shownPend.map(o => (

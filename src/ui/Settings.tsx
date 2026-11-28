@@ -78,7 +78,7 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
 
       <section className="card profile">
         <button className="av-edit" onClick={() => fileRef.current?.click()} aria-label="Change photo">
-          <Avatar p={me} size={96} /><span className="av-badge"><Icon name="camera" size={16} /></span>
+          <Avatar p={me} size={64} /><span className="av-badge"><Icon name="camera" size={14} /></span>
         </button>
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { void onAvatar(e.target.files?.[0]); e.target.value = ''; }} />
         <input className="field" maxLength={40} aria-label="Your name" value={name} onChange={e => setName(e.target.value)} onBlur={() => void saveName()} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />

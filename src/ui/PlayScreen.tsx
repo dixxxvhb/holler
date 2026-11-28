@@ -15,12 +15,16 @@ const nudgedRecently = (g: Game) => !!g.nudgedAt && Date.now() - new Date(g.nudg
 const WEEK = 7 * 24 * 3600e3;
 
 let lastGames: Game[] | null = null;   // the last answer, so coming back paints at once
+let rose = false;   // the cards rise in once, the first time Play paints in this visit
 
 export function PlayScreen() {
   const { home, go } = useApp();
   const [games, setGames] = useState<Game[] | null>(lastGames);
   const [err, setErr] = useState(false);
   const [pick, setPick] = useState<CatalogItem | null>(null);
+  const [scrolled, setScrolled] = useState(false);
+  const [rise] = useState(() => !rose);
+  useEffect(() => { rose = true; }, []);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
@@ -59,18 +63,23 @@ export function PlayScreen() {
   };
   const skel = <div className="pl-sk-list" aria-busy="true"><span className="pl-sk" /><span className="pl-sk" /></div>;
   const waiting = games === null && !err;
+  const failed = err && games === null;
+  const summary = waiting || failed ? '' : yours.length ? `${yours.length} ${yours.length === 1 ? 'game' : 'games'} waiting on you` : 'Nothing is waiting on you';
+  let n = 0;   // the order the cards rise in
 
   return (
-    <div className="home play">
-      <header className="home-top"><h1 className="shell-title">Play</h1></header>
+    <div className={`home play ${rise ? 'rise' : ''}`} onScroll={e => { const s = (e.currentTarget as HTMLElement).scrollTop > 4; if (s !== scrolled) setScrolled(s); }}>
+      <header className={`home-top ${scrolled ? 'scrolled' : ''}`}>
+        <div className="ht-txt"><h1 className="shell-title">Play</h1>{summary && <p className="home-sum">{summary}</p>}</div>
+      </header>
 
-      <div className="sec-lbl">Your go</div>
-      {waiting ? skel : err && games === null ? (
+      {(waiting || failed || yours.length > 0) && <h2 className="sec-lbl">Your go</h2>}
+      {waiting ? skel : failed ? (
         <div className="pl-err"><p>Could not load your games.</p><button className="btn" onClick={load}>Try again</button></div>
-      ) : yours.length === 0 ? <p className="pl-none">Nothing is waiting on you.</p> : (
+      ) : yours.length === 0 ? null : (
         <div className="pl-go-list">
           {yours.map(x => (
-            <button key={x.g.id} className="pl-go" data-room={x.c.theme || 'ember'} onClick={() => open(x)}>
+            <button key={x.g.id} className="pl-go" data-room={x.c.theme || 'ember'} style={{ ['--i' as string]: n++ }} onClick={() => open(x)}>
               <span className="pl-ic"><Icon name={ICON[x.g.kind]} size={24} /></span>
               <span className="pl-txt"><b>{GAME_NAME[x.g.kind]}</b><span>{line(x)}</span></span>
               <span className="pl-pill">Play</span>
@@ -80,8 +89,8 @@ export function PlayScreen() {
       )}
 
       {theirs.length > 0 && (<>
-        <div className="sec-lbl">Waiting on them</div>
-        <div className="pl-rows">
+        <h2 className="sec-lbl">Waiting on them</h2>
+        <div className="pl-rows pl-group" style={{ ['--i' as string]: n++ }}>
           {theirs.map(x => (
             <div key={x.g.id} className="pl-row">
               <button className="pl-row-main" onClick={() => open(x)}>
@@ -94,12 +103,13 @@ export function PlayScreen() {
         </div>
       </>)}
 
-      {GROUPS.map((gr, i) => (
-        <div key={gr}>
-          <div className="sec-lbl">{i === 0 ? `Start a game · ${GROUP_LABEL[gr]}` : GROUP_LABEL[gr]}</div>
+      <h2 className="sec-lbl">Start a game</h2>
+      {GROUPS.map(gr => (
+        <div key={gr} className="pl-cat" data-group={gr}>
+          <div className="pl-sub">{GROUP_LABEL[gr]}</div>
           <div className="pl-grid">
             {CATALOG.filter(c => c.group === gr).map(c => (
-              <button key={c.kind} className="g-tile" onClick={() => setPick(c)}>
+              <button key={c.kind} className="g-tile" style={{ ['--i' as string]: n++ }} onClick={() => setPick(c)}>
                 <span className="g-tile-ic"><Icon name={c.icon} size={22} /></span>
                 <b>{GAME_NAME[c.kind]}</b>
                 <em>{countLine(c)}</em>
@@ -110,8 +120,8 @@ export function PlayScreen() {
       ))}
 
       {done.length > 0 && (<>
-        <div className="sec-lbl">Just finished</div>
-        <div className="pl-rows">
+        <h2 className="sec-lbl">Just finished</h2>
+        <div className="pl-rows pl-group" style={{ ['--i' as string]: n++ }}>
           {done.map(x => (
             <div key={x.g.id} className="pl-row">
               <button className="pl-row-main" onClick={() => open(x)}>

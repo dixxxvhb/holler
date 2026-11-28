@@ -93,3 +93,79 @@
 /* waking: a quiet line in the middle of the picture, and the record button waits */
 .cam-starting { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); z-index: var(--z-banner); padding: 8px 14px; border-radius: var(--r-pill); background: var(--puck); color: var(--chalk-2); font-size: 14px; font-weight: 700; white-space: nowrap; pointer-events: none; }
 .rec.waiting { opacity: .5; }
+
+/* ---- depth (11-28): the band and the deck have light on them and lift off the thread; the thread reads at a glance ---- */
+/* the band: the room's color with a sheen, a soft shadow under it, and a subtitle that says who is here */
+.chat-top { background: linear-gradient(var(--on-color) 0 0) top / 100% var(--safe-t) no-repeat, linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,0) 70%) bottom / 100% var(--band-h) no-repeat, var(--room);
+  box-shadow: 0 10px 22px -10px rgba(8, 7, 12, .75); }
+.chat-top .glass { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+.t-wrap { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.t-sub { font: 700 var(--fs-meta)/1.1 var(--body); color: var(--on-color-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t-sub.rec::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--rec); vertical-align: 1px; animation: blink 1s infinite; }
+.chat.is-rec .t-sub, .chat:has(.rec.on) .t-sub { color: var(--chalk-2); }
+
+/* the thread: tiles and bubbles sit up off the ground */
+.thread { gap: 10px; padding: 24px 12px 16px; }   /* 12px of air under the band shadow */
+.thread-set { display: flex; flex-direction: column; gap: 10px; }
+.thread .tile, .thread .tile-sk { width: 88px; height: 116px; border-radius: var(--r-inner) var(--r-inner) var(--r-inner) var(--r-tail); }
+.thread .tile.mine { border-radius: var(--r-inner) var(--r-inner) var(--r-tail) var(--r-inner); }
+.thread .tile:not(.g-stack) { box-shadow: 0 0 0 2px var(--surface-2), var(--lift-quiet); }
+.thread .tile.new:not(.g-stack) { box-shadow: 0 0 0 3px var(--chalk), var(--lift-quiet); }
+.thread .tile.failed { box-shadow: 0 0 0 3px var(--danger), var(--lift-quiet); }
+.thread .tile.g-stack { box-shadow: 0 0 0 2px var(--on-color), var(--lift-quiet); }
+.thread .tile-dur { padding: 3px 5px; border-radius: 6px; }
+.run-row { gap: 8px; }
+.run-name { font-size: var(--fs-meta); color: var(--chalk-2); margin-left: 36px; }
+@media (max-width: 389px) { .thread .tile, .thread .tile-sk { width: 80px; height: 106px; } }
+.note-bub { max-width: 78%; padding: 11px 14px; border-radius: var(--r-inner) var(--r-inner) var(--r-inner) var(--r-tail); font: 700 16px/1.35 var(--body);
+  background: linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,0) 60%), var(--c); box-shadow: inset 0 1px 0 rgba(255,255,255,.4), var(--lift-quiet); }
+.note-bub.mine { border-radius: var(--r-inner) var(--r-inner) var(--r-tail) var(--r-inner); }
+.note-bub.new { box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 0 0 3px var(--chalk), var(--lift-quiet); }
+/* day markers: a small glass pill in the middle, held at the top while that day is on screen */
+.thread-day { position: sticky; top: 0; z-index: 3; display: flex; justify-content: center; padding: 2px 0; pointer-events: none; text-transform: none; letter-spacing: 0; font: inherit; color: inherit; }
+.thread-day span { min-height: 28px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: var(--r-pill); font: 700 var(--fs-meta)/1 var(--body); color: var(--chalk-2);
+  background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge), var(--lift-quiet); }
+/* what is new: the only filled color thing in the thread */
+.thread-new { padding: 8px 0 4px; }
+.thread-new::before, .thread-new::after { height: 1px; background: var(--seam-2); }
+.thread-new .new-pill { min-height: 48px; padding: 0 20px 0 16px; background: var(--sheen), var(--room); color: var(--on-color); font-size: 16px; box-shadow: var(--edge-light), var(--lift); transition: transform 260ms var(--spring); }
+.thread-new .new-pill:active { transform: scale(.97); transition-duration: var(--t-press); }
+/* who is here: glass */
+.thread-now .rec-banner { min-height: 36px; background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge), var(--lift-quiet); color: var(--chalk-2); font-size: var(--fs-meta); }
+
+/* the games row: bigger chips on the room's deeper shade, fading out at the right edge as it scrolls */
+.chat.in-thread .g-dock { padding: 10px 12px; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); padding-right: 28px; }
+.chat.in-thread .bottom:has(.g-dock) { background: linear-gradient(var(--room-deep) 0 0) top / 100% 72px no-repeat, var(--deck); }
+
+/* the deck: a sheet of the room's color lifting over the thread */
+.chat.in-thread .bottom { border-radius: 26px 26px 0 0; background: var(--sheen), var(--deck); box-shadow: 0 -12px 28px -14px rgba(8, 7, 12, .85), inset 0 1px 0 rgba(255,255,255,.32); }
+.chat.in-thread .thread { bottom: calc(var(--bottom-h) - 26px); padding-bottom: 42px; }
+.chat.in-thread .side-btn { width: 56px; height: 56px; box-shadow: inset 0 1px 0 rgba(247, 246, 251, .18), 0 6px 14px -8px rgba(8, 7, 12, .7); }
+.chat.in-thread .sb-lb { font-size: var(--fs-meta); }
+.rec.live-tile { width: 92px; height: 120px; box-shadow: 0 0 0 3px var(--on-color), var(--lift); }
+.rec.live-tile .lt-dot { width: 30px; height: 30px; margin-left: -15px; box-shadow: 0 0 0 3px var(--on-color), 0 0 0 6px var(--chalk); }
+.chat.in-thread.has-tile .preview::after { width: 30px; height: 30px; margin-left: -15px; box-shadow: 0 0 0 3px var(--on-color), 0 0 0 6px var(--chalk); }
+.chat.in-thread .preview { border-radius: 18px 18px var(--r-tail) 18px; }
+
+/* camera open: what floats over the picture is glass */
+.rail, .chat .paused-tag, .chat .cut-tag, .cam-mode-chip, .cam-starting, .look-flash, .countdown::before {
+  background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge); }
+.rec-banner.watch { background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
+.chat.cam-open .rec { filter: drop-shadow(0 6px 14px rgba(8, 7, 12, .45)); }
+.chat.cam-open .bottom { box-shadow: 0 -10px 24px -14px rgba(8, 7, 12, .8); }
+.chat.cam-open.panel-open .bottom, .chat.cam-open .bottom:has(.tools, .looks-panel, .chips, .more-tools) { border-radius: 26px 26px 0 0; background: var(--sheen), var(--deck); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .rail, .chat .paused-tag, .chat .cut-tag, .cam-mode-chip, .cam-starting, .look-flash, .countdown::before, .thread-day span, .thread-now .rec-banner, .rec-banner.watch { background: var(--puck); }
+}
+.chat.in-thread .thread-now { bottom: 30px; }
+
+/* the player: its buttons and the Film my reaction pill are glass */
+.p-tools, .player .g-film { background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .p-tools, .player .g-film { background: var(--puck); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-card:active, .pl-go:active, .pl-chat:active, .pl-grid .g-tile:active, .btn:active, .tab:active, .new-chat-btn:active, .srow-link:active, .thread .tile:active, .note-bub:active, .new-pill:active, .side-btn:active, .rec.live-tile:active, .g-chip:active, .chat.in-thread:has(.live-tile:active) .preview { transform: none !important; }
+  .tab-pill { transition: none !important; }
+  .rise :is(.chats li, .pl-go, .pl-group, .pl-grid .g-tile) { animation: none !important; }
+}
+.chat-title .t-wrap { align-items: flex-start; text-align: left; }

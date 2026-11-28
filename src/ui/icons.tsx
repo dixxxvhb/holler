@@ -50,6 +50,8 @@ const P: Record<string, string> = {
   grid: 'M9 3v18M15 3v18M3 9h18M3 15h18',
   board: 'M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18M3 3h6v6H3zM15 3h6v6h-6zM9 9h6v6H9zM3 15h6v6H3zM15 15h6v6h-6z',
   letters: 'M3 20l5-14 5 14M5 15h6M15 20v-9M15 11a3 3 0 0 1 6 0v9',
+  chats: 'M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-8l-5 4v-4H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
+  you: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
   quiz: 'M9 9a3 3 0 1 1 4.5 2.6c-1 .6-1.5 1.3-1.5 2.4M12 18h.01M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0',
 };
 

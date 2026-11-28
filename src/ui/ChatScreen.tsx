@@ -8,7 +8,7 @@ import { KINDS, LOOKS, lookOf, type LookId, type LookKind } from '../lib/looks';
 import { VOICES, type VoiceId } from '../lib/voice';
 import { Captioner, isIOS, speechSupported, type Seg } from '../lib/speech';
 import { pop, recStart, recStop } from '../lib/sound';
-import { Avatar, Sheet, ask, chatTitle, clock, toast, tone } from './bits';
+import { Avatar, Sheet, ago, ask, chatTitle, clock, toast, tone } from './bits';
 import { Icon } from './icons';
 import { isSimple, setSimple, routeInMemory, camMode, setCamMode, type CamMode } from '../lib/device';
 import { Player } from './Player';
@@ -739,7 +739,20 @@ export function ChatScreen({ chatId }: { chatId: string }) {
           : camOpen ? <button className="icon-btn glass" onClick={() => void backToChat()} aria-label="Back to the chat"><Icon name="back" className="ic-down" /></button>
           : <button className="icon-btn glass" onClick={() => void leave()} aria-label="Back"><Icon name="back" /></button>}
         <button className="chat-title glass" onClick={() => setInfo(true)}>
-          <span className="t">{shell ? chatTitle(shell, me.id) : ' '}</span>
+          <span className="t-wrap">
+            <span className="t">{shell ? chatTitle(shell, me.id) : ' '}</span>
+            {(() => {   // who is here, or when the chat last moved
+              const rec = others.find(o => pres[o.id] === 'recording');
+              const here = others.find(o => pres[o.id]);
+              const first = (o: { name: string }) => o.name.split(' ')[0];
+              const lastAt = polos.length ? polos[polos.length - 1].at : '';
+              const a = lastAt ? ago(lastAt) : '';
+              const sub = rec ? `${first(rec)} is recording` : here ? `${first(here)} is here`
+                : others.length > 1 ? others.map(first).join(', ')
+                : a ? `Last holler ${/^\d+[mh]$/.test(a) ? `${a} ago` : a}` : '';
+              return sub ? <span className={`t-sub ${rec ? 'rec' : here ? 'here' : ''}`}>{sub}</span> : null;
+            })()}
+          </span>
           <span className="who">
             {others.map(o => <Avatar key={o.id} p={o} size={28} status={pres[o.id]} />)}
             {chat && others.length === 0 && <span className="fine">Tap to invite people</span>}

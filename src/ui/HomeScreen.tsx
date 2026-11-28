@@ -45,6 +45,9 @@ function InstallHint() {
   );
 }
 
+// the cards rise in once, the first time Chats paints in this visit
+let rose = false;
+
 function seenLine(seen: string[], others: { id: string; name: string }[]) {
   const names = others.filter(o => seen.includes(o.id)).map(o => o.name.split(' ')[0]);
   if (!names.length) return 'Not seen yet';
@@ -59,6 +62,9 @@ export function HomeScreen() {
   const [busy, setBusy] = useState(false);
   const [theme, setTheme] = useState('ember');
   const [, tick] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
+  const [rise] = useState(() => !rose);
+  useEffect(() => { if (home?.chats.length) rose = true; }, [home]);
   useEffect(() => onPresence(() => tick(t => t + 1)), []);
   useEffect(() => { const i = setInterval(() => tick(t => t + 1), 30000); return () => clearInterval(i); }, []);
   if (!home) return null;
@@ -87,50 +93,62 @@ export function HomeScreen() {
     catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };
 
-  const block = (c: (typeof home.chats)[number], person: boolean) => {
+  const block = (c: (typeof home.chats)[number], person: boolean, i: number) => {
     const others = c.members.filter(m => m.id !== me.id);
     const pres = presenceOf(c.id);
     const recording = others.find(o => pres[o.id] === 'recording');
     const here = others.filter(o => pres[o.id]);
     const lastBy = c.members.find(m => m.id === c.last?.author);
-    const from = lastBy && lastBy.id !== me.id && c.last ? `new from ${lastBy.name.split(' ')[0]} · ${ago(c.last.at)}` : `new ${c.unread === 1 ? 'holler' : 'hollers'}`;
+    // the status line says the one most important thing; unread leads with the count
+    const from = [`${c.unread} new`, lastBy && lastBy.id !== me.id ? lastBy.name.split(' ')[0] : '', c.last ? ago(c.last.at) : ''].filter(Boolean).join(' · ');
+    const gameLine = c.yourTurn ? (c.yourTurn > 1 ? `${c.yourTurn} games waiting on you` : 'A game is waiting on you') : '';
+    const gameInLine = !!gameLine && !c.unread && !recording;
     return (
-      <li key={c.id} className={c.unread ? 'is-unread' : recording ? 'is-live' : ''}>
-        <button className={`chat-card ${person ? 'person' : ''} ${c.unread ? 'unread' : ''} ${recording ? 'live' : ''}`} data-room={c.theme || 'ember'} onClick={e => go(c.unread && (e.target as Element).closest('.cc-thumb') && !(e.target as Element).closest('.badge') ? `/c/${c.id}/watch` : `/c/${c.id}`)}>
-          {person && <span className="cc-av"><Avatar p={others[0]} size={60} /></span>}
-          <div className="cc-thumb">
-            {c.last?.thumb ? <img src={publicUrl(c.last.thumb)} alt="" loading="lazy" /> : c.last?.kind === 'text' ? <span className="cc-text" style={{ background: tone(lastBy?.color), color: 'var(--on-color)' }}>{c.last.body}</span> : c.last?.kind === 'audio' ? <Icon name="wave" size={28} /> : <Icon name="camera" size={26} />}
-            {c.unread > 0 && <span className="cc-play" aria-hidden="true"><Icon name="play" size={20} fill="currentColor" /></span>}
-            {c.unread > 0 && <span className="badge">{c.unread}</span>}
-          </div>
+      <li key={c.id} className={c.unread ? 'is-unread' : recording ? 'is-live' : ''} style={{ ['--i' as string]: i }}>
+        <button className={`chat-card ${person ? 'person' : 'group'} ${c.unread ? 'unread' : ''} ${recording ? 'live' : ''} ${c.yourTurn ? 'your-go' : ''}`} data-room={c.theme || 'ember'} onClick={e => go(c.unread && (e.target as Element).closest('.cc-thumb') ? `/c/${c.id}/watch` : `/c/${c.id}`)}>
+          {person && <span className="cc-av"><Avatar p={others[0]} size={56} /></span>}
           <div className="cc-body">
             <div className="cc-title">{chatTitle(c, me.id)}</div>
-            {c.yourTurn ? <span className="turn-tag">{c.yourTurn > 1 ? `${c.yourTurn} games waiting on you` : 'A game is waiting on you'}</span> : null}
             <div className="cc-sub">
               {recording ? <span className="live-txt">{recording.name.split(' ')[0]} is recording</span>
                 : c.unread ? <span className="hot">{from}</span>
+                : gameInLine ? <span className="turn-tag">{gameLine}</span>
                 : c.last ? <span>{lastBy?.id === me.id ? 'You' : lastBy?.name.split(' ')[0]} · {ago(c.last.at)}{lastBy?.id === me.id && others.length > 0 ? <> · <span className={c.last.seen?.length ? 'seen-txt' : ''}>{seenLine(c.last.seen || [], others)}</span></> : null}</span>
                 : <span>No hollers yet</span>}
               {here.length > 0 && !recording && <span className="here-dot" title="Here now" />}
+              {c.muted && <Icon name="bellOff" size={16} className="muted" />}
             </div>
+            {gameLine && !gameInLine && <span className="turn-tag pill">{gameLine}</span>}
+            {!person && <AvatarStack people={others.length ? others : c.members} size={26} max={4} />}
           </div>
-          {!person && <AvatarStack people={others.length ? others : c.members} size={30} max={3} />}
-          {c.muted && <Icon name="bellOff" size={16} className="muted" />}
+          <div className="cc-thumb">
+            {c.last?.thumb ? <img src={publicUrl(c.last.thumb)} alt="" loading="lazy" /> : c.last?.kind === 'text' ? <span className="cc-text" style={{ background: tone(lastBy?.color), color: 'var(--on-color)' }}>{c.last.body}</span> : c.last?.kind === 'audio' ? <Icon name="wave" size={26} /> : <Icon name="camera" size={24} />}
+            {c.unread > 0 && <span className="badge" aria-label={`${c.unread} new`}><Icon name="play" size={11} stroke={2.6} fill="currentColor" />{c.unread}</span>}
+          </div>
         </button>
       </li>
     );
   };
-  // People = chats with exactly two members; Groups = everything else. Most recent activity first; a chat does not jump up for being unread.
-  const recent = (a: { lastPoloAt: string; id: string }, b: { lastPoloAt: string; id: string }) => (b.lastPoloAt || '').localeCompare(a.lastPoloAt || '') || a.id.localeCompare(b.id);
-  const people = home.chats.filter(c => c.members.length === 2).sort(recent);
-  const groups = home.chats.filter(c => c.members.length !== 2).sort(recent);
+  // People = chats with exactly two members; Groups = everything else. Inside each: what needs you first (unread, then a game
+  // waiting on you; a muted chat does not jump), then the most recent activity.
+  const needs = (c: (typeof home.chats)[number]) => (c.unread && !c.muted ? 0 : c.yourTurn ? 1 : 2);
+  const order = (a: (typeof home.chats)[number], b: (typeof home.chats)[number]) => needs(a) - needs(b) || (b.lastPoloAt || '').localeCompare(a.lastPoloAt || '') || a.id.localeCompare(b.id);
+  const people = home.chats.filter(c => c.members.length === 2).sort(order);
+  const groups = home.chats.filter(c => c.members.length !== 2).sort(order);
+  // the one line under the title: what is waiting, in plain words
+  const nNew = home.chats.reduce((t, c) => t + (c.muted ? 0 : c.unread), 0);
+  const nGames = home.chats.reduce((t, c) => t + (c.yourTurn || 0), 0);
+  const summary = [nNew ? `${nNew} new ${nNew === 1 ? 'holler' : 'hollers'}` : '', nGames ? `${nGames} ${nGames === 1 ? 'game' : 'games'} waiting` : ''].filter(Boolean).join(' · ') || 'All caught up';
   const sections = [{ id: 'people', label: 'People', list: people, person: true }, { id: 'groups', label: 'Groups', list: groups, person: false }].filter(x => x.list.length);
 
   return (
-    <div className="home">
-      <header className="home-top">
-        <h1 className="wordmark sm">holler</h1>
-        <button className="new-chat-btn" onClick={openNew} aria-label="New chat"><Icon name="plus" size={22} /></button>
+    <div className="home" onScroll={e => { const s = (e.currentTarget as HTMLElement).scrollTop > 4; if (s !== scrolled) setScrolled(s); }}>
+      <header className={`home-top ${scrolled ? 'scrolled' : ''}`}>
+        <div className="ht-txt">
+          <h1 className="wordmark sm">holler</h1>
+          {home.chats.length > 0 && <p className="home-sum">{summary}</p>}
+        </div>
+        <button className="new-chat-btn" onClick={openNew} aria-label="New chat"><Icon name="plus" size={24} /></button>
       </header>
 
       <InstallHint />
@@ -146,11 +164,11 @@ export function HomeScreen() {
           </div>
         </div>
       ) : (
-        <div className="chat-sections">
-          {sections.map(x => (
-            <section key={x.id} className="chat-sec" style={{ ['--n' as string]: x.list.length }} aria-label={x.label}>
-              {sections.length > 1 && <div className="sec-lbl">{x.label}</div>}
-              <ul className={`chats ${home.chats.length === 1 ? 'solo' : ''}`}>{x.list.map(c => block(c, x.person))}</ul>
+        <div className={`chat-sections ${rise ? 'rise' : ''}`}>
+          {sections.map((x, si) => (
+            <section key={x.id} className="chat-sec" aria-label={x.label}>
+              {sections.length > 1 && <h2 className="sec-lbl">{x.label}</h2>}
+              <ul className="chats">{x.list.map((c, i) => block(c, x.person, i + (si ? sections[0].list.length : 0)))}</ul>
             </section>
           ))}
         </div>
