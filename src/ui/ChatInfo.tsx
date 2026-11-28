@@ -78,7 +78,9 @@ export function ChatInfo({ open, onClose, chat, onChanged }: { open: boolean; on
       </div>
 
       <Toggle label="Mute this chat" hint="No pings or sounds from here." on={chat.muted} set={() => void mute()} />
-      <p className="fine">{n} {n === 1 ? 'holler' : 'hollers'} here, kept forever until someone deletes their own.</p>
+      <p className="fine">{chat.keepSeconds
+        ? `This chat keeps its newest ${Math.round(chat.keepSeconds / 60)} minutes of video and voice. Older ones leave after a 3 day warning. Notes stay.`
+        : `${n} ${n === 1 ? 'holler' : 'hollers'} here, kept forever until someone deletes their own.`}</p>
       <button className="btn danger leave" onClick={() => void leave()}>Leave chat</button>
       <ProfileSheet person={who} onClose={() => setWho(null)} status={who && who.id !== me.id ? ({ recording: 'Recording now', watching: 'Watching now', here: 'Here now' } as Record<string, string>)[pres[who.id] || ''] : undefined} />
     </Sheet>

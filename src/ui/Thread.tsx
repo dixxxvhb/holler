@@ -3,6 +3,7 @@ import { publicUrl, type ChatFull, type Person, type Polo } from '../lib/api';
 import { discard, retry, type Outgoing } from '../lib/outbox';
 import { Avatar, ago, clock, dayLabel, tone } from './bits';
 import { Icon } from './icons';
+import { Leaving } from './Leaving';
 
 /** One thing in the thread: a holler (video or voice), a note, or a stack of answers to one card. */
 type Item = { key: string; author: string; at: string; kind: 'tile' | 'note' | 'stack'; p: Polo; i: number; stack: Polo[]; unseen: boolean };
@@ -15,10 +16,10 @@ type Block =
  * The room's thread: everything said in this chat, top to bottom, newest at the bottom.
  * Theirs on the left, yours on the right; notes read in place. Pure: ChatScreen feeds it.
  */
-export function Thread({ chat, me, polos, pend, others, recordingNow, watchingNow, unreadCount, onOpen, onWatchNew }: {
+export function Thread({ chat, me, polos, pend, others, recordingNow, watchingNow, unreadCount, onOpen, onWatchNew, openLeaving }: {
   chat: ChatFull | null; me: Person; polos: Polo[]; pend: Outgoing[]; others: Person[];
   recordingNow: Person[]; watchingNow: Person | null; unreadCount: number;
-  onOpen: (list: Polo[], i: number) => void; onWatchNew: () => void;
+  onOpen: (list: Polo[], i: number) => void; onWatchNew: () => void; openLeaving?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const members = chat?.members || [];
@@ -110,6 +111,7 @@ export function Thread({ chat, me, polos, pend, others, recordingNow, watchingNo
         <span className="tile-av"><Avatar p={author} size={20} /></span>
         {p.duration ? <span className="tile-dur">{clock(p.duration)}</span> : null}
         {p.savedBy.includes(me.id) && <span className="tile-star"><Icon name="bookmark" size={12} fill="currentColor" /></span>}
+        {p.leavesAt && <span className="tile-leave" title="Leaving soon"><Icon name="timer" size={12} stroke={2.6} /></span>}
         {mine && others.length > 0 && (() => {
           const seenBy = others.filter(o => p.views.some(v => v.who === o.id));
           return seenBy.length
@@ -131,6 +133,7 @@ export function Thread({ chat, me, polos, pend, others, recordingNow, watchingNo
 
   return (
     <div className="thread" ref={ref} onScroll={onScroll}>
+      {chat && <Leaving chat={chat} me={me} openNow={openLeaving} onWatch={p => { const i = polos.findIndex(x => x.id === p.id); if (i >= 0) onOpen(polos, i); else onOpen([p], 0); }} />}
       {!chat && shownPend.length === 0 && <div className="run-row">{[0, 1, 2, 3].map(i => <span key={i} className="tile-sk" aria-hidden="true" />)}</div>}
       {chat && items.length === 0 && shownPend.length === 0 && <div className="thread-empty">{others.length ? 'No hollers yet. Say hi.' : 'Invite your people, then say hi.'}</div>}
       {(() => {

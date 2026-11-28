@@ -5,6 +5,8 @@ const env = Object.fromEntries(readFileSync('.env.local', 'utf8').trim().split(/
 const sql = q => JSON.parse(execFileSync('node', ['scripts/sb.mjs', 'sql', q], { env: { ...process.env, MSYS_NO_PATHCONV: '1' } }).toString().replace(/^\d+ /, ''));
 const QA = `(select id from holler.people where name in ('QA Bot','Avery QA','Blake QA') or name like 'ZZTest%')`;
 // 1. mark their hollers deleted so the storage delete policy lets the files go
+// a QA holler the per-chat limit took out sits in a hold and storage keeps a held file: QA files have no hold (no-op until limits.sql is applied)
+sql(`do $$ begin if exists (select 1 from information_schema.columns where table_schema = 'holler' and table_name = 'polos' and column_name = 'purge_after') then execute 'update holler.polos set purge_after = null where purge_after is not null and author_id in ${QA.replace(/'/g, "''")}'; end if; end $$`);
 const rows = sql(`with u as (update holler.polos set status = 'deleted' where author_id in ${QA} returning path, thumb_path)
   select coalesce(json_agg(p), '[]') paths from (select path p from u where path is not null union all select thumb_path from u where thumb_path is not null) t`);
 const paths = rows[0].paths;

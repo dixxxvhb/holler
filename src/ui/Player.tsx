@@ -290,7 +290,7 @@ export function Player({ chat, list, start, me, onClose, onReply, onChanged, sta
         <Avatar p={author} size={38} />
         <div className="p-who">
           <b>{author?.id === me.id ? 'You' : author?.name || 'Someone'}</b>
-          <span>{ago(polo.at)}{polo.effects?.voice && polo.effects.voice !== 'none' ? ` · ${String(polo.effects.voice)} voice` : ''}{polo.effects?.hd ? ' · HD' : ''}</span>
+          <span>{ago(polo.at)}{polo.effects?.voice && polo.effects.voice !== 'none' ? ` · ${String(polo.effects.voice)} voice` : ''}</span>
         </div>
         <button className="icon-btn glass" onClick={close} aria-label="Close"><Icon name="close" /></button>
       </div>

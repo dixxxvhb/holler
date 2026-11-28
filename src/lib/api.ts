@@ -20,6 +20,8 @@ export type Polo = {
   transcript: string | null; effects: Record<string, unknown>; at: string;
   views: { who: string; at: string }[]; reactions: Reaction[]; savedBy: string[];
   reactTo?: string | null; game?: string | null; gameTurn?: number | null;
+  /** set once this holler has fallen past its chat's limit: when it is taken out (the limit is off unless Dixon switches it on) */
+  leavesAt?: string | null;
   pending?: { progress: number; error?: string; localUrl?: string; thumbUrl?: string };
 };
 export type ChatSummary = {
@@ -84,7 +86,8 @@ export type CardMove = { play: string; color?: string; last?: boolean } | { draw
 export type QuickPlay = { at: string; words?: string[]; answers?: { pick: number; ms: number }[] };
 export type CharadesGuess = { tries: number; ok: boolean; done: boolean; t: number | null; text?: string; at: string; counted?: boolean };
 export type CharadesAct = { who: string; at: string; clip: Polo | null; word: string | null; mine: CharadesGuess | null; results: Record<string, CharadesGuess> };
-export type ChatFull = ChatSummary & { polos: Polo[]; games?: Game[] };
+/** leaving: everything in this chat on its way out, soonest first. keepSeconds: how much video and voice the chat keeps (null while the limit is off). */
+export type ChatFull = ChatSummary & { polos: Polo[]; games?: Game[]; leaving?: Polo[]; keepSeconds?: number | null };
 export type Home = { me: Person; chats: ChatSummary[]; usage: { bytes: number; count: number } };
 
 const TOKEN_KEY = 'holler.token';
@@ -392,6 +395,14 @@ export function mediaUrl(path: string, onProgress?: (f: number) => void): Promis
     if (d) { watching++; d.subs.add(onProgress); if (d.total) onProgress(Math.min(1, d.loaded / d.total)); const done = () => { watching--; }; d.p.then(done, done); }
   }
   return p;
+}
+
+/** The file itself, for saving to the phone: from the device cache when it is there, else fetched. */
+export async function mediaBlob(path: string, onProgress?: (f: number) => void): Promise<Blob> {
+  const url = publicUrl(path);
+  try { const hit = await (await caches.open(CACHE)).match(url); if (hit) return await hit.blob(); } catch { /* no cache here */ }
+  try { return await download(path, onProgress); }
+  catch { const r = await fetch(url); if (!r.ok) throw new Error('That holler could not be fetched.'); return await r.blob(); }
 }
 
 // ---- prefetch: warm what people are about to watch, quietly, one file at a time ----
