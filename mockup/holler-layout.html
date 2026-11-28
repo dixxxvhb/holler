@@ -1,0 +1,456 @@
+<title>Holler Three Places</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tilt+Warp&family=Figtree:wght@500;700&family=Chivo+Mono:wght@700&display=swap">
+<style>
+/* layout: one scrolling page of numbered phone screens, note beside each; Holler's own dark blocks look, single theme on purpose */
+:root {
+  --ground: #0f0d15; --ground-2: #181520; --surface: #211d2c; --surface-2: #2d2839;
+  --chalk: #f7f6fb; --chalk-2: rgba(247,246,251,.72); --chalk-3: rgba(247,246,251,.54);
+  --seam: rgba(247,246,251,.10); --on: #15121c; --on-2: rgba(21,18,28,.8); --on-fill: rgba(21,18,28,.13);
+  --puck: rgba(21,18,28,.8); --rec: #ff3b4a; --live: #3ddc84;
+  --ember: #ff6a3d; --rose: #ff7aa2; --sea: #4fd1a5; --sky: #4cb3ff; --violet: #a58bff; --lime: #c6f432; --sun: #ffb02e;
+  --display: 'Tilt Warp', 'Arial Black', system-ui, sans-serif;
+  --body: 'Figtree', system-ui, -apple-system, sans-serif;
+  --mono: 'Chivo Mono', ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--ground); color: var(--chalk); font: 500 16px/1.5 var(--body); }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 56px; }
+h1 { font: 400 clamp(40px, 9vw, 68px)/.95 var(--display); margin: 0 0 16px; text-wrap: balance; }
+h2 { font: 400 26px/1.1 var(--display); margin: 0 0 8px; text-wrap: balance; }
+p { margin: 0 0 10px; color: var(--chalk-2); max-width: 62ch; }
+p b, li b { color: var(--chalk); }
+.lede { font-size: 18px; }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; margin-top: 20px; }
+.three div { padding: 16px; color: var(--on); min-width: 0; }
+.three b { display: block; font: 400 22px/1 var(--display); margin-bottom: 6px; }
+.three span { font-size: 14px; line-height: 1.35; display: block; color: var(--on-2); font-weight: 700; }
+.shot { display: grid; grid-template-columns: minmax(0, 390px) minmax(0, 1fr); gap: 32px; align-items: start; }
+.note { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); min-width: 0; }
+.num { font: 700 13px/1 var(--mono); color: var(--on); background: var(--chalk); display: inline-block; padding: 6px 9px; border-radius: 8px 8px 8px 2px; margin-bottom: 12px; }
+.note ul { margin: 0; padding-left: 18px; color: var(--chalk-2); display: flex; flex-direction: column; gap: 6px; max-width: 60ch; }
+.was { font-size: 14px; color: var(--chalk-3); border-top: 1px solid var(--seam); padding-top: 10px; margin-top: 14px; }
+@media (max-width: 760px) { .shot { grid-template-columns: minmax(0, 1fr); gap: 16px; } .note { position: static; order: -1; } .three { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- the phone ---- */
+.ph { width: 100%; max-width: 390px; border-radius: 34px; border: 3px solid var(--surface-2); background: var(--ground); overflow: hidden; display: flex; flex-direction: column; min-height: 760px; position: relative; font-size: 15px; line-height: 1.3; }
+.ph svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.sb { height: 30px; background: var(--ground); flex: none; }
+.top { display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 12px 0 16px; flex: none; }
+.wm { font: 400 30px/1 var(--display); }
+.pk { width: 44px; height: 44px; border-radius: 50%; background: var(--surface); display: grid; place-items: center; color: var(--chalk); flex: none; }
+.lbl { font: 700 12.5px/1 var(--body); color: var(--chalk-3); padding: 14px 16px 8px; letter-spacing: .04em; text-transform: uppercase; }
+.col { display: flex; flex-direction: column; gap: 3px; }
+.grow { flex: 1; }
+.av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 400 12px/1 var(--display); color: var(--on); box-shadow: 0 0 0 2.5px var(--on); flex: none; }
+.av.lg { width: 60px; height: 60px; font-size: 22px; }
+.av.sm { width: 20px; height: 20px; font-size: 9px; box-shadow: 0 0 0 2px var(--on); }
+.faces { display: flex; } .faces .av + .av { margin-left: -6px; }
+.r-ember { --room: var(--ember); --pat: repeating-linear-gradient(135deg, #db5d39 0 12px, transparent 12px 24px); }
+.r-rose { --room: var(--rose); --pat: radial-gradient(circle, #db6a8d 0 5px, transparent 5.6px) 0 0 / 24px 24px, radial-gradient(circle, #db6a8d 0 5px, transparent 5.6px) 12px 12px / 24px 24px; }
+.r-sky { --room: var(--sky); --pat: repeating-radial-gradient(circle at 100% 0, transparent 0 14px, #439adb 14px 19px); }
+.r-lime { --room: var(--lime); --pat: repeating-linear-gradient(45deg, #abd22f 0 10px, transparent 10px 20px); }
+.r-violet { --room: var(--violet); --pat: conic-gradient(#8f79db 25%, transparent 0 50%, #8f79db 0 75%, transparent 0) 0 0 / 32px 32px; }
+/* a room block on Chats */
+.blk { background: linear-gradient(90deg, var(--room) 0 62%, transparent 62%), var(--pat), var(--room); color: var(--on); display: grid; grid-template-columns: minmax(0, 1fr) 96px; gap: 12px; padding: 14px 16px; align-items: center; min-height: 92px; }
+.blk.person { grid-template-columns: 60px minmax(0, 1fr) 96px; }
+.blk.new { min-height: 150px; }
+.blk h3 { font: 400 24px/1 var(--display); margin: 0 0 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blk.new h3 { font-size: 30px; }
+.blk .sub { font-size: 13.5px; font-weight: 700; color: var(--on-2); }
+.blk .tag { display: inline-flex; align-items: center; gap: 6px; background: var(--on); color: var(--chalk); font-size: 12.5px; font-weight: 700; padding: 5px 10px; border-radius: 99px; margin-top: 7px; }
+.blk .tag i { width: 7px; height: 7px; border-radius: 50%; background: var(--room); }
+.blk .faces { margin-top: 9px; }
+.th { justify-self: end; width: 66px; height: 84px; border-radius: 14px 14px 14px 4px; background: linear-gradient(165deg, #4a4560, #262232); box-shadow: 0 0 0 3px var(--on); position: relative; display: grid; place-items: center; color: var(--chalk); overflow: hidden; }
+.th::before { content: ''; position: absolute; left: 50%; top: 30%; width: 38%; aspect-ratio: 1; border-radius: 50%; background: rgba(247,246,251,.28); transform: translateX(-50%); }
+.th::after { content: ''; position: absolute; left: 14%; right: 14%; top: 62%; bottom: -20%; border-radius: 50% 50% 0 0; background: rgba(247,246,251,.2); }
+.blk.new .th { width: 88px; height: 116px; box-shadow: 0 0 0 4px var(--chalk), 0 0 0 7px var(--on); }
+.th .pl { position: relative; z-index: 1; width: 40px; height: 40px; border-radius: 50%; background: var(--chalk); color: var(--on); display: grid; place-items: center; }
+.th .pl svg { fill: currentColor; stroke: none; width: 16px; height: 16px; }
+.cnt { font: 400 54px/.8 var(--display); margin-top: 10px; }
+/* the tab bar: three blocks */
+.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; background: var(--ground); padding-top: 3px; flex: none; }
+.tabs div { height: 64px; padding-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; font: 400 18px/1 var(--display); background: var(--ground-2); color: var(--chalk-2); }
+.tabs .on { background: var(--chalk); color: var(--on); }
+.tabs em { font: 700 12px/1 var(--mono); padding: 4px 7px; border-radius: 99px; background: var(--rec); color: var(--chalk); font-style: normal; }
+.tabs .on em { background: var(--on); }
+/* Play */
+.go { background: var(--room); color: var(--on); display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 14px 16px; }
+.ic { width: 48px; height: 48px; border-radius: 14px; background: var(--on); color: var(--room, var(--chalk)); display: grid; place-items: center; }
+.go h3 { font: 400 22px/1 var(--display); margin: 0 0 4px; }
+.go .sub { font-size: 13.5px; font-weight: 700; color: var(--on-2); }
+.pill { background: var(--on); color: var(--chalk); font-weight: 700; font-size: 14px; padding: 10px 16px; border-radius: 99px; white-space: nowrap; }
+.pill.lt { background: var(--surface-2); }
+.wait { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 16px; background: var(--ground-2); }
+.wait .ic { width: 40px; height: 40px; border-radius: 12px; background: var(--surface-2); color: var(--chalk); }
+.wait b { display: block; font-size: 15px; } .wait span { font-size: 13px; color: var(--chalk-3); }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; }
+.gt { background: var(--surface); padding: 14px 8px 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; min-height: 104px; }
+.gt .ic { width: 44px; height: 44px; background: var(--surface-2); color: var(--chalk); }
+.gt b { font: 400 14.5px/1.05 var(--display); }
+.gt span { font: 700 10.5px/1 var(--mono); color: var(--chalk-3); }
+.gt.off { opacity: .42; }
+.gt.wide { grid-column: 1 / -1; flex-direction: row; text-align: left; min-height: 0; padding: 12px 16px; gap: 12px; background: var(--room); color: var(--on); }
+.gt.wide .ic { background: var(--on); color: var(--room); } .gt.wide span { font: 700 13px/1.3 var(--body); color: var(--on-2); }
+.gt.wide b { font-size: 18px; display: block; margin-bottom: 3px; }
+/* sheets */
+.dim { position: absolute; inset: 0; background: rgba(8,7,12,.62); }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface); display: flex; flex-direction: column; max-height: 86%; }
+.sh-head { background: linear-gradient(90deg, var(--room) 0 58%, transparent 58%), var(--pat), var(--room); color: var(--on); padding: 22px 16px 16px; display: flex; justify-content: space-between; align-items: center; }
+.sh-head h3 { font: 400 30px/1 var(--display); margin: 0; }
+.sh-head .pk { background: var(--on); }
+.sheet p { padding: 14px 16px 0; font-size: 14.5px; margin: 0; }
+.pick { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 12px 16px; background: var(--room); color: var(--on); min-height: 60px; }
+.pick b { font: 400 20px/1 var(--display); } .pick.off { opacity: .4; } .pick span { font-size: 13px; font-weight: 700; color: var(--on-2); }
+/* the room */
+.band { background: var(--room); color: var(--on); height: 54px; display: flex; align-items: center; gap: 8px; padding: 0 12px; flex: none; }
+.band h3 { font: 400 22px/1 var(--display); margin: 0; flex: 1; min-width: 0; }
+.thread { flex: 1; background: var(--ground); padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.day { font: 700 11px/1 var(--mono); color: var(--chalk-3); text-transform: uppercase; letter-spacing: .08em; padding: 8px 0 2px; }
+.rowl, .rowr { display: flex; gap: 6px; align-items: flex-end; } .rowr { justify-content: flex-end; }
+.tile { width: 84px; height: 110px; border-radius: 16px 16px 16px 4px; background: linear-gradient(165deg, #4a4560, #262232); position: relative; overflow: hidden; flex: none; box-shadow: inset 0 0 0 2px var(--surface-2); }
+.tile::before { content: ''; position: absolute; left: 50%; top: 26%; width: 36%; aspect-ratio: 1; border-radius: 50%; background: rgba(247,246,251,.26); transform: translateX(-50%); }
+.tile::after { content: ''; position: absolute; left: 16%; right: 16%; top: 58%; bottom: -20%; border-radius: 50% 50% 0 0; background: rgba(247,246,251,.18); }
+.rowr .tile, .tile.me { border-radius: 16px 16px 4px 16px; }
+.tile.new { box-shadow: inset 0 0 0 3px var(--chalk); }
+.tile .du { position: absolute; z-index: 1; right: 5px; bottom: 5px; font: 700 10px/1 var(--mono); background: var(--puck); padding: 3px 5px; border-radius: 6px; }
+.tile .av { position: absolute; z-index: 1; left: 5px; bottom: 5px; }
+.tile .seen { position: absolute; z-index: 1; right: 5px; top: 5px; display: flex; }
+.bub { max-width: 76%; padding: 10px 13px; border-radius: 16px 16px 16px 4px; color: var(--on); font-weight: 700; font-size: 15px; line-height: 1.3; }
+.rowr .bub { border-radius: 16px 16px 4px 16px; }
+.who { font-size: 11.5px; font-weight: 700; color: var(--chalk-3); margin: 0 0 -4px 36px; }
+.newbar { display: flex; align-items: center; gap: 10px; padding-top: 6px; }
+.newbar::before, .newbar::after { content: ''; flex: 1; height: 2px; background: var(--seam); }
+.newbar span { background: var(--chalk); color: var(--on); font-weight: 700; font-size: 14px; padding: 9px 14px; border-radius: 99px; display: inline-flex; gap: 7px; align-items: center; }
+.newbar svg { width: 13px; height: 13px; fill: currentColor; stroke: none; }
+.now { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--chalk-2); background: var(--surface); padding: 6px 12px 6px 6px; border-radius: 99px; align-self: flex-start; }
+.now i { width: 7px; height: 7px; border-radius: 50%; background: var(--rec); }
+.dock { background: color-mix(in oklab, var(--room) 84%, #15121c); display: flex; gap: 8px; padding: 10px 12px; overflow: hidden; flex: none; }
+.chip { background: var(--on); color: var(--chalk); border-radius: 14px; padding: 8px 12px 8px 8px; display: flex; gap: 9px; align-items: center; flex: none; }
+.chip .ic { width: 32px; height: 32px; border-radius: 9px; background: var(--surface-2); color: var(--chalk); } .chip svg { width: 17px; height: 17px; }
+.chip b { display: block; font-size: 13.5px; } .chip em { font-style: normal; font-size: 12px; color: var(--chalk-3); }
+.chip.turn { background: var(--chalk); color: var(--on); } .chip.turn .ic { background: var(--on); color: var(--chalk); } .chip.turn em { color: var(--on-2); }
+.deck { background: var(--room); color: var(--on); display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; justify-items: center; padding: 14px 16px 22px; gap: 8px; flex: none; }
+.side { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; }
+.side .pk { width: 52px; height: 52px; background: var(--on); }
+.livet { width: 86px; height: 112px; border-radius: 18px 18px 4px 18px; background: linear-gradient(165deg, #5b5673, #2b2738); box-shadow: 0 0 0 3px var(--on); position: relative; overflow: hidden; }
+.livet::before { content: ''; position: absolute; left: 50%; top: 20%; width: 42%; aspect-ratio: 1; border-radius: 50%; background: rgba(247,246,251,.36); transform: translateX(-50%); }
+.livet::after { content: ''; position: absolute; left: 12%; right: 12%; top: 56%; bottom: -20%; border-radius: 50% 50% 0 0; background: rgba(247,246,251,.26); }
+.livet i { position: absolute; z-index: 1; left: 50%; bottom: 8px; width: 26px; height: 26px; margin-left: -13px; border-radius: 50%; background: var(--rec); box-shadow: 0 0 0 3px var(--on), 0 0 0 5px var(--chalk); }
+/* camera open */
+.pic { flex: 1; background: linear-gradient(170deg, #5b5673, #25212f 70%); position: relative; min-height: 380px; overflow: hidden; }
+.pic::before { content: ''; position: absolute; left: 50%; top: 22%; width: 34%; aspect-ratio: 1; border-radius: 50%; background: rgba(247,246,251,.3); transform: translateX(-50%); }
+.pic::after { content: ''; position: absolute; left: 18%; right: 18%; top: 54%; bottom: -10%; border-radius: 50% 50% 0 0; background: rgba(247,246,251,.2); }
+.rail { position: absolute; z-index: 1; right: 8px; top: 8px; background: var(--puck); border-radius: 20px; padding: 6px 4px; display: flex; flex-direction: column; }
+.rail div { width: 50px; padding: 7px 0; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 700; }
+.recb { width: 84px; height: 84px; border-radius: 50%; background: var(--on); box-shadow: 0 0 0 4px var(--room), 0 0 0 8px var(--on); display: grid; place-items: center; }
+.recb i { width: 24px; height: 24px; border-radius: 50%; background: var(--rec); }
+.hint { grid-column: 1 / -1; font-size: 13px; font-weight: 700; color: var(--on-2); }
+.bigav { width: 84px; height: 84px; border-radius: 50%; background: var(--on); color: var(--chalk); display: grid; place-items: center; }
+.bigav svg { width: 32px; height: 32px; }
+/* You */
+.youhead { background: linear-gradient(90deg, var(--sky) 0 58%, transparent 58%), repeating-linear-gradient(135deg, #439adb 0 12px, transparent 12px 24px), var(--sky); color: var(--on); padding: 18px 16px; display: flex; gap: 14px; align-items: center; }
+.youhead h3 { font: 400 30px/1 var(--display); margin: 0; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 15px 16px; background: var(--ground-2); align-items: center; }
+.row b { font-size: 15.5px; } .row span { color: var(--chalk-3); font-size: 14px; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></symbol>
+<symbol id="back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+<symbol id="down" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></symbol>
+<symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></symbol>
+<symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+<symbol id="key" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 11h.5M11 11h.5M15 11h.5M8 14h8"/></symbol>
+<symbol id="cards" viewBox="0 0 24 24"><rect x="4" y="8" width="11" height="13" rx="2"/><path d="M9 4h9a2 2 0 012 2v11"/></symbol>
+<symbol id="board" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16M12 4v16"/></symbol>
+<symbol id="grid" viewBox="0 0 24 24"><path d="M9 4v16M15 4v16M4 9h16M4 15h16"/></symbol>
+<symbol id="timer" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M10 2h4"/></symbol>
+<symbol id="eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="face" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 10v.5M15.5 10v.5M8 15h8"/></symbol>
+<symbol id="laugh" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 9.5l1.5 1M16 9.5l-1.5 1M7.5 14a4.5 4.5 0 009 0z"/></symbol>
+<symbol id="chain" viewBox="0 0 24 24"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.700-5.700l-1 1M14 10a4 4 0 00-5.700 0l-3 3a4 4 0 005.700 5.700l1-1"/></symbol>
+<symbol id="cam" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+<symbol id="quote" viewBox="0 0 24 24"><path d="M4 5h16v11H10l-5 4v-4H4z"/></symbol>
+<symbol id="abc" viewBox="0 0 24 24"><path d="M3 18l4-11 4 11M4.500 14.500h5M14 18v-6a3 3 0 016 0v6"/></symbol>
+<symbol id="quiz" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.500 9.500a2.500 2.500 0 114 2c-1 .700-1.500 1.200-1.500 2.500M12 17v.5"/></symbol>
+<symbol id="flip" viewBox="0 0 24 24"><path d="M4 9a8 8 0 0114-3l2 2M20 15a8 8 0 01-14 3l-2-2M20 4v4h-4M4 20v-4h4"/></symbol>
+<symbol id="wand" viewBox="0 0 24 24"><path d="M5 19L16 8M14 4v3M19 9h-3M18 5l-1.500 1.500"/></symbol>
+<symbol id="mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0012 0M12 17v4"/></symbol>
+<symbol id="pen" viewBox="0 0 24 24"><path d="M4 20l1-4L16 5l3 3L8 19z"/></symbol>
+<symbol id="txt" viewBox="0 0 24 24"><path d="M6 5h12M12 5v14M9 19h6"/></symbol>
+<symbol id="more" viewBox="0 0 24 24"><path d="M6 12h.5M12 12h.5M18 12h.5"/></symbol>
+<symbol id="mark" viewBox="0 0 24 24"><path d="M7 4h10v16l-5-4-5 4z"/></symbol>
+</defs></svg>
+
+<div class="wrap">
+<header>
+  <h1>Holler, laid out for what it is now</h1>
+  <p class="lede">Holler was drawn as a camera with a strip of videos under it. Since then it grew 12 games, notes, cards and reactions, and all of it got packed into that one camera screen. This puts each thing where you would look for it.</p>
+  <div class="three">
+    <div style="background:var(--chalk)"><b>Chats</b><span>People and groups, each in its own section. Order holds still.</span></div>
+    <div style="background:var(--ember)"><b>Play</b><span>Every game waiting on you, from every chat, in one list. Start any game from here.</span></div>
+    <div style="background:var(--sky)"><b>You</b><span>Your profile, this phone, and Saved.</span></div>
+  </div>
+</header>
+
+<!-- 1 -->
+<section class="shot">
+  <div class="ph">
+    <div class="sb"></div>
+    <div class="top"><span class="wm">holler</span><span class="pk"><svg><use href="#plus"/></svg></span></div>
+    <div class="lbl">People</div>
+    <div class="col">
+      <div class="blk person new r-rose"><span class="av lg" style="background:#ffb02e">M</span><div><h3>Maya</h3><div class="sub">new from Maya · 2m</div><div class="cnt">2</div></div><div class="th"><span class="pl"><svg><use href="#play"/></svg></span></div></div>
+      <div class="blk person r-sky"><span class="av lg" style="background:#c6f432">J</span><div><h3>Jo</h3><div class="sub">You · 2h · Seen</div></div><div class="th"></div></div>
+    </div>
+    <div class="lbl">Groups</div>
+    <div class="col">
+      <div class="blk r-ember"><div><h3>The Fam</h3><div class="sub">Sam · 40m</div><span class="tag"><i></i>Checkers: your move</span><div class="faces"><span class="av" style="background:#4fd1a5">S</span><span class="av" style="background:#a58bff">D</span><span class="av" style="background:#ffb02e">M</span></div></div><div class="th"></div></div>
+      <div class="blk r-lime"><div><h3>Sunday crew</h3><div class="sub">Dee is recording</div><div class="faces"><span class="av" style="background:#a58bff">D</span><span class="av" style="background:#ff7aa2">J</span></div></div><div class="th"></div></div>
+    </div>
+    <div class="grow"></div>
+    <div class="tabs"><div class="on">Chats <em>2</em></div><div>Play <em>3</em></div><div>You</div></div>
+  </div>
+  <div class="note">
+    <span class="num">1 · Chats</span>
+    <h2>People and groups, apart</h2>
+    <ul>
+      <li>A chat with one person leads with <b>their face</b> and is named for them. A group leads with its name and everyone's faces. You can tell them apart before you read a word.</li>
+      <li>Each section keeps its order, so Maya is always where Maya was. A chat with something new grows taller in place and shows the count and a play button, as it does today.</li>
+      <li>A game waiting on you now says <b>which game</b>, not "a game is waiting".</li>
+      <li>New chat and Join with a code move into the one plus button. The bottom of the screen becomes the three places.</li>
+    </ul>
+    <p class="was">Today: one list of chats, reordered by whoever spoke last, with two buttons pinned across the bottom.</p>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="shot">
+  <div class="ph">
+    <div class="sb"></div>
+    <div class="top"><span class="wm">Play</span></div>
+    <div class="lbl">Your go</div>
+    <div class="col">
+      <div class="go r-ember"><span class="ic"><svg><use href="#board"/></svg></span><div><h3>Checkers</h3><div class="sub">The Fam · Sam moved 40m ago</div></div><span class="pill">Play</span></div>
+      <div class="go r-rose"><span class="ic"><svg><use href="#cam"/></svg></span><div><h3>Zoom In</h3><div class="sub">Maya · guess her clip</div></div><span class="pill">Play</span></div>
+      <div class="go r-lime"><span class="ic"><svg><use href="#cards"/></svg></span><div><h3>Last Card</h3><div class="sub">Sunday crew · you hold 3</div></div><span class="pill">Play</span></div>
+    </div>
+    <div class="lbl">Waiting on them</div>
+    <div class="col">
+      <div class="wait"><span class="ic"><svg><use href="#quiz"/></svg></span><div><b>Trivia</b><span>The Fam · Dee and Sam still to go</span></div><span class="pill lt">Nudge</span></div>
+      <div class="wait"><span class="ic"><svg><use href="#chain"/></svg></span><div><b>Pass It On</b><span>Sunday crew · Jo is up</span></div><span class="pill lt">Nudge</span></div>
+    </div>
+    <div class="lbl">Start a game · on camera</div>
+    <div class="grid">
+      <div class="gt"><span class="ic"><svg><use href="#chain"/></svg></span><b>Pass It On</b><span>3 to 5</span></div>
+      <div class="gt"><span class="ic"><svg><use href="#face"/></svg></span><b>Poker Face</b><span>3 to 5</span></div>
+      <div class="gt"><span class="ic"><svg><use href="#eye"/></svg></span><b>Charades</b><span>2 to 5</span></div>
+      <div class="gt"><span class="ic"><svg><use href="#timer"/></svg></span><b>On The Spot</b><span>2 to 5</span></div>
+      <div class="gt"><span class="ic"><svg><use href="#laugh"/></svg></span><b>Don't Laugh</b><span>2 to 5</span></div>
+      <div class="gt"><span class="ic"><svg><use href="#cam"/></svg></span><b>Zoom In</b><span>2 to 6</span></div>
+    </div>
+    <div class="lbl">Quick</div>
+    <div class="grid">
+      <div class="gt"><span class="ic"><svg><use href="#abc"/></svg></span><b>Seven Letters</b><span>2 to 5</span></div>
+      <div class="gt"><span class="ic"><svg><use href="#quiz"/></svg></span><b>Trivia</b><span>2 to 5</span></div>
+      <div class="gt"><span class="ic"><svg><use href="#quote"/></svg></span><b>Who Said It</b><span>3 to 6</span></div>
+    </div>
+    <div class="lbl">Board and cards</div>
+    <div class="grid">
+      <div class="gt"><span class="ic"><svg><use href="#cards"/></svg></span><b>Last Card</b><span>2 to 6</span></div>
+      <div class="gt"><span class="ic"><svg><use href="#board"/></svg></span><b>Checkers</b><span>2</span></div>
+      <div class="gt"><span class="ic"><svg><use href="#grid"/></svg></span><b>Tic-Tac-Toe</b><span>2</span></div>
+    </div>
+    <div class="tabs" style="margin-top:14px"><div>Chats <em>2</em></div><div class="on">Play <em>3</em></div><div>You</div></div>
+  </div>
+  <div class="note">
+    <span class="num">2 · Play</span>
+    <h2>Games get their own place</h2>
+    <ul>
+      <li><b>Your go</b> is every game waiting on you, from every chat, in that chat's color. One tap lands you in the game.</li>
+      <li><b>Waiting on them</b> shows who is holding things up, with the nudge right there.</li>
+      <li><b>Start a game</b> is all twelve as tiles you can take in at a glance, grouped the way you think of them: on camera, quick, board and cards.</li>
+      <li>The Play number in the bar is how many games are waiting on you.</li>
+    </ul>
+    <p class="was">Today: games only exist inside a chat. To see what is waiting you open each chat in turn, and starting one means scrolling a list of thirteen long rows.</p>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="shot">
+  <div class="ph" style="min-height:640px">
+    <div class="sb"></div>
+    <div class="top"><span class="wm">Play</span></div>
+    <div class="lbl">Your go</div>
+    <div class="go r-ember"><span class="ic"><svg><use href="#board"/></svg></span><div><h3>Checkers</h3><div class="sub">The Fam</div></div><span class="pill">Play</span></div>
+    <div class="dim"></div>
+    <div class="sheet">
+      <div class="sh-head" style="--room:var(--chalk);--pat:repeating-linear-gradient(135deg,#d6d5dc 0 12px,transparent 12px 24px)"><h3>Poker Face</h3><span class="pk"><svg style="color:var(--chalk)"><use href="#x"/></svg></span></div>
+      <p>Everyone answers the same question to camera. One of you secretly has the real answer. Vote on who.</p>
+      <div class="lbl">Play with</div>
+      <div class="col">
+        <div class="pick r-ember"><b>The Fam</b><div class="faces"><span class="av" style="background:#4fd1a5">S</span><span class="av" style="background:#a58bff">D</span><span class="av" style="background:#ffb02e">M</span></div></div>
+        <div class="pick r-lime"><b>Sunday crew</b><div class="faces"><span class="av" style="background:#a58bff">D</span><span class="av" style="background:#ff7aa2">J</span></div></div>
+        <div class="pick r-rose off"><b>Maya</b><span>Needs 3 people</span></div>
+        <div class="pick r-sky off"><b>Jo</b><span>Needs 3 people</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="note">
+    <span class="num">3 · Start a game</span>
+    <h2>Pick the game, then who</h2>
+    <ul>
+      <li>Tap a tile and it tells you what the game is in a line, then asks who to play with. Chats that are too small for it are greyed with the reason.</li>
+      <li>Picking a chat drops you into that chat with the game's own set-up open, exactly as it works today.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="shot">
+  <div class="ph r-ember">
+    <div class="sb"></div>
+    <div class="band"><svg><use href="#back"/></svg><h3>The Fam</h3><div class="faces"><span class="av" style="background:#4fd1a5">S</span><span class="av" style="background:#a58bff">D</span><span class="av" style="background:#ffb02e">M</span></div><svg><use href="#info"/></svg></div>
+    <div class="thread">
+      <div class="day">Yesterday</div>
+      <div class="rowl"><div class="tile"><span class="av sm" style="background:#4fd1a5">S</span><span class="du">0:42</span></div><div class="tile"><span class="av sm" style="background:#4fd1a5">S</span><span class="du">1:10</span></div></div>
+      <div class="who">Dee</div>
+      <div class="rowl"><span class="av" style="background:#a58bff">D</span><div class="bub" style="background:#a58bff">Call you after class. Bringing the good snacks Sunday.</div></div>
+      <div class="rowr"><div class="tile me"><span class="du">0:31</span><span class="seen"><span class="av sm" style="background:#4fd1a5">S</span><span class="av sm" style="background:#a58bff;margin-left:-5px">D</span></span></div></div>
+      <div class="day">Today</div>
+      <div class="rowr"><div class="bub" style="background:var(--sky)">Who's in for Sunday?</div></div>
+      <div class="newbar"><span><svg><use href="#play"/></svg>Watch 2 new</span></div>
+      <div class="rowl"><div class="tile new"><span class="av sm" style="background:#ffb02e">M</span><span class="du">0:18</span></div><div class="tile new"><span class="av sm" style="background:#4fd1a5">S</span><span class="du">2:04</span></div></div>
+      <div class="grow"></div>
+      <span class="now"><span class="av sm" style="background:#4fd1a5;box-shadow:none">S</span>Sam is recording<i></i></span>
+    </div>
+    <div class="dock"><div class="chip turn"><span class="ic"><svg><use href="#board"/></svg></span><span><b>Checkers</b><em>Your move</em></span></div><div class="chip"><span class="ic"><svg><use href="#quiz"/></svg></span><span><b>Trivia</b><em>Dee is up</em></span></div></div>
+    <div class="deck"><div class="side"><span class="pk"><svg style="color:var(--chalk)"><use href="#key"/></svg></span>Note</div><div class="side"><div class="livet"><i></i></div>Holler</div><div class="side"><span class="pk"><svg style="color:var(--chalk)"><use href="#cards"/></svg></span>Play</div></div>
+  </div>
+  <div class="note">
+    <span class="num">4 · Inside a chat</span>
+    <h2>The chat is something you can read</h2>
+    <ul>
+      <li>The whole back-and-forth runs down the screen, newest at the bottom. <b>Theirs on the left, yours on the right</b>, the same tail corners the app already uses.</li>
+      <li><b>Notes are readable where they sit.</b> No more opening a tiny tile to read one line.</li>
+      <li>What is new sits under a line with one Watch button. Days are marked. Your own hollers show who has seen them.</li>
+      <li>Games in this chat stay on their row just above the buttons, yours first.</li>
+      <li><b>Your camera is the tile in the middle</b>: you, live, shaped like a holler that hasn't been sent yet. Tap it and it opens up to the full camera.</li>
+    </ul>
+    <p class="was">Today: the camera fills the screen and the chat is a sideways strip of thumbnails at the bottom, so older things are a long swipe away and notes can't be read without opening them.</p>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="shot">
+  <div class="ph r-ember">
+    <div class="sb"></div>
+    <div class="band"><svg><use href="#down"/></svg><h3>The Fam</h3><div class="faces"><span class="av" style="background:#4fd1a5">S</span><span class="av" style="background:#a58bff">D</span><span class="av" style="background:#ffb02e">M</span></div><svg><use href="#info"/></svg></div>
+    <div class="pic"><div class="rail"><div><svg><use href="#flip"/></svg>Flip</div><div><svg><use href="#wand"/></svg>Looks</div><div><svg><use href="#mic"/></svg>Voice</div><div><svg><use href="#pen"/></svg>Draw</div><div><svg><use href="#txt"/></svg>Text</div><div><svg><use href="#more"/></svg>More</div></div></div>
+    <div class="deck"><span></span><div class="recb"><i></i></div><span></span><div class="hint">Tap to record. Hold to record and let go to send.</div></div>
+  </div>
+  <div class="note">
+    <span class="num">5 · Camera open</span>
+    <h2>The camera, when you want it</h2>
+    <ul>
+      <li>Tapping your tile opens the same camera you have now: Flip, Looks, Voice, Draw, Text, More, and the record button under your thumb where the tile was.</li>
+      <li>Once it sends, the camera folds back into the chat and your holler lands at the bottom of the thread.</li>
+      <li>A game turn that needs the camera opens it for you, as it does now.</li>
+      <li><b>Holding the tile</b> in the chat records straight away and sends when you let go.</li>
+    </ul>
+    <p class="was">The cost: recording a plain holler is one tap more than today (tile, then record). If that bothers you, the tile can start recording the moment you tap it instead. That is a one-line change.</p>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="shot">
+  <div class="ph r-ember" style="min-height:700px">
+    <div class="sb"></div>
+    <div class="band"><svg><use href="#back"/></svg><h3>The Fam</h3></div>
+    <div class="thread"></div>
+    <div class="dim"></div>
+    <div class="sheet">
+      <div class="sh-head"><h3>Play</h3><span class="pk"><svg style="color:var(--chalk)"><use href="#x"/></svg></span></div>
+      <div class="grid" style="padding-top:3px">
+        <div class="gt wide"><span class="ic"><svg><use href="#cards"/></svg></span><div><b>Give me a card</b><span>Something to talk about, on screen while you record.</span></div></div>
+        <div class="gt"><span class="ic"><svg><use href="#chain"/></svg></span><b>Pass It On</b><span>3 to 5</span></div>
+        <div class="gt"><span class="ic"><svg><use href="#face"/></svg></span><b>Poker Face</b><span>3 to 5</span></div>
+        <div class="gt"><span class="ic"><svg><use href="#eye"/></svg></span><b>Charades</b><span>2 to 5</span></div>
+        <div class="gt"><span class="ic"><svg><use href="#timer"/></svg></span><b>On The Spot</b><span>2 to 5</span></div>
+        <div class="gt"><span class="ic"><svg><use href="#laugh"/></svg></span><b>Don't Laugh</b><span>2 to 5</span></div>
+        <div class="gt"><span class="ic"><svg><use href="#cam"/></svg></span><b>Zoom In</b><span>2 to 6</span></div>
+        <div class="gt"><span class="ic"><svg><use href="#abc"/></svg></span><b>Seven Letters</b><span>2 to 5</span></div>
+        <div class="gt"><span class="ic"><svg><use href="#quiz"/></svg></span><b>Trivia</b><span>2 to 5</span></div>
+        <div class="gt"><span class="ic"><svg><use href="#quote"/></svg></span><b>Who Said It</b><span>3 to 6</span></div>
+        <div class="gt"><span class="ic"><svg><use href="#cards"/></svg></span><b>Last Card</b><span>2 to 6</span></div>
+        <div class="gt"><span class="ic"><svg><use href="#board"/></svg></span><b>Checkers</b><span>2</span></div>
+        <div class="gt"><span class="ic"><svg><use href="#grid"/></svg></span><b>Tic-Tac-Toe</b><span>2</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="note">
+    <span class="num">6 · Play, from inside a chat</span>
+    <h2>The same tiles, no scrolling</h2>
+    <ul>
+      <li>The Play button in a chat opens the same twelve tiles plus Give me a card. Everything fits on one screen.</li>
+      <li>The long description moves to each game's set-up sheet, where you read it once you have picked.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="shot">
+  <div class="ph r-violet" style="min-height:560px">
+    <div class="sb"></div>
+    <div class="band"><svg><use href="#back"/></svg><h3>Sunday crew</h3><svg><use href="#info"/></svg></div>
+    <div class="thread">
+      <div class="rowl"><div class="tile"><span class="av sm" style="background:#ff7aa2">J</span><span class="du">0:50</span></div></div>
+      <div class="rowr"><div class="bub" style="background:var(--sea)">Ha. I'm in. Deal me into Last Card.</div></div>
+    </div>
+    <div class="deck"><span></span><div class="side"><span class="bigav"><svg><use href="#key"/></svg></span>Note</div><div class="side"><span class="pk"><svg style="color:var(--chalk)"><use href="#cards"/></svg></span>Play</div></div>
+  </div>
+  <div class="note">
+    <span class="num">7 · A phone with no camera</span>
+    <h2>Nobody gets a wall</h2>
+    <ul>
+      <li>On a phone set to notes and games, the chat looks the same, the middle button writes a note, and Play is right there.</li>
+      <li>Voice-only phones get their own face in the tile with a mic.</li>
+    </ul>
+    <p class="was">Today: that phone opens every chat to a full screen saying the camera is off.</p>
+  </div>
+</section>
+
+<!-- 8 -->
+<section class="shot">
+  <div class="ph" style="min-height:560px">
+    <div class="sb"></div>
+    <div class="youhead"><span class="av lg" style="background:var(--on);color:var(--chalk)">D</span><h3>Dixon</h3></div>
+    <div class="col" style="margin-top:3px">
+      <div class="row"><b>Saved hollers</b><span>14</span></div>
+      <div class="row"><b>Your profile</b><span>About, into, song</span></div>
+      <div class="row"><b>On this phone</b><span>Camera and voice</span></div>
+      <div class="row"><b>Pings and sounds</b><span>On</span></div>
+      <div class="row"><b>Another phone or computer</b><span>Link it</span></div>
+    </div>
+    <div class="grow"></div>
+    <div class="tabs"><div>Chats <em>2</em></div><div>Play <em>3</em></div><div class="on">You</div></div>
+  </div>
+  <div class="note">
+    <span class="num">8 · You</span>
+    <h2>Everything about you in one place</h2>
+    <ul>
+      <li>Same settings page as now. Saved moves in here, at the top, instead of living as a lone icon on the chat list.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <h2>Not in this round</h2>
+  <p><b>Holler at one person.</b> Tap someone's face in a group to start a chat with just them, with no code to pass around. It needs a small server change, so it waits for your yes.</p>
+  <p><b>Finished games in the thread.</b> "Sam won Checkers" landing in the chat where it happened, with Rematch on it.</p>
+  <p><b>Catch up.</b> One button on Chats that plays everything new, chat after chat.</p>
+</footer>
+</div>
